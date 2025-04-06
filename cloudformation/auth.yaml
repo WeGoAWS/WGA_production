@@ -1,0 +1,328 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'WGA Auth Service CloudFormation Template'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: The deployment environment
+  
+  CognitoUserPoolId:
+    Type: String
+    Description: Cognito User Pool ID
+  
+  CognitoClientId:
+    Type: String
+    Description: Cognito App Client ID
+  
+  CognitoDomain:
+    Type: String
+    Description: Cognito Domain Name
+  
+  CognitoIdentityPoolId:
+    Type: String
+    Description: Cognito Identity Pool ID
+  
+  DeveloperMode:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Enable developer mode (disables zero trust evaluation)
+
+  ApiGatewayId:
+    Type: String
+  ApiGatewayRootResourceId:
+    Type: String
+
+Resources:
+  # DynamoDB Tables
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Sessions-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: session_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: session_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiration
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Users-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sub
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sub
+          KeyType: HASH
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for Auth Lambda
+  AuthLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'wga-auth-lambda-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: !Sub 'wga-auth-lambda-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # DynamoDB 권한
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:UpdateItem'
+                  - 'dynamodb:DeleteItem'
+                  - 'dynamodb:Query'
+                  - 'dynamodb:Scan'
+                Resource:
+                  - !GetAtt SessionsTable.Arn
+                  - !GetAtt UsersTable.Arn
+              # Cognito 권한
+              - Effect: Allow
+                Action:
+                  - 'cognito-idp:InitiateAuth'
+                  - 'cognito-idp:RespondToAuthChallenge'
+                  - 'cognito-idp:GetUser'
+                  - 'cognito-identity:GetId'
+                  - 'cognito-identity:GetCredentialsForIdentity'
+                Resource: '*'
+              # Zero Trust Lambda 호출 권한
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:wga-zero-trust-enforcer-${Environment}'
+              # SSM 파라미터 읽기 권한
+              - Effect: Allow
+                Action:
+                  - 'ssm:GetParameter'
+                  - 'ssm:GetParameters'
+                  - 'ssm:GetParametersByPath'
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wga/${Environment}/*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Auth Lambda Function
+  AuthLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'wga-auth-${Environment}'
+      Runtime: python3.12
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'auth/auth-lambda-${Environment}.zip'
+      Role: !GetAtt AuthLambdaRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ENV: !Ref Environment
+          SESSIONS_TABLE: !Ref SessionsTable
+          USERS_TABLE: !Ref UsersTable
+          USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          COGNITO_DOMAIN: !Ref CognitoDomain
+          COGNITO_IDENTITY_POOL_ID: !Ref CognitoIdentityPoolId
+          DEVELOPER_MODE: !Ref DeveloperMode
+      Layers:
+        - !Ref CommonLayer
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Common Layer (Lambda Layer for common code)
+  CommonLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'wga-common-layer-${Environment}'
+      Description: Common code shared across WGA Lambda functions
+      Content:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'layers/common-layer-${Environment}.zip'
+      CompatibleRuntimes:
+        - python3.12
+      LicenseInfo: MIT
+
+  # API Gateway Resources
+  AuthApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ApiGatewayRootResourceId
+      PathPart: 'auth'
+
+  # Auth API Endpoints
+  AuthRootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref AuthApiResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '401'
+        - StatusCode: '500'
+
+  AuthLogoutResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref AuthApiResource
+      PathPart: 'logout'
+
+  AuthLogoutMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref AuthLogoutResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '302'
+        - StatusCode: '500'
+
+  AuthLogoutPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref AuthLogoutResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '401'
+        - StatusCode: '500'
+
+  AuthVerifyTokenResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref AuthApiResource
+      PathPart: 'verify-token'
+
+  AuthVerifyTokenMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref AuthVerifyTokenResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '400'
+        - StatusCode: '401'
+        - StatusCode: '500'
+
+  AuthSessionResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref AuthApiResource
+      PathPart: 'session'
+
+  AuthSessionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref AuthSessionResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '401'
+        - StatusCode: '500'
+
+  # Lambda Permission for API Gateway
+  AuthLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref AuthLambdaFunction
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*'
+  
+  AuthApiOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref AuthApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CorsLambdaArn}/invocations'
+          - CorsLambdaArn: !ImportValue 
+              Fn::Sub: "wga-base-${Environment}-CorsLambdaArn"
+
+Outputs:
+  AuthLambdaArn:
+    Description: ARN of the Auth Lambda function
+    Value: !GetAtt AuthLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthLambdaArn'
+  
+  SessionsTableArn:
+    Description: ARN of the Sessions DynamoDB table
+    Value: !GetAtt SessionsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-SessionsTableArn'
+  
+  UsersTableArn:
+    Description: ARN of the Users DynamoDB table
+    Value: !GetAtt UsersTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-UsersTableArn'

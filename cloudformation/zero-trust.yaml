@@ -1,0 +1,343 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'WGA Zero Trust Service CloudFormation Template'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: The deployment environment
+  
+  CognitoUserPoolId:
+    Type: String
+    Description: Cognito User Pool ID
+  
+  CognitoClientId:
+    Type: String
+    Description: Cognito App Client ID
+  
+  CognitoDomain:
+    Type: String
+    Description: Cognito Domain Name
+  
+  CognitoIdentityPoolId:
+    Type: String
+    Description: Cognito Identity Pool ID
+  
+  SecurityAlertsTopicArn:
+    Type: String
+    Description: SNS Topic ARN for security alerts
+
+  ApiGatewayId:
+    Type: String
+  ApiGatewayRootResourceId:
+    Type: String
+
+Resources:
+  # DynamoDB Tables
+  RoleTemplatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'RoleTemplates-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  RoleHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'RoleHistory-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  AccessDecisionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'AccessDecisions-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: request_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: request_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiration
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for Zero Trust Lambda
+  ZeroTrustLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'wga-zero-trust-lambda-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: !Sub 'wga-zero-trust-lambda-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # DynamoDB 권한
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:UpdateItem'
+                  - 'dynamodb:DeleteItem'
+                  - 'dynamodb:Query'
+                  - 'dynamodb:Scan'
+                Resource:
+                  - !GetAtt RoleTemplatesTable.Arn
+                  - !GetAtt RoleHistoryTable.Arn
+                  - !GetAtt AccessDecisionsTable.Arn
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/UserBehaviorProfiles-${Environment}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/AnomalyEvents-${Environment}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/AnomalyEvents-${Environment}/index/*'
+              # SNS 권한
+              - Effect: Allow
+                Action:
+                  - 'sns:Publish'
+                Resource: !Ref SecurityAlertsTopicArn
+              # 세션 관련 DynamoDB 테이블 권한
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:GetItem'
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Sessions-${Environment}'
+              # 사용자 관련 DynamoDB 테이블 권한
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:GetItem'
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Users-${Environment}'
+              # SSM 파라미터 읽기 권한
+              - Effect: Allow
+                Action:
+                  - 'ssm:GetParameter'
+                  - 'ssm:GetParameters'
+                  - 'ssm:GetParametersByPath'
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wga/${Environment}/*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Zero Trust Lambda Function
+  ZeroTrustLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'wga-zero-trust-enforcer-${Environment}'
+      Runtime: python3.12
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'zero_trust/zero-trust-lambda-${Environment}.zip'
+      Role: !GetAtt ZeroTrustLambdaRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ENV: !Ref Environment
+          ROLE_TEMPLATES_TABLE: !Ref RoleTemplatesTable
+          ROLE_HISTORY_TABLE: !Ref RoleHistoryTable
+          ACCESS_DECISIONS_TABLE: !Ref AccessDecisionsTable
+          USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          COGNITO_DOMAIN: !Ref CognitoDomain
+          COGNITO_IDENTITY_POOL_ID: !Ref CognitoIdentityPoolId
+          SNS_ALERT_TOPIC: !Ref SecurityAlertsTopicArn
+          SESSION_DURATION: '3600'
+          MFA_REQUIRED_THRESHOLD: '50'
+          DENY_THRESHOLD: '70'
+          CONTINUOUS_AUTH_INTERVAL: '900'
+      Layers:
+        - !Ref CommonLayer
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Common Layer (Lambda Layer for common code)
+  CommonLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'wga-common-layer-${Environment}'
+      Description: Common code shared across WGA Lambda functions
+      Content:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'layers/common-layer-${Environment}.zip'
+      CompatibleRuntimes:
+        - python3.12
+      LicenseInfo: MIT
+
+  # API Gateway Resources
+  ZeroTrustApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ApiGatewayRootResourceId
+      PathPart: 'zero-trust'
+
+  # Zero Trust API Endpoints
+  EvaluateAccessResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ZeroTrustApiResource
+      PathPart: 'evaluate-access'
+
+  EvaluateAccessMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref EvaluateAccessResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ZeroTrustLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '400'
+        - StatusCode: '401'
+        - StatusCode: '403'
+        - StatusCode: '500'
+
+  GetTemplatesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ZeroTrustApiResource
+      PathPart: 'get-templates'
+
+  GetTemplatesMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref GetTemplatesResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ZeroTrustLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '400'
+        - StatusCode: '401'
+        - StatusCode: '500'
+
+  # Lambda Permission for API Gateway
+  ZeroTrustLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref ZeroTrustLambdaFunction
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*'
+
+  ZeroTrustApiOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ZeroTrustApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CorsLambdaArn}/invocations'
+          - CorsLambdaArn: !ImportValue 
+              Fn::Sub: "wga-base-${Environment}-CorsLambdaArn"
+
+  # SSM Parameters for Zero Trust Configuration
+  SessionDurationParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/zero_trust/session_duration'
+      Type: String
+      Value: '3600'
+      Description: 'Default session duration in seconds'
+      Tags:
+        Environment: !Ref Environment
+
+  MfaRequiredThresholdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/zero_trust/mfa_required_threshold'
+      Type: String
+      Value: '50'
+      Description: 'Risk score threshold to require MFA'
+      Tags:
+        Environment: !Ref Environment
+
+  DenyThresholdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/zero_trust/deny_threshold'
+      Type: String
+      Value: '70'
+      Description: 'Risk score threshold to deny access'
+      Tags:
+        Environment: !Ref Environment
+
+  ContinuousAuthIntervalParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/zero_trust/continuous_auth_interval'
+      Type: String
+      Value: '900'
+      Description: 'Interval for continuous authentication checks in seconds'
+      Tags:
+        Environment: !Ref Environment
+
+Outputs:
+  ZeroTrustLambdaArn:
+    Description: ARN of the Zero Trust Lambda function
+    Value: !GetAtt ZeroTrustLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ZeroTrustLambdaArn'
+  
+  RoleTemplatesTableArn:
+    Description: ARN of the Role Templates DynamoDB table
+    Value: !GetAtt RoleTemplatesTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleTemplatesTableArn'
+  
+  RoleHistoryTableArn:
+    Description: ARN of the Role History DynamoDB table
+    Value: !GetAtt RoleHistoryTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleHistoryTableArn'
+  
+  AccessDecisionsTableArn:
+    Description: ARN of the Access Decisions DynamoDB table
+    Value: !GetAtt AccessDecisionsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AccessDecisionsTableArn'

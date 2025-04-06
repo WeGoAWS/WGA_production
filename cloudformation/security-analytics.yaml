@@ -1,0 +1,391 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'WGA Security Analytics Service CloudFormation Template'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: The deployment environment
+  
+  CognitoUserPoolId:
+    Type: String
+    Description: Cognito User Pool ID
+  
+  CognitoClientId:
+    Type: String
+    Description: Cognito App Client ID
+  
+  CognitoDomain:
+    Type: String
+    Description: Cognito Domain Name
+  
+  CognitoIdentityPoolId:
+    Type: String
+    Description: Cognito Identity Pool ID
+  
+  OutputBucketName:
+    Type: String
+    Description: S3 bucket for output files
+  
+  SecurityAlertsTopicArn:
+    Type: String
+    Description: SNS Topic ARN for security alerts
+
+  ApiGatewayId:
+    Type: String
+  ApiGatewayRootResourceId:
+    Type: String
+
+Resources:
+  # DynamoDB Tables
+  AnalysisResultsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'AnalysisResults-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: user_arn
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserArnIndex
+          KeySchema:
+            - AttributeName: user_arn
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  UserBehaviorProfilesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'UserBehaviorProfiles-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_arn
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_arn
+          KeyType: HASH
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  AnomalyEventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'AnomalyEvents-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: user_arn
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserArnIndex
+          KeySchema:
+            - AttributeName: user_arn
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for Security Analytics Lambda
+  SecurityAnalyticsLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'wga-security-analytics-lambda-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: !Sub 'wga-security-analytics-lambda-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # DynamoDB 권한
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:UpdateItem'
+                  - 'dynamodb:DeleteItem'
+                  - 'dynamodb:Query'
+                  - 'dynamodb:Scan'
+                Resource:
+                  - !GetAtt AnalysisResultsTable.Arn
+                  - !GetAtt UserBehaviorProfilesTable.Arn
+                  - !GetAtt AnomalyEventsTable.Arn
+                  - !Sub '${AnalysisResultsTable.Arn}/index/*'
+                  - !Sub '${AnomalyEventsTable.Arn}/index/*'
+              # Cognito 권한
+              - Effect: Allow
+                Action:
+                  - 'cognito-idp:GetUser'
+                  - 'cognito-identity:GetId'
+                  - 'cognito-identity:GetCredentialsForIdentity'
+                Resource: '*'
+              # CloudTrail 권한
+              - Effect: Allow
+                Action:
+                  - 'cloudtrail:LookupEvents'
+                  - 'cloudtrail:DescribeTrails'
+                  - 'cloudtrail:GetTrailStatus'
+                Resource: '*'
+              # IAM 권한 분석을 위한 권한
+              - Effect: Allow
+                Action:
+                  - 'iam:ListUserPolicies'
+                  - 'iam:GetUserPolicy'
+                  - 'iam:ListAttachedUserPolicies'
+                  - 'iam:GetPolicy'
+                  - 'iam:GetPolicyVersion'
+                Resource: '*'
+              # S3 권한
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${OutputBucketName}'
+                  - !Sub 'arn:aws:s3:::${OutputBucketName}/*'
+              # SNS 권한
+              - Effect: Allow
+                Action:
+                  - 'sns:Publish'
+                Resource: !Ref SecurityAlertsTopicArn
+              # STS 권한
+              - Effect: Allow
+                Action:
+                  - 'sts:GetCallerIdentity'
+                Resource: '*'
+              # SSM 파라미터 읽기 권한
+              - Effect: Allow
+                Action:
+                  - 'ssm:GetParameter'
+                  - 'ssm:GetParameters'
+                  - 'ssm:GetParametersByPath'
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wga/${Environment}/*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Security Analytics Lambda Function
+  SecurityAnalyticsLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'wga-security-analytics-${Environment}'
+      Runtime: python3.12
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'security_analytics/security-analytics-lambda-${Environment}.zip'
+      Role: !GetAtt SecurityAnalyticsLambdaRole.Arn
+      Timeout: 300  # 5분
+      MemorySize: 512
+      Environment:
+        Variables:
+          ENV: !Ref Environment
+          ANALYSIS_RESULTS_TABLE: !Ref AnalysisResultsTable
+          USER_BEHAVIOR_PROFILES_TABLE: !Ref UserBehaviorProfilesTable
+          ANOMALY_EVENTS_TABLE: !Ref AnomalyEventsTable
+          OUTPUT_BUCKET: !Ref OutputBucketName
+          USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          COGNITO_DOMAIN: !Ref CognitoDomain
+          COGNITO_IDENTITY_POOL_ID: !Ref CognitoIdentityPoolId
+          SNS_ALERT_TOPIC: !Ref SecurityAlertsTopicArn
+      Layers:
+        - !Ref CommonLayer
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Common Layer (Lambda Layer for common code)
+  CommonLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'wga-common-layer-${Environment}'
+      Description: Common code shared across WGA Lambda functions
+      Content:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'layers/common-layer-${Environment}.zip'
+      CompatibleRuntimes:
+        - python3.12
+      LicenseInfo: MIT
+
+  # API Gateway Resources
+  SecurityAnalyticsApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ApiGatewayRootResourceId
+      PathPart: 'security-analytics'
+
+  # API Gateway Endpoints
+  AnalyzeUserResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref SecurityAnalyticsApiResource
+      PathPart: 'analyze-user'
+
+  AnalyzeUserMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref AnalyzeUserResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SecurityAnalyticsLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '400'
+        - StatusCode: '401'
+        - StatusCode: '500'
+
+  DetectAnomaliesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref SecurityAnalyticsApiResource
+      PathPart: 'detect-anomalies'
+
+  DetectAnomaliesMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref DetectAnomaliesResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SecurityAnalyticsLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '400'
+        - StatusCode: '401'
+        - StatusCode: '500'
+
+  GetRiskScoreResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref SecurityAnalyticsApiResource
+      PathPart: 'get-risk-score'
+
+  GetRiskScoreMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref GetRiskScoreResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SecurityAnalyticsLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '400'
+        - StatusCode: '401'
+        - StatusCode: '500'
+
+  GetAnomalyEventsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref SecurityAnalyticsApiResource
+      PathPart: 'get-anomaly-events'
+
+  GetAnomalyEventsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref GetAnomalyEventsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SecurityAnalyticsLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+        - StatusCode: '400'
+        - StatusCode: '401'
+        - StatusCode: '500'
+
+  # Lambda Permission for API Gateway
+  SecurityAnalyticsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref SecurityAnalyticsLambdaFunction
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*'
+  
+  SecurityAnalyticsApiOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref SecurityAnalyticsApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CorsLambdaArn}/invocations'
+          - CorsLambdaArn: !ImportValue 
+              Fn::Sub: "wga-base-${Environment}-CorsLambdaArn"
+
+Outputs:
+  SecurityAnalyticsLambdaArn:
+    Description: ARN of the Security Analytics Lambda function
+    Value: !GetAtt SecurityAnalyticsLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityAnalyticsLambdaArn'
+  
+  AnalysisResultsTableArn:
+    Description: ARN of the Analysis Results DynamoDB table
+    Value: !GetAtt AnalysisResultsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AnalysisResultsTableArn'
+  
+  UserBehaviorProfilesTableArn:
+    Description: ARN of the User Behavior Profiles DynamoDB table
+    Value: !GetAtt UserBehaviorProfilesTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-UserBehaviorProfilesTableArn'
+  
+  AnomalyEventsTableArn:
+    Description: ARN of the Anomaly Events DynamoDB table
+    Value: !GetAtt AnomalyEventsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AnomalyEventsTableArn'

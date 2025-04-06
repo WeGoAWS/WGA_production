@@ -1,0 +1,440 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'WGA - Base Infrastructure CloudFormation Template'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: The deployment environment
+  
+  BucketExists:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+  
+  OutputBucketExists:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+
+Conditions:
+  ShouldCreateBucket: !Equals [!Ref BucketExists, "false"]
+  ShouldCreateOutputBucket: !Equals [!Ref OutputBucketExists, "false"]
+  IsProd: !Equals [!Ref Environment, "prod"]
+  IsTest: !Equals [!Ref Environment, "test"]
+  IsDev: !Equals [!Ref Environment, "dev"]
+
+Resources:
+  # S3 Buckets
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldCreateBucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub 'wga-deployment-${Environment}'
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  OutputBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldCreateOutputBucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub 'wga-outputbucket-${Environment}'
+      VersioningConfiguration:
+        !If 
+          - ShouldCreateOutputBucket
+          - Status: Enabled
+          - !Ref "AWS::NoValue"
+      BucketEncryption: 
+        !If 
+          - ShouldCreateOutputBucket
+          - ServerSideEncryptionConfiguration:
+              - ServerSideEncryptionByDefault:
+                  SSEAlgorithm: AES256
+          - !Ref "AWS::NoValue"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # SNS Topic for Alerts
+  SecurityAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'wga-security-alerts-${Environment}'
+      DisplayName: 'WGA Security Alerts'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'wga-user-pool-${Environment}'
+      AutoVerifiedAttributes:
+        - email
+        - phone_number  # phone_number 자동 검증 추가
+      MfaConfiguration: OPTIONAL
+      UsernameAttributes:
+        - email
+      SmsConfiguration:  # SMS 설정 추가
+        ExternalId: !Sub 'wga-sms-external-${Environment}'
+        SnsCallerArn: !GetAtt SNSRole.Arn
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: phone_number  # phone_number 스키마 추가
+          AttributeDataType: String
+          Mutable: true
+          Required: false  # 필요에 따라 true로 변경 가능
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      UserPoolTags:
+        Environment: !Ref Environment
+        
+  # User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub 'wga-app-client-${Environment}'
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/auth/callback'
+        - 'http://localhost:5173'
+        - 'http://localhost:5173/redirect'
+      LogoutURLs:
+        - !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/auth'
+        - 'http://localhost:5173'
+        - 'http://localhost:5173/redirect'
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      PreventUserExistenceErrors: ENABLED
+
+  # User Pool Domain
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub 'wga-auth-${Environment}-${AWS::AccountId}'
+      UserPoolId: !Ref UserPool
+
+  # Identity Pool
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: !Sub 'wga_identity_pool_${Environment}'
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserPoolClient
+          ProviderName: !GetAtt UserPool.ProviderName
+      
+  # Identity Pool Role Attachment
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt AuthenticatedUserRole.Arn
+        unauthenticated: !GetAtt UnauthenticatedUserRole.Arn
+
+  # IAM Role for Authenticated Users
+  SNSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'wga-sns-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cognito-idp.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub 'wga-sns-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sns:publish'
+                Resource: '*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+  AuthenticatedUserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'wga-authenticated-user-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: 'sts:AssumeRoleWithWebIdentity'
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': authenticated
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess'
+      Policies:
+        - PolicyName: !Sub 'wga-authenticated-user-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                  - 's3:ListBucket'
+                Resource:
+                  !If
+                    - ShouldCreateOutputBucket
+                    - 
+                      - !GetAtt OutputBucket.Arn
+                      - !Sub '${OutputBucket.Arn}/*'
+                    - 
+                      - !Sub 'arn:aws:s3:::wga-outputbucket-${Environment}'
+                      - !Sub 'arn:aws:s3:::wga-outputbucket-${Environment}/*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for Unauthenticated Users
+  UnauthenticatedUserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'wga-unauthenticated-user-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: 'sts:AssumeRoleWithWebIdentity'
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': unauthenticated
+      Policies:
+        - PolicyName: !Sub 'wga-unauthenticated-user-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                Resource:
+                  - !If 
+                      - ShouldCreateOutputBucket
+                      - !Sub '${OutputBucket.Arn}/public/*'
+                      - !Sub 'arn:aws:s3:::wga-outputbucket-${Environment}/public/*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # API Gateway
+  ApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub 'wga-api-${Environment}'
+      Description: 'WGA API Gateway'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+  
+  # API Gateway에 대한 CORS 설정
+  ApiGatewayCorsSettings:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'http://localhost:5173'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
+      ResponseType: DEFAULT_4XX
+      RestApiId: !Ref ApiGateway
+  
+  # 5XX 오류에 대한 CORS 설정도 추가
+  ApiGatewayCorsSettings5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'http://localhost:5173'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
+      ResponseType: DEFAULT_5XX
+      RestApiId: !Ref ApiGateway
+  
+  # OPTIONS 메서드를 처리하기 위한 공통 Lambda 함수
+  CorsLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'wga-cors-lambda-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+  
+  CorsLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'wga-cors-${Environment}'
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt CorsLambdaRole.Arn
+      Environment:
+        Variables:
+          ENV: !Ref Environment
+          ALLOWED_ORIGINS: !If [IsProd, "'https://app.example.com'", !If [IsTest, "'https://test-app.example.com'", "'http://localhost:5173'"]]
+      Code:
+        ZipFile: |
+          import os
+          import json
+          
+          def handler(event, context):
+              env = os.environ.get('ENV', 'dev')
+              allowed_origins = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:5173')
+              
+              return {
+                  'statusCode': 200,
+                  'headers': {
+                      'Access-Control-Allow-Origin': allowed_origins,
+                      'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                      'Access-Control-Allow-Credentials': 'true'
+                  },
+                  'body': '{}'
+              }
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  DeploymentBucketName:
+    Description: Name of the S3 bucket for deployment packages
+    Value: !If [ShouldCreateBucket, !Ref DeploymentBucket, !Sub 'wga-deployment-${Environment}']
+    Export:
+      Name: !Sub '${AWS::StackName}-DeploymentBucketName'
+  
+  OutputBucketName:
+    Description: Name of the S3 bucket for output files
+    Value: !If [ShouldCreateOutputBucket, !Ref OutputBucket, !Sub 'wga-outputbucket-${Environment}']
+    Export:
+      Name: !Sub '${AWS::StackName}-OutputBucketName'
+  
+  SecurityAlertsTopicArn:
+    Description: ARN of the security alerts SNS topic
+    Value: !Ref SecurityAlertsTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityAlertsTopicArn'
+  
+  UserPoolId:
+    Description: ID of the Cognito User Pool
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+  
+  UserPoolClientId:
+    Description: ID of the Cognito User Pool Client
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+  
+  UserPoolDomain:
+    Description: Domain of the Cognito User Pool
+    Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolDomain'
+  
+  IdentityPoolId:
+    Description: ID of the Cognito Identity Pool
+    Value: !Ref IdentityPool
+    Export:
+      Name: !Sub '${AWS::StackName}-IdentityPoolId'
+  
+  ApiGatewayId:
+    Description: ID of the API Gateway
+    Value: !Ref ApiGateway
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayId'
+  
+  ApiGatewayRootResourceId:
+    Description: Root Resource ID of the API Gateway
+    Value: !GetAtt ApiGateway.RootResourceId
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayRootResourceId'
+  
+  CorsLambdaArn:
+    Description: ARN of the CORS Lambda function
+    Value: !GetAtt CorsLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-CorsLambdaArn'

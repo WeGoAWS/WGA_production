@@ -1,0 +1,10 @@
+boto3
+python-jose
+numpy
+requests
+urllib3
+simplejson
+botocore
+cryptography
+python-dateutil
+jsonschema

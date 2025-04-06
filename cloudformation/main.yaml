@@ -1,0 +1,216 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'WGA - Main CloudFormation Template'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: The deployment environment
+
+  DeveloperMode:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Enable developer mode (disables zero trust evaluation)
+    
+  # 새로 추가할 파라미터들
+  UserPoolId:
+    Type: String
+    Description: ID of the Cognito User Pool
+    
+  UserPoolClientId:
+    Type: String
+    Description: ID of the Cognito User Pool Client
+    
+  UserPoolDomain:
+    Type: String
+    Description: Domain of the Cognito User Pool
+  
+  IdentityPoolId:
+    Type: String
+    Description: ID of the Cognito Identity Pool
+  
+  OutputBucketName:
+    Type: String
+    Description: Name of the output S3 bucket
+    
+  SecurityAlertsTopicArn:
+    Type: String
+    Description: ARN of the security alerts SNS topic
+
+Resources:
+  # Auth Service Stack
+  AuthStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/auth.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        CognitoUserPoolId: !Ref UserPoolId
+        CognitoClientId: !Ref UserPoolClientId
+        CognitoDomain: !Ref UserPoolDomain
+        CognitoIdentityPoolId: !Ref IdentityPoolId
+        DeveloperMode: !Ref DeveloperMode
+        ApiGatewayId:
+          Fn::ImportValue:
+            Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
+        ApiGatewayRootResourceId:
+          Fn::ImportValue:
+            Fn::Sub: "wga-base-${Environment}-ApiGatewayRootResourceId"
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+  
+  ApiGatewayDeployment:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt DeploymentFunction.Arn
+      ApiId:
+        Fn::ImportValue:
+          Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
+      StageName: !Ref Environment
+
+  SecurityAnalyticsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/security-analytics.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        CognitoUserPoolId: !Ref UserPoolId
+        CognitoClientId: !Ref UserPoolClientId
+        CognitoDomain: !Ref UserPoolDomain
+        CognitoIdentityPoolId: !Ref IdentityPoolId
+        OutputBucketName:
+          Fn::ImportValue:
+            Fn::Sub: "wga-base-${Environment}-OutputBucketName"
+        SecurityAlertsTopicArn: !Ref SecurityAlertsTopicArn
+        ApiGatewayId:
+          Fn::ImportValue:
+            Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
+        ApiGatewayRootResourceId:
+          Fn::ImportValue:
+            Fn::Sub: "wga-base-${Environment}-ApiGatewayRootResourceId"
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # # # Zero Trust Stack
+  # ZeroTrustStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/zero-trust.yaml'
+  #     Parameters:
+  #       Environment: !Ref Environment
+  #       CognitoUserPoolId: !Ref UserPoolId
+  #       CognitoClientId: !Ref UserPoolClientId
+  #       CognitoDomain: !Ref UserPoolDomain
+  #       CognitoIdentityPoolId: !Ref IdentityPoolId
+  #       SecurityAlertsTopicArn: !Ref SecurityAlertsTopicArn
+  #       ApiGatewayId: !ImportValue
+  #         Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
+  #       ApiGatewayRootResourceId: !ImportValue
+  #         Fn::Sub: "wga-base-${Environment}-ApiGatewayRootResourceId"
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Ref Environment
+
+
+  
+      
+  # 배포를 위한 Lambda 함수
+  DeploymentFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt DeploymentFunctionRole.Arn
+      Runtime: python3.12
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          import logging
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          def handler(event, context):
+              logger.info('Received event: %s', event)
+              
+              api_id = event['ResourceProperties']['ApiId']
+              stage_name = event['ResourceProperties']['StageName']
+              
+              client = boto3.client('apigateway')
+              
+              try:
+                  if event['RequestType'] == 'Create' or event['RequestType'] == 'Update':
+                      # 배포 생성
+                      deployment = client.create_deployment(
+                          restApiId=api_id,
+                          stageName=stage_name,
+                          description='Automated deployment from CloudFormation'
+                      )
+                      logger.info('Created deployment: %s', deployment)
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                          'DeploymentId': deployment['id'],
+                          'ApiEndpoint': f"https://{api_id}.execute-api.{boto3.session.Session().region_name}.amazonaws.com/{stage_name}"
+                      })
+                  elif event['RequestType'] == 'Delete':
+                      # 삭제 요청 처리
+                      logger.info('Delete request - no action needed for API deployment')
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+              except Exception as e:
+                  logger.error('Error: %s', e)
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {'Error': str(e)})
+      Timeout: 30
+      
+  # Lambda 실행 역할
+  DeploymentFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: ApiGatewayAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'apigateway:POST'
+                  - 'apigateway:GET'
+                Resource: '*'
+
+Outputs:
+  CognitoDomain:
+    Description: Cognito User Pool Domain
+    Value: !Ref UserPoolDomain
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPoolId
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClientId
+  
+  ApiEndpoint:
+    Description: "API Gateway endpoint URL"
+    Value:
+      Fn::Sub:
+        - "https://${ApiGatewayId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+        - ApiGatewayId:
+            Fn::ImportValue:
+              Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
