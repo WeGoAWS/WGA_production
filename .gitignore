@@ -1,0 +1,110 @@
+# AWS 관련 설정 파일
+.aws/
+aws.json
+aws-credentials.json
+
+# 환경 설정 파일
+.env
+.env.*
+*.env
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# 파라미터 파일 (민감한 정보 포함)
+parameters-*.json
+!parameters-example.json  # 예제는 포함
+
+# 개발 도구 관련 파일
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python 관련 파일
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+.pytest_cache/
+coverage.xml
+*.cover
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+python
+
+# 배포 관련 임시 파일
+node_modules/
+*.zip
+.serverless/
+cdk.out/
+.chalice/
+tmp/
+temp/
+
+# 로그 파일
+*.log
+logs/
+
+# S3 동기화 임시 파일
+.s3sync/
+
+# CloudFormation 생성 파일
+*.template-deployed
+
+# 로컬 데이터베이스
+*.db
+*.sqlite
+*.sqlite3
+
+# 백업 파일
+*.bak
+backups/
+
+# Lambda 배포 패키지
+lambda-deployment-packages/
+lambda_deployments/
+
+# 개인 설정 및 토큰 파일
+*_token*
+*_key*
+*.pem
+*.ppk
+*.key
+*.crt
+*.cer
+*.der
+credentials.json
+client_secrets.json
+
+# MongoDB 데이터 파일
+dump/
+mongodump/

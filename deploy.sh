@@ -32,7 +32,11 @@ FRONTEND_STACK_NAME="wga-frontend-$ENV"
 # 도메인 설정 (필요한 경우 수정)
 DOMAIN_NAME=""  # 사용자 정의 도메인
 CERTIFICATE_ARN=""  # 사용자 정의 도메인에 필요한 ACM 인증서 ARN
-DEVELOPER_MODE=${4:-true}  # 개발자 모드 설정 (기본값: true)
+if [ "$ENV" = "dev" ]; then
+  DEVELOPER_MODE=true
+else
+  DEVELOPER_MODE=false
+fi
 
 #################################################
 # 1. CloudFormation 버킷 확인 및 템플릿 업로드
@@ -95,6 +99,7 @@ if [ "$SKIP_BACKEND" != "true" ]; then
             --parameters ParameterKey=Environment,ParameterValue=$ENV \
                         ParameterKey=BucketExists,ParameterValue=$BUCKET_EXISTS \
                         ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
+                        ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
             --capabilities CAPABILITY_NAMED_IAM
 
         # 스택 업데이트 완료 대기
@@ -109,6 +114,7 @@ if [ "$SKIP_BACKEND" != "true" ]; then
             --parameters ParameterKey=Environment,ParameterValue=$ENV \
                         ParameterKey=BucketExists,ParameterValue=$BUCKET_EXISTS \
                         ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
+                        ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
             --capabilities CAPABILITY_NAMED_IAM
 
         # 스택 생성 완료 대기
@@ -343,6 +349,21 @@ fi
 
 echo "프론트엔드 인프라 스택 배포 완료: $FRONTEND_STACK_NAME"
 
+# 3-1. Cognito 도메인 반영을 위한 base 스택 재배포
+echo "====== 3-1. Cognito 도메인 업데이트를 위한 base 스택 재배포 ======"
+echo "실제 CloudFront 도메인을 Cognito에 반영합니다: $CLOUDFRONT_URL"
+aws cloudformation update-stack \
+    --stack-name $BASE_STACK_NAME \
+    --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/base.yaml" \
+    --parameters \
+        ParameterKey=Environment,ParameterValue=$ENV \
+        ParameterKey=BucketExists,ParameterValue=true \
+        ParameterKey=OutputBucketExists,ParameterValue=true \
+        ParameterKey=FrontendRedirectDomain,ParameterValue=$CLOUDFRONT_URL \
+    --capabilities CAPABILITY_NAMED_IAM
+aws cloudformation wait stack-update-complete --stack-name $BASE_STACK_NAME
+echo "Cognito 리디렉션 도메인 업데이트 완료"
+
 # 프론트엔드 배포 정보 가져오기
 FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" --output text)
 CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" --output text)
@@ -359,54 +380,52 @@ echo "프론트엔드 URL: $FRONTEND_URL"
 # 4. 환경 변수 설정
 #################################################
 echo "====== 4. 환경 변수 설정 ======"
+ # 백엔드 스킵 시에도 기존 스택에서 출력값을 가져옴
+ if [ -z "$USER_POOL_ID" ]; then
+   echo "[INFO] USER_POOL_ID 값을 기존 스택에서 다시 가져옵니다."
+   USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME \
+     --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
+ fi
+ if [ -z "$USER_POOL_CLIENT_ID" ]; then
+   echo "[INFO] USER_POOL_CLIENT_ID 값을 기존 스택에서 다시 가져옵니다."
+   USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME \
+     --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" --output text)
+ fi
+ if [ -z "$USER_POOL_DOMAIN" ]; then
+   echo "[INFO] USER_POOL_DOMAIN 값을 기존 스택에서 다시 가져옵니다."
+   USER_POOL_DOMAIN=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME \
+     --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" --output text)
+ fi
+ if [ -z "$IDENTITY_POOL_ID" ]; then
+   echo "[INFO] IDENTITY_POOL_ID 값을 기존 스택에서 다시 가져옵니다."
+   IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME \
+     --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" --output text)
+ fi
+ if [ -z "$API_URL" ]; then
+   echo "[INFO] API_URL 값을 기존 메인 스택에서 다시 가져옵니다."
+   API_URL=$(aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME \
+     --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
+ fi
 
-# 도메인에서 프로토콜 제거
-USER_POOL_DOMAIN_CLEAN=${USER_POOL_DOMAIN#https://}
+ENV_FILE="frontend/.env.local"
 
-# 환경별 .env 파일 설정
-if [ "$ENV" = "prod" ]; then
-    ENV_FILE=".env.production"
-    # 개발 파일은 항상 백업
-    cp .env.development .env.development.backup
-    
-    # 프로덕션 환경 설정
-    sed -i.bak "s|API_URL=.*|API_URL=$API_URL|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_REDIRECT_URI=.*|COGNITO_REDIRECT_URI=https://$CLOUDFRONT_URL/redirect|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_CLIENT_ID=.*|OGNITO_CLIENT_ID=$USER_POOL_CLIENT_ID|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_DOMAIN=.*|COGNITO_DOMAIN=$USER_POOL_DOMAIN_CLEAN|g" $ENV_FILE
-    sed -i.bak "s|USER_POOL_ID=.*|USER_POOL_ID=$USER_POOL_ID|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_IDENTITY_POOL_ID=.*|COGNITO_IDENTITY_POOL_ID=$IDENTITY_POOL_ID|g" $ENV_FILE
-    sed -i.bak "s|AWS_REGION=.*|AWS_REGION=$REGION|g" $ENV_FILE
-elif [ "$ENV" = "test" ]; then
-    ENV_FILE=".env.test"
-    # 테스트 환경 파일이 없으면 개발 환경 파일 복사
-    if [ ! -f "$ENV_FILE" ]; then
-        cp .env.development $ENV_FILE
-    fi
-    
-    # 테스트 환경 설정
-    sed -i.bak "s|API_URL=.*|API_URL=$API_URL|g" $ENV_FILE
-    sed -i.bak "s|ENV=.*|ENV=test|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_REDIRECT_URI=.*|COGNITO_REDIRECT_URI=https://$CLOUDFRONT_URL/redirect|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_CLIENT_ID=.*|OGNITO_CLIENT_ID=$USER_POOL_CLIENT_ID|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_DOMAIN=.*|COGNITO_DOMAIN=$USER_POOL_DOMAIN_CLEAN|g" $ENV_FILE
-    sed -i.bak "s|USER_POOL_ID=.*|USER_POOL_ID=$USER_POOL_ID|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_IDENTITY_POOL_ID=.*|COGNITO_IDENTITY_POOL_ID=$IDENTITY_POOL_ID|g" $ENV_FILE
-    sed -i.bak "s|AWS_REGION=.*|AWS_REGION=$REGION|g" $ENV_FILE
-else
+echo "환경 파일 생성 중: $ENV_FILE"
 
-    ENV_FILE=".env.development"
-    sed -i.bak "s|API_URL=.*|API_URL=$API_URL|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_REDIRECT_URI=.*|COGNITO_REDIRECT_URI=https://$CLOUDFRONT_URL/redirect|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_CLIENT_ID=.*|OGNITO_CLIENT_ID=$USER_POOL_CLIENT_ID|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_DOMAIN=.*|COGNITO_DOMAIN=$USER_POOL_DOMAIN_CLEAN|g" $ENV_FILE
-    sed -i.bak "s|USER_POOL_ID=.*|USER_POOL_ID=$USER_POOL_ID|g" $ENV_FILE
-    sed -i.bak "s|COGNITO_IDENTITY_POOL_ID=.*|COGNITO_IDENTITY_POOL_ID=$IDENTITY_POOL_ID|g" $ENV_FILE
-    sed -i.bak "s|AWS_REGION=.*|AWS_REGION=$REGION|g" $ENV_FILE
-fi
+cat <<EOF > $ENV_FILE
+AWS_REGION=$REGION
+API_URL=/api
+API_DEST=$API_URL
 
-# 백업 파일 삭제
-rm -f $ENV_FILE.bak
+VITE_API_URL=/api
+VITE_API_DEST=$API_URL
+
+COGNITO_DOMAIN=$USER_POOL_DOMAIN
+COGNITO_CLIENT_ID=$USER_POOL_CLIENT_ID
+COGNITO_CLIENT_SECRET=
+COGNITO_REDIRECT_URI=https://$CLOUDFRONT_URL/redirect
+COGNITO_IDENTITY_POOL_ID=$IDENTITY_POOL_ID
+USER_POOL_ID=$USER_POOL_ID
+EOF
 
 echo "환경 파일($ENV_FILE)이 업데이트되었습니다."
 
@@ -415,6 +434,9 @@ echo "환경 파일($ENV_FILE)이 업데이트되었습니다."
 #################################################
 if [ "$SKIP_FRONTEND" != "true" ]; then
     echo "====== 5. 프론트엔드 빌드 및 배포 ======"
+
+    # frontend 디렉토리로 이동
+    cd frontend
     
     # 빌드 디렉토리 설정
     BUILD_DIR="dist"
@@ -425,15 +447,8 @@ if [ "$SKIP_FRONTEND" != "true" ]; then
     npm install
 
     echo "프로젝트 빌드 중..."
-    # 환경에 따른 .env 파일 설정
-    # dev 환경이면 .env.development, prod 환경이면 .env.production 사용
-    if [ "$ENV" = "prod" ]; then
-        npm run build -- --mode production
-    elif [ "$ENV" = "test" ]; then
-        npm run build -- --mode test
-    else
-        npm run build -- --mode development
-    fi
+    # .env.local 환경변수를 기준으로 빌드
+    npm run build
 
     if [ ! -d "$BUILD_DIR" ]; then
         echo "빌드 디렉토리($BUILD_DIR)가 존재하지 않습니다. 빌드가 실패했습니다."
@@ -451,6 +466,9 @@ if [ "$SKIP_FRONTEND" != "true" ]; then
     # 새 파일 업로드
     echo "새 파일 업로드 중..."
     aws s3 sync "$BUILD_DIR" "s3://$FRONTEND_BUCKET" --delete
+
+    # 기존 디렉토리로 돌아감
+    cd ..
 
     # CloudFront 캐시 무효화
     echo "CloudFront 캐시 무효화 중..."

@@ -25,6 +25,11 @@ Parameters:
       - "true"
       - "false"
 
+  FrontendRedirectDomain:
+    Type: String
+    Default: placeholder.example.com
+    Description: Custom domain or CloudFront URL for frontend redirect
+
 Conditions:
   ShouldCreateBucket: !Equals [!Ref BucketExists, "false"]
   ShouldCreateOutputBucket: !Equals [!Ref OutputBucketExists, "false"]
@@ -150,13 +155,9 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
       CallbackURLs:
-        - !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/auth/callback'
-        - 'http://localhost:5173'
-        - 'http://localhost:5173/redirect'
+        - !Sub 'https://${FrontendRedirectDomain}/redirect'
       LogoutURLs:
-        - !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/auth'
-        - 'http://localhost:5173'
-        - 'http://localhost:5173/redirect'
+        - !Sub 'https://${FrontendRedirectDomain}/redirect'
       AllowedOAuthFlows:
         - code
       AllowedOAuthScopes:
@@ -307,7 +308,7 @@ Resources:
     Type: AWS::ApiGateway::GatewayResponse
     Properties:
       ResponseParameters:
-        gatewayresponse.header.Access-Control-Allow-Origin: "'http://localhost:5173'"
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'https://${FrontendRedirectDomain}'"
         gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
         gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
@@ -319,7 +320,7 @@ Resources:
     Type: AWS::ApiGateway::GatewayResponse
     Properties:
       ResponseParameters:
-        gatewayresponse.header.Access-Control-Allow-Origin: "'http://localhost:5173'"
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'https://${FrontendRedirectDomain}'"
         gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
         gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
@@ -354,7 +355,7 @@ Resources:
       Environment:
         Variables:
           ENV: !Ref Environment
-          ALLOWED_ORIGINS: !If [IsProd, "'https://app.example.com'", !If [IsTest, "'https://test-app.example.com'", "'http://localhost:5173'"]]
+          ALLOWED_ORIGINS: !Sub "'https://${FrontendRedirectDomain}'"
       Code:
         ZipFile: |
           import os
@@ -362,7 +363,7 @@ Resources:
           
           def handler(event, context):
               env = os.environ.get('ENV', 'dev')
-              allowed_origins = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:5173')
+              allowed_origins = os.environ.get('ALLOWED_ORIGINS')
               
               return {
                   'statusCode': 200,

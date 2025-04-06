@@ -41,24 +41,26 @@ ZERO_TRUST_CONFIG = {
 # CORS 설정
 CORS_SETTINGS = {
     'dev': {
-        'allowed_origins': ['http://localhost:5173'],
+        'allowed_origins': [os.environ.get('ALLOWED_ORIGINS')],
         'allowed_methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         'allowed_headers': ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token'],
         'allow_credentials': True
     },
     'test': {
-        'allowed_origins': ['https://test-app.example.com'],
+        'allowed_origins': [os.environ.get('ALLOWED_ORIGINS')],
         'allowed_methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         'allowed_headers': ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token'],
         'allow_credentials': True
     },
     'prod': {
-        'allowed_origins': ['https://app.example.com'],
+        'allowed_origins': [os.environ.get('ALLOWED_ORIGINS')],
         'allowed_methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         'allowed_headers': ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token'],
         'allow_credentials': True
     }
 }
+
+DEVELOPER_MODE = os.environ.get('DEVELOPER_MODE', 'false').lower() == 'true'
 
 # AWS SSM에서 비밀 설정 가져오기
 def get_ssm_parameter(param_name, with_decryption=True):
