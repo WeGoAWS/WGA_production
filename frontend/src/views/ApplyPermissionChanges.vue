@@ -101,7 +101,8 @@
 
 <script lang="ts">
     import { computed, defineComponent, onMounted, ref, watch } from 'vue';
-    import policyService, { PermissionChange, PolicyUpdates } from '@/services/policyService';
+    import policyService from '@/services/policyService';
+    import type { PermissionChange, PolicyUpdates } from '@/services/policyService';
 
     export default defineComponent({
         name: 'ApplyPermissionChanges',
