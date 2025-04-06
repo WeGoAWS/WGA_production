@@ -1,0 +1,240 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'WGA Frontend Infrastructure CloudFormation Template'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: The deployment environment
+  
+  DomainName:
+    Type: String
+    Default: ""
+    Description: Domain name for the frontend (leave empty for CloudFront distribution URL only)
+  
+  CertificateARN:
+    Type: String
+    Default: ""
+    Description: ARN of ACM certificate for HTTPS (required if DomainName is provided)
+
+Conditions:
+  HasDomainName: !Not [!Equals [!Ref DomainName, ""]]
+  HasCertificate: !Not [!Equals [!Ref CertificateARN, ""]]
+  UseDomainWithCertificate: !And [!Condition HasDomainName, !Condition HasCertificate]
+
+Resources:
+  # S3 Bucket for frontend hosting
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub 'wga-frontend-${Environment}'
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Bucket policy to allow CloudFront access
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: 's3:GetObject'
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}'
+
+  # Origin Access Identity (OAI) for CloudFront
+  FrontendOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub 'Origin Access Identity for WGA Frontend ${Environment}'
+
+  # CloudFront Distribution
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub 'WGA Frontend Distribution - ${Environment}'
+        Enabled: true
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${FrontendOriginAccessIdentity}'
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized policy ID
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # CORS-S3Origin policy ID
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 10
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 10
+        Aliases: !If
+          - UseDomainWithCertificate
+          - - !Ref DomainName
+          - !Ref AWS::NoValue
+        ViewerCertificate: !If
+          - UseDomainWithCertificate
+          - AcmCertificateArn: !Ref CertificateARN
+            MinimumProtocolVersion: TLSv1.2_2021
+            SslSupportMethod: sni-only
+          - CloudFrontDefaultCertificate: true
+
+  # IAM Role for Lambda deployment
+  FrontendDeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'wga-frontend-deployment-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: !Sub 'wga-frontend-deployment-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:DeleteObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - !GetAtt FrontendBucket.Arn
+                  - !Sub '${FrontendBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - 'cloudfront:CreateInvalidation'
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Lambda Function for frontend deployment
+  FrontendDeploymentFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'wga-frontend-deploy-${Environment}'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt FrontendDeploymentRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          S3_BUCKET: !Ref FrontendBucket
+          CLOUDFRONT_DISTRIBUTION_ID: !Ref FrontendDistribution
+          ENVIRONMENT: !Ref Environment
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const s3 = new AWS.S3();
+          const cloudfront = new AWS.CloudFront();
+          
+          exports.handler = async (event) => {
+              console.log('Received event:', JSON.stringify(event, null, 2));
+              
+              const response = {
+                  statusCode: 200,
+                  body: JSON.stringify('Deployment function was called!'),
+              };
+              
+              // The actual deployment is done through CI/CD pipeline
+              // This function can be called manually to invalidate the CloudFront cache
+              if (event.invalidateCache) {
+                  try {
+                      const distributionId = process.env.CLOUDFRONT_DISTRIBUTION_ID;
+                      const invalidationParams = {
+                          DistributionId: distributionId,
+                          InvalidationBatch: {
+                              CallerReference: `manual-invalidation-${Date.now()}`,
+                              Paths: {
+                                  Quantity: 1,
+                                  Items: [
+                                      '/*'
+                                  ]
+                              }
+                          }
+                      };
+                      
+                      const invalidationResult = await cloudfront.createInvalidation(invalidationParams).promise();
+                      console.log('Invalidation created:', JSON.stringify(invalidationResult, null, 2));
+                      response.body = JSON.stringify({ message: 'Cache invalidation created successfully', invalidationId: invalidationResult.Invalidation.Id });
+                  } catch (error) {
+                      console.error('Error creating invalidation:', error);
+                      response.statusCode = 500;
+                      response.body = JSON.stringify({ error: 'Failed to create cache invalidation' });
+                  }
+              }
+              
+              return response;
+          };
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  FrontendBucketName:
+    Description: Name of the S3 bucket for frontend hosting
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBucketName'
+  
+  CloudFrontDistributionId:
+    Description: ID of the CloudFront distribution
+    Value: !Ref FrontendDistribution
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
+  
+  CloudFrontDomainName:
+    Description: Domain name of the CloudFront distribution
+    Value: !GetAtt FrontendDistribution.DomainName
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontDomainName'
+  
+  FrontendURL:
+    Description: URL of the frontend application
+    Value: !If
+      - UseDomainWithCertificate
+      - !Sub 'https://${DomainName}'
+      - !Sub 'https://${FrontendDistribution.DomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendURL'
+      
+  FrontendDeploymentFunctionArn:
+    Description: ARN of the deployment Lambda function
+    Value: !GetAtt FrontendDeploymentFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-DeploymentFunctionArn'
