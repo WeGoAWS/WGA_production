@@ -383,14 +383,15 @@
             // 특정 사용자에 대해 변경사항이 있는지 확인 - 수정
             const hasChangesForUser = (userArn: string) => {
                 const userPerms = getUserPermissions(userArn);
-                return userPerms.add.some(p => p.apply) || userPerms.remove.some(p => p.apply);
+                return userPerms.add.some((p: PermissionChange & { id: string }) => p.apply) ||
+                       userPerms.remove.some((p: PermissionChange & { id: string }) => p.apply);
             };
 
             // 특정 사용자의 변경사항 개수 세기
             const countChangesForUser = (userArn: string) => {
                 const userPerms = getUserPermissions(userArn);
-                const addCount = userPerms.add.filter(p => p.apply).length;
-                const removeCount = userPerms.remove.filter(p => p.apply).length;
+                const addCount = userPerms.add.filter((p: PermissionChange & { id: string }) => p.apply).length;
+                const removeCount = userPerms.remove.filter((p: PermissionChange & { id: string }) => p.apply).length;
                 return { addCount, removeCount };
             };
 
@@ -417,12 +418,19 @@
                         const userPerms = getUserPermissions(userArn);
                         
                         // 해당 사용자의 선택된 권한만 필터링
-                        const addPermissions = userPerms.add.filter(p => p.apply);
-                        const removePermissions = userPerms.remove.filter(p => p.apply);
+                        const addPermissions = userPerms.add.filter((p: PermissionChange & { id: string }) => p.apply);
+                        const removePermissions = userPerms.remove.filter((p: PermissionChange & { id: string }) => p.apply);
                         
-                        // 권한 객체에서 필요 없는 ID 필드 제거 및 포맷 맞추기
-                        const formattedAddPermissions = addPermissions.map(({id, ...rest}) => rest);
-                        const formattedRemovePermissions = removePermissions.map(({id, ...rest}) => rest);
+                        const formattedAddPermissions = addPermissions.map((p: PermissionChange) => ({
+                            action: p.action,
+                            apply: p.apply,
+                            reason: p.reason
+                        }));
+                        const formattedRemovePermissions = removePermissions.map((p: PermissionChange) => ({
+                            action: p.action,
+                            apply: p.apply,
+                            reason: p.reason
+                        }));
                         
                         // 사용자별 변경사항을 배열에 추가
                         policyUpdates.push({
