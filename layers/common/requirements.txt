@@ -8,3 +8,4 @@ botocore
 cryptography
 python-dateutil
 jsonschema
+os

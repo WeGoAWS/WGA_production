@@ -5,7 +5,7 @@ import time
 import datetime
 import logging
 from botocore.exceptions import ClientError
-from common.config import CONFIG
+from common.config import CONFIG, NOVA_ENDPOINT, AWS_REGION
 from common.db import get_session
 
 # 로깅 설정
@@ -424,3 +424,23 @@ def get_cors_headers():
         'Access-Control-Allow-Methods': methods,
         'Access-Control-Allow-Credentials': str(allow_credentials).lower()
     }
+
+def call_nova(prompt):
+    headers = {
+        "Content-Type": "application/json",
+        "X-Amz-Target": "AmazonBedrockRuntime.InvokeModel",
+    }
+
+    body = {
+        "messages": prompt,
+        "max_tokens": 1000,
+        "temperature": 0,
+    }
+
+    response = requests.post(
+        url=NOVA_ENDPOINT.format(region=AWS_REGION),
+        headers=headers,
+        data=json.dumps(body)
+    )
+
+    return response.json()["content"]
