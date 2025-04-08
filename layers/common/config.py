@@ -30,28 +30,6 @@ COGNITO_CLIENT_ID = os.environ.get('COGNITO_CLIENT_ID', '')
 COGNITO_DOMAIN = os.environ.get('COGNITO_DOMAIN', '')
 COGNITO_IDENTITY_POOL_ID = os.environ.get('COGNITO_IDENTITY_POOL_ID', '')
 
-# CORS 설정
-CORS_SETTINGS = {
-    'dev': {
-        'allowed_origins': [os.environ.get('ALLOWED_ORIGINS')],
-        'allowed_methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        'allowed_headers': ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token'],
-        'allow_credentials': True
-    },
-    'test': {
-        'allowed_origins': [os.environ.get('ALLOWED_ORIGINS')],
-        'allowed_methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        'allowed_headers': ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token'],
-        'allow_credentials': True
-    },
-    'prod': {
-        'allowed_origins': [os.environ.get('ALLOWED_ORIGINS')],
-        'allowed_methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        'allowed_headers': ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token'],
-        'allow_credentials': True
-    }
-}
-
 DEVELOPER_MODE = os.environ.get('DEVELOPER_MODE', 'false').lower() == 'true'
 
 # AWS SSM에서 비밀 설정 가져오기
@@ -94,14 +72,8 @@ def load_config():
             'domain': COGNITO_DOMAIN,
             'identity_pool_id': COGNITO_IDENTITY_POOL_ID
         },
-        'sns': {
-            'anomaly_alert_topic': SNS_ALERT_TOPIC
-        },
-        'zero_trust': ZERO_TRUST_CONFIG,
         # 개발자 모드 설정 - 개발 환경에서는 기본적으로 활성화
         'developer_mode': ENV == 'dev',
-        # CORS 설정 추가
-        'cors': CORS_SETTINGS.get(ENV, CORS_SETTINGS['dev'])
     }
     
     # 환경 변수로 개발자 모드 설정을 재정의 가능하도록

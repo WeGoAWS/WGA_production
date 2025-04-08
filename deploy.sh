@@ -55,7 +55,6 @@ echo "====== CloudFormation 템플릿 업로드 ======"
 # 배포 버킷이 존재하지 않을 수 있으므로 base 스택을 먼저 배포
 echo "CloudFormation 템플릿 업로드 중..."
 aws s3 cp cloudformation/base.yaml "s3://$CLOUDFORMATION_BUCKET/base.yaml"
-aws s3 cp cloudformation/auth.yaml "s3://$CLOUDFORMATION_BUCKET/auth.yaml"
 aws s3 cp cloudformation/llm.yaml "s3://$CLOUDFORMATION_BUCKET/llm.yaml"
 aws s3 cp cloudformation/main.yaml "s3://$CLOUDFORMATION_BUCKET/main.yaml"
 aws s3 cp cloudformation/frontend.yaml "s3://$CLOUDFORMATION_BUCKET/frontend.yaml"
@@ -166,18 +165,6 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     echo "Common 레이어 업로드 중..."
     aws s3 cp build/layers/common-layer-$ENV.zip "s3://$DEPLOYMENT_BUCKET/layers/common-layer-$ENV.zip"
 
-    # Auth Lambda 패키징 및 업로드
-    echo "Auth Lambda 패키징 중..."
-    mkdir -p build/auth
-    cp -r services/auth/* build/auth/
-    cd build/auth
-    echo "Auth Lambda 압축 중..."
-    zip -r auth-lambda-$ENV.zip *
-    cd ../..
-
-    echo "Auth Lambda 업로드 중..."
-    aws s3 cp build/auth/auth-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/auth/auth-lambda-$ENV.zip"
-
     # LLM Lambda 패키징 및 업로드 (존재하는 경우)
     if [ -d "services/llm" ]; then
         echo "LLM Lambda 패키징 중..."
@@ -199,7 +186,6 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     USER_POOL_DOMAIN=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" --output text)
     IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" --output text)
     OUTPUT_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='OutputBucketName'].OutputValue" --output text)
-    SECURITY_ALERTS_TOPIC_ARN=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='SecurityAlertsTopicArn'].OutputValue" --output text)
 
     echo "가져온 파라미터 확인:"
     echo "USER_POOL_ID: $USER_POOL_ID"
@@ -260,13 +246,8 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     API_URL=$(aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
     echo "API Gateway URL: $API_URL"
 
-    # Lambda 함수가 올바르게 배포되었는지 확인
-    echo "====== 배포 확인 ======"
-    echo "Auth Lambda 함수 설정 확인:"
-    aws lambda get-function --function-name wga-auth-$ENV --query "Configuration.[FunctionName,Layers]" --output json || echo "Auth Lambda 함수가 존재하지 않거나 접근할 수 없습니다."
-
     if [ -d "services/llm" ]; then
-        echo "Security Analytics Lambda 함수 설정 확인:"
+        echo "LLM Lambda 함수 설정 확인:"
         aws lambda get-function --function-name wga-llm-$ENV --query "Configuration.[FunctionName,Layers]" --output json || echo "LLM Lambda 함수가 존재하지 않거나 접근할 수 없습니다."
     fi
     
@@ -337,6 +318,18 @@ FRONTEND_URL=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_N
 echo "프론트엔드 배포 정보:"
 echo "Amplify App ID: $AMPLIFY_APP_ID"
 echo "Amplify 기본 도메인: https://$FRONTEND_URL"
+echo "FrontendRedirectDomain 파라미터를 Amplify 도메인으로 업데이트 중..."
+aws cloudformation update-stack \
+    --stack-name $BASE_STACK_NAME \
+    --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/base.yaml" \
+    --parameters ParameterKey=Environment,ParameterValue=$ENV \
+                ParameterKey=BucketExists,ParameterValue=true \
+                ParameterKey=OutputBucketExists,ParameterValue=true \
+                ParameterKey=FrontendRedirectDomain,ParameterValue=$FRONTEND_URL \
+    --capabilities CAPABILITY_NAMED_IAM
+
+aws cloudformation wait stack-update-complete --stack-name $BASE_STACK_NAME
+echo "FrontendRedirectDomain 업데이트 완료"
 
 #################################################
 # 4. 환경 변수 설정

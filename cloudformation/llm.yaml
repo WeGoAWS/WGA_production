@@ -17,6 +17,33 @@ Parameters:
     Description: The domain for frontend redirection
 
 Resources:
+  LlmLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'wga-llm-execution-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaBasicExecutionAndBedrockInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: '*'
+
   LlmLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -28,6 +55,7 @@ Resources:
         S3Key: !Sub 'llm/llm-lambda-${Environment}.zip'
       Timeout: 30
       MemorySize: 256
+      Role: !GetAtt LlmLambdaExecutionRole.Arn
       Tags:
         - Key: Environment
           Value: !Ref Environment

@@ -1,5 +1,5 @@
 # lambda_function.py
-from common.utils import call_nova
+from common.utils import invoke_bedrock_nova
 from llm_service import build_llm1_prompt, build_llm2_prompt
 import json
 
@@ -41,7 +41,7 @@ def lambda_handler(event, context):
             }
 
         prompt = build_llm2_prompt(user_question, query_result)
-        answer = call_nova(prompt)
+        answer = invoke_bedrock_nova(prompt)
 
         return {
             "statusCode": 200,

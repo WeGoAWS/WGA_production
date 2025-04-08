@@ -28,7 +28,7 @@ Parameters:
   FrontendRedirectDomain:
     Type: String
     Default: placeholder.example.com
-    Description: Custom domain or CloudFront URL for frontend redirect
+    Description: Amplify frontend redirect
 
 Conditions:
   ShouldCreateBucket: !Equals [!Ref BucketExists, "false"]
@@ -97,13 +97,10 @@ Resources:
       UserPoolName: !Sub 'wga-user-pool-${Environment}'
       AutoVerifiedAttributes:
         - email
-        - phone_number  # phone_number 자동 검증 추가
+        - phone_number
       MfaConfiguration: OPTIONAL
       UsernameAttributes:
         - email
-      SmsConfiguration:  # SMS 설정 추가
-        ExternalId: !Sub 'wga-sms-external-${Environment}'
-        SnsCallerArn: !GetAtt SNSRole.Arn
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -120,10 +117,10 @@ Resources:
           AttributeDataType: String
           Mutable: true
           Required: false
-        - Name: phone_number  # phone_number 스키마 추가
+        - Name: phone_number
           AttributeDataType: String
           Mutable: true
-          Required: false  # 필요에 따라 true로 변경 가능
+          Required: false
       EmailConfiguration:
         EmailSendingAccount: COGNITO_DEFAULT
       AdminCreateUserConfig:
@@ -183,28 +180,6 @@ Resources:
         unauthenticated: !GetAtt UnauthenticatedUserRole.Arn
 
   # IAM Role for Authenticated Users
-  SNSRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub 'wga-sns-role-${Environment}'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: cognito-idp.amazonaws.com
-            Action: 'sts:AssumeRole'
-      Policies:
-        - PolicyName: !Sub 'wga-sns-policy-${Environment}'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: 'sns:publish'
-                Resource: '*'
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
   AuthenticatedUserRole:
     Type: AWS::IAM::Role
     Properties:
@@ -242,40 +217,6 @@ Resources:
                     -
                       - !Sub 'arn:aws:s3:::wga-outputbucket-${Environment}'
                       - !Sub 'arn:aws:s3:::wga-outputbucket-${Environment}/*'
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-
-  # IAM Role for Unauthenticated Users
-  UnauthenticatedUserRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub 'wga-unauthenticated-user-role-${Environment}'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: cognito-identity.amazonaws.com
-            Action: 'sts:AssumeRoleWithWebIdentity'
-            Condition:
-              StringEquals:
-                'cognito-identity.amazonaws.com:aud': !Ref IdentityPool
-              'ForAnyValue:StringLike':
-                'cognito-identity.amazonaws.com:amr': unauthenticated
-      Policies:
-        - PolicyName: !Sub 'wga-unauthenticated-user-policy-${Environment}'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 's3:GetObject'
-                Resource:
-                  - !If
-                      - ShouldCreateOutputBucket
-                      - !Sub '${OutputBucket.Arn}/public/*'
-                      - !Sub 'arn:aws:s3:::wga-outputbucket-${Environment}/public/*'
       Tags:
         - Key: Environment
           Value: !Ref Environment

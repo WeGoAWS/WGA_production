@@ -45,28 +45,6 @@ Parameters:
     Description: ARN of the security alerts SNS topic
 
 Resources:
-  # Auth Service Stack
-  AuthStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/auth.yaml'
-      Parameters:
-        Environment: !Ref Environment
-        CognitoUserPoolId: !Ref UserPoolId
-        CognitoClientId: !Ref UserPoolClientId
-        CognitoDomain: !Ref UserPoolDomain
-        CognitoIdentityPoolId: !Ref IdentityPoolId
-        DeveloperMode: !Ref DeveloperMode
-        ApiGatewayId:
-          Fn::ImportValue:
-            Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
-        ApiGatewayRootResourceId:
-          Fn::ImportValue:
-            Fn::Sub: "wga-base-${Environment}-ApiGatewayRootResourceId"
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-  
   LlmStack:
     Type: AWS::CloudFormation::Stack
     Properties:
