@@ -97,7 +97,6 @@ Resources:
       UserPoolName: !Sub 'wga-user-pool-${Environment}'
       AutoVerifiedAttributes:
         - email
-      MfaConfiguration: OPTIONAL
       UsernameAttributes:
         - email
       Policies:
@@ -107,6 +106,7 @@ Resources:
           RequireNumbers: true
           RequireSymbols: true
           RequireUppercase: true
+      MfaConfiguration: OFF
       Schema:
         - Name: email
           AttributeDataType: String
