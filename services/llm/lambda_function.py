@@ -23,7 +23,7 @@ def lambda_handler(event, context):
             }
 
         prompt = build_llm1_prompt(user_question)
-        sql_query = call_nova(prompt)
+        sql_query = invoke_bedrock_nova(prompt)
 
         return {
             "statusCode": 200,
