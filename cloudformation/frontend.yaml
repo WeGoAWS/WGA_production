@@ -22,6 +22,12 @@ Parameters:
     Description: ARN of ACM certificate for HTTPS (required if DomainName is provided)
 
 Resources:
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub wga-frontend-${Environment}
+      AccessControl: Private
+
   # Amplify App for frontend hosting
   AmplifyApp:
     Type: AWS::Amplify::App

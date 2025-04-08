@@ -22,6 +22,7 @@ echo "========================================"
 # 배포 버킷 이름
 CLOUDFORMATION_BUCKET="wga-cloudformation-$ACCOUNT_ID"
 DEPLOYMENT_BUCKET="wga-deployment-$ENV"
+FRONTEND_BUCKET="wga-frontend-$ENV"
 OUTPUT_BUCKET_NAME="wga-outputbucket-$ENV"
 
 # 스택 이름 설정
@@ -66,11 +67,13 @@ echo "CloudFormation 템플릿 업로드 완료"
 #################################################
 if [ "$SKIP_BACKEND" != "true" ]; then
     echo "====== 2. 백엔드 배포 시작 ======"
-    
+
     # 기본 스택 배포 전 S3 버킷 존재 여부 확인
     if aws s3 ls "s3://$DEPLOYMENT_BUCKET" > /dev/null 2>&1; then
         echo "배포 버킷($DEPLOYMENT_BUCKET)이 이미 존재합니다. 이 버킷을 재사용합니다."
         BUCKET_EXISTS="true"
+        echo "$DEPLOYMENT_BUCKET 버킷 내용을 정리합니다..."
+        aws s3 rm "s3://$DEPLOYMENT_BUCKET" --recursive
     else
         echo "배포 버킷($DEPLOYMENT_BUCKET)이 존재하지 않습니다. 새로 생성합니다."
         BUCKET_EXISTS="false"
@@ -80,9 +83,18 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     if aws s3 ls "s3://$OUTPUT_BUCKET_NAME" > /dev/null 2>&1; then
         echo "출력 버킷($OUTPUT_BUCKET_NAME)이 이미 존재합니다. 이 버킷을 재사용합니다."
         OUTPUT_BUCKET_EXISTS="true"
+        echo "$OUTPUT_BUCKET_NAME 버킷 내용을 정리합니다..."
+        aws s3 rm "s3://$OUTPUT_BUCKET_NAME" --recursive
     else
         echo "출력 버킷($OUTPUT_BUCKET_NAME)이 존재하지 않습니다. 새로 생성합니다."
         OUTPUT_BUCKET_EXISTS="false"
+    fi
+
+    # 프론트엔드 버킷 존재 여부 확인
+    if aws s3 ls "s3://$FRONTEND_BUCKET" > /dev/null 2>&1; then
+        echo "출력 버킷($FRONTEND_BUCKET)이 이미 존재합니다. 이 버킷을 재사용합니다."
+        echo "$FRONTEND_BUCKET 버킷 내용을 정리합니다..."
+        aws s3 rm "s3://$FRONTEND_BUCKET" --recursive
     fi
 
     # 기본 스택 배포
@@ -407,7 +419,9 @@ if [ "$SKIP_FRONTEND" != "true" ]; then
         exit 1
     fi
 
-    echo "Amplify 배포 준비 완료 (S3 업로드는 별도 수동 또는 CI/CD로 처리됩니다)"
+    echo "Amplify에 S3 업로드 중..."
+    aws s3 sync dist s3://wga-frontend-$ENV --delete
+    echo "Amplify 배포 완료"
 
     # 기존 디렉토리로 돌아감
     cd ..
