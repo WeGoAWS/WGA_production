@@ -106,7 +106,6 @@ Resources:
           RequireNumbers: true
           RequireSymbols: true
           RequireUppercase: true
-      MfaConfiguration: OFF
       Schema:
         - Name: email
           AttributeDataType: String
@@ -160,6 +159,7 @@ Resources:
     Type: AWS::Cognito::IdentityPool
     Properties:
       IdentityPoolName: !Sub 'wga_identity_pool_${Environment}'
+      AllowUnauthenticatedIdentities: false
       CognitoIdentityProviders:
         - ClientId: !Ref UserPoolClient
           ProviderName: !GetAtt UserPool.ProviderName
