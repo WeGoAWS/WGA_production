@@ -140,12 +140,12 @@ Resources:
                 Resource: '*'
 
   ApiEndpointParameter:
-      Type: AWS::SSM::Parameter
-      Properties:
-        Name: !Sub '/wga/${Environment}/ApiEndpoint'
-        Type: String
-        Value: !Sub "https://${ApiGatewayId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
-        Description: API Gateway endpoint URL
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/ApiEndpoint'
+      Type: String
+      Value: !Sub "https://{{resolve:ssm:/wga/${Environment}/ApiGatewayId}}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+      Description: API Gateway endpoint URL
 
 Outputs:
   CognitoDomain:
