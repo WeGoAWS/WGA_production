@@ -165,7 +165,6 @@ Resources:
     Type: AWS::Cognito::IdentityPool
     Properties:
       IdentityPoolName: !Sub 'wga_identity_pool_${Environment}'
-      AllowUnauthenticatedIdentities: false
       CognitoIdentityProviders:
         - ClientId: !Ref UserPoolClient
           ProviderName: !GetAtt UserPool.ProviderName
@@ -177,7 +176,6 @@ Resources:
       IdentityPoolId: !Ref IdentityPool
       Roles:
         authenticated: !GetAtt AuthenticatedUserRole.Arn
-        unauthenticated: !GetAtt UnauthenticatedUserRole.Arn
 
   # IAM Role for Authenticated Users
   AuthenticatedUserRole:
