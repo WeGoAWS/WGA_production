@@ -343,6 +343,22 @@ aws cloudformation update-stack \
 aws cloudformation wait stack-update-complete --stack-name $BASE_STACK_NAME
 echo "FrontendRedirectDomain 업데이트 완료"
 
+echo "[INFO] 프론트엔드 도메인 반영을 위해 메인 스택 업데이트 중..."
+aws cloudformation update-stack \
+    --stack-name $MAIN_STACK_NAME \
+    --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/main.yaml" \
+    --parameters \
+        ParameterKey=Environment,ParameterValue=$ENV \
+        ParameterKey=DeveloperMode,ParameterValue=$DEVELOPER_MODE \
+        ParameterKey=UserPoolId,ParameterValue=$USER_POOL_ID \
+        ParameterKey=UserPoolClientId,ParameterValue=$USER_POOL_CLIENT_ID \
+        ParameterKey=UserPoolDomain,ParameterValue=$USER_POOL_DOMAIN \
+        ParameterKey=IdentityPoolId,ParameterValue=$IDENTITY_POOL_ID \
+        ParameterKey=OutputBucketName,ParameterValue=$OUTPUT_BUCKET_NAME \
+    --capabilities CAPABILITY_NAMED_IAM
+aws cloudformation wait stack-update-complete --stack-name $MAIN_STACK_NAME
+echo "[INFO] 메인 스택 업데이트 완료"
+
 #################################################
 # 4. 환경 변수 설정
 #################################################

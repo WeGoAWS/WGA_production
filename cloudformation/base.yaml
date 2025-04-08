@@ -310,3 +310,9 @@ Outputs:
     Value: !GetAtt ApiGateway.RootResourceId
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayRootResourceId'
+
+  FrontendRedirectDomain:
+    Description: Placeholder for frontend redirect domain
+    Value: !Ref FrontendRedirectDomain
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendRedirectDomain'
