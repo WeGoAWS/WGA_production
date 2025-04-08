@@ -8,8 +8,6 @@ set -e
 ENV=${1:-dev}  # 기본값: dev
 ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
 REGION=$(aws configure get region)
-SKIP_BACKEND=${2:-false}  # 백엔드 배포 스킵 옵션 (기본값: false)
-SKIP_FRONTEND=${3:-false}  # 프론트엔드 배포 스킵 옵션 (기본값: false)
 
 echo "========================================"
 echo "통합 배포 시작 - 환경: $ENV"
@@ -55,7 +53,7 @@ else
     echo "$CLOUDFORMATION_BUCKET 버킷이 이미 존재합니다"
 fi
 
-echo "====== CloudFormation 템플릿 업로드 ======"
+echo "====== 1. CloudFormation 템플릿 업로드 ======"
 # 배포 버킷이 존재하지 않을 수 있으므로 base 스택을 먼저 배포
 echo "CloudFormation 템플릿 업로드 중..."
 aws s3 cp cloudformation/base.yaml "s3://$CLOUDFORMATION_BUCKET/base.yaml"
@@ -66,214 +64,81 @@ aws s3 cp cloudformation/frontend.yaml "s3://$CLOUDFORMATION_BUCKET/frontend.yam
 echo "CloudFormation 템플릿 업로드 완료"
 
 #################################################
-# 2. 백엔드 배포 (필요한 경우)
+# 2. 기본 스택 배포
 #################################################
-if [ "$SKIP_BACKEND" != "true" ]; then
-    echo "====== 2. 백엔드 배포 시작 ======"
+echo "====== 2. 기본 스택 배포 시작 ======"
 
-    # 기본 스택 배포 전 S3 버킷 존재 여부 확인
-    if aws s3 ls "s3://$DEPLOYMENT_BUCKET" > /dev/null 2>&1; then
-        echo "배포 버킷($DEPLOYMENT_BUCKET)이 이미 존재합니다. 이 버킷을 재사용합니다."
-        BUCKET_EXISTS="true"
-        echo "$DEPLOYMENT_BUCKET 버킷 내용을 정리합니다..."
-        aws s3 rm "s3://$DEPLOYMENT_BUCKET" --recursive
-    else
-        echo "배포 버킷($DEPLOYMENT_BUCKET)이 존재하지 않습니다. 새로 생성합니다."
-        BUCKET_EXISTS="false"
-    fi
-
-    # OutputBucket 존재 여부 확인
-    if aws s3 ls "s3://$OUTPUT_BUCKET_NAME" > /dev/null 2>&1; then
-        echo "출력 버킷($OUTPUT_BUCKET_NAME)이 이미 존재합니다. 이 버킷을 재사용합니다."
-        OUTPUT_BUCKET_EXISTS="true"
-        echo "$OUTPUT_BUCKET_NAME 버킷 내용을 정리합니다..."
-        aws s3 rm "s3://$OUTPUT_BUCKET_NAME" --recursive
-    else
-        echo "출력 버킷($OUTPUT_BUCKET_NAME)이 존재하지 않습니다. 새로 생성합니다."
-        OUTPUT_BUCKET_EXISTS="false"
-    fi
-
-    # 프론트엔드 버킷 존재 여부 확인
-    if aws s3 ls "s3://$FRONTEND_BUCKET" > /dev/null 2>&1; then
-        echo "출력 버킷($FRONTEND_BUCKET)이 이미 존재합니다. 이 버킷을 재사용합니다."
-        echo "$FRONTEND_BUCKET 버킷 내용을 정리합니다..."
-        aws s3 rm "s3://$FRONTEND_BUCKET" --recursive
-    fi
-
-    # 기본 스택 배포
-    echo "기본 인프라 스택 배포 중: $BASE_STACK_NAME..."
-
-    if aws cloudformation describe-stacks --stack-name "$BASE_STACK_NAME" > /dev/null 2>&1; then
-        # 스택이 존재하면 업데이트
-        echo "기존 스택 업데이트 중: $BASE_STACK_NAME"
-        aws cloudformation update-stack \
-            --stack-name $BASE_STACK_NAME \
-            --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/base.yaml" \
-            --parameters ParameterKey=Environment,ParameterValue=$ENV \
-                        ParameterKey=BucketExists,ParameterValue=$BUCKET_EXISTS \
-                        ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
-                        ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
-            --capabilities CAPABILITY_NAMED_IAM
-
-        # 스택 업데이트 완료 대기
-        echo "스택 업데이트 완료 대기 중: $BASE_STACK_NAME"
-        aws cloudformation wait stack-update-complete --stack-name $BASE_STACK_NAME
-    else
-        # 스택이 존재하지 않으면 생성
-        echo "새 스택 생성 중: $BASE_STACK_NAME"
-        aws cloudformation create-stack \
-            --stack-name $BASE_STACK_NAME \
-            --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/base.yaml" \
-            --parameters ParameterKey=Environment,ParameterValue=$ENV \
-                        ParameterKey=BucketExists,ParameterValue=$BUCKET_EXISTS \
-                        ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
-                        ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
-            --capabilities CAPABILITY_NAMED_IAM
-
-        # 스택 생성 완료 대기
-        echo "스택 생성 완료 대기 중: $BASE_STACK_NAME"
-        aws cloudformation wait stack-create-complete --stack-name $BASE_STACK_NAME
-    fi
-
-    echo "기본 인프라 스택 배포 완료: $BASE_STACK_NAME"
-
-    # 배포 버킷이 이제 존재해야 함
-    echo "배포 버킷이 존재하는지 확인 중: $DEPLOYMENT_BUCKET"
-    if ! aws s3 ls "s3://$DEPLOYMENT_BUCKET" > /dev/null 2>&1; then
-        echo "배포 버킷이 없습니다. 기본 스택이 올바르게 생성되었는지 확인하세요."
-        exit 1
-    fi
-
-    echo "====== Layer 및 Lambda 함수 패키징 ======"
-
-    # 빌드 디렉토리 정리 (이전 빌드 파일 제거)
-    echo "빌드 디렉토리 정리 중..."
-    rm -rf build
-    mkdir -p build
-
-    # Common 레이어 패키징 및 업로드
-    echo "Common 레이어 패키징 중..."
-    mkdir -p build/layers/python/common
-    mkdir -p build/layers/python/lib/python3.12/site-packages
-    cp -r layers/common/* build/layers/python/common/
-
-    echo "Common 레이어 의존성 설치 중..."
-    pip install -r layers/common/requirements.txt -t build/layers/python/lib/python3.12/site-packages/
-
-    cd build/layers
-    echo "Common 레이어 압축 중..."
-    zip -r common-layer-$ENV.zip python
-    cd ../..
-
-    # Layer 구조 확인
-    echo "Layer 구조 확인:"
-    unzip -l build/layers/common-layer-$ENV.zip | head -n 20
-
-    # Layer 압축 파일 내용 검증
-    if unzip -l build/layers/common-layer-$ENV.zip | grep -q "python/common/config.py"; then
-      echo "Layer 구조가 올바릅니다."
-    else
-      echo "경고: Layer 구조가 올바르지 않을 수 있습니다!"
-      unzip -l build/layers/common-layer-$ENV.zip
-    fi
-
-    echo "Common 레이어 업로드 중..."
-    aws s3 cp build/layers/common-layer-$ENV.zip "s3://$DEPLOYMENT_BUCKET/layers/common-layer-$ENV.zip"
-
-    # LLM Lambda 패키징 및 업로드 (존재하는 경우)
-    if [ -d "services/llm" ]; then
-        echo "LLM Lambda 패키징 중..."
-        mkdir -p build/llm
-        cp -r services/llm/* build/llm/
-        cd build/llm
-        echo "LLM Lambda 압축 중..."
-        zip -r llm-lambda-$ENV.zip *
-        cd ../..
-
-        echo "LLM 업로드 중..."
-        aws s3 cp build/llm/llm-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/llm/llm-lambda-$ENV.zip"
-    fi
-
-    # 기본 스택에서 출력값 가져오기
-    echo "기본 스택에서 출력값 가져오는 중..."
-    API_GATEWAY_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayId'].OutputValue" --output text)
-    API_GATEWAY_ROOT_RESOURCE_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayRootResourceId'].OutputValue" --output text)
-    FRONTEND_REDIRECT_DOMAIN=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='FrontendRedirectDomain'].OutputValue" --output text)
-
-    echo "가져온 파라미터 확인:"
-    echo "API_GATEWAY_ID: $API_GATEWAY_ID"
-    echo "API_GATEWAY_ROOT_RESOURCE_ID: $API_GATEWAY_ROOT_RESOURCE_ID"
-    echo "FRONTEND_REDIRECT_DOMAIN: $FRONTEND_REDIRECT_DOMAIN"
-
-    # 메인 스택 배포 부분 수정
-    if aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME > /dev/null 2>&1; then
-        # 스택이 존재하면 업데이트
-        echo "기존 스택 업데이트 중: $MAIN_STACK_NAME"
-        aws cloudformation update-stack \
-            --stack-name $MAIN_STACK_NAME \
-            --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/main.yaml" \
-            --parameters \
-                ParameterKey=Environment,ParameterValue=$ENV \
-                ParameterKey=DeveloperMode,ParameterValue=$DEVELOPER_MODE \
-                ParameterKey=UserPoolId,ParameterValue="$SSM_PATH_PREFIX/UserPoolId" \
-                ParameterKey=UserPoolClientId,ParameterValue="$SSM_PATH_PREFIX/UserPoolClientId" \
-                ParameterKey=UserPoolDomain,ParameterValue="$SSM_PATH_PREFIX/UserPoolDomain" \
-                ParameterKey=IdentityPoolId,ParameterValue="$SSM_PATH_PREFIX/IdentityPoolId" \
-                ParameterKey=OutputBucketName,ParameterValue="$SSM_PATH_PREFIX/OutputBucketName" \
-                ParameterKey=ApiGatewayIdParameter,ParameterValue="$API_GATEWAY_ID" \
-                ParameterKey=ApiGatewayRootResourceIdParameter,ParameterValue="$API_GATEWAY_ROOT_RESOURCE_ID" \
-                ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$FRONTEND_REDIRECT_DOMAIN" \
-            --capabilities CAPABILITY_NAMED_IAM
-    else
-        # 스택이 존재하지 않으면 생성
-        echo "새 스택 생성 중: $MAIN_STACK_NAME"
-        aws cloudformation create-stack \
-            --stack-name $MAIN_STACK_NAME \
-            --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/main.yaml" \
-            --parameters \
-                ParameterKey=Environment,ParameterValue=$ENV \
-                ParameterKey=DeveloperMode,ParameterValue=$DEVELOPER_MODE \
-                ParameterKey=UserPoolId,ParameterValue="$SSM_PATH_PREFIX/UserPoolId" \
-                ParameterKey=UserPoolClientId,ParameterValue="$SSM_PATH_PREFIX/UserPoolClientId" \
-                ParameterKey=UserPoolDomain,ParameterValue="$SSM_PATH_PREFIX/UserPoolDomain" \
-                ParameterKey=IdentityPoolId,ParameterValue="$SSM_PATH_PREFIX/IdentityPoolId" \
-                ParameterKey=OutputBucketName,ParameterValue="$SSM_PATH_PREFIX/OutputBucketName" \
-                ParameterKey=ApiGatewayIdParameter,ParameterValue="$API_GATEWAY_ID" \
-                ParameterKey=ApiGatewayRootResourceIdParameter,ParameterValue="$API_GATEWAY_ROOT_RESOURCE_ID" \
-                ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$FRONTEND_REDIRECT_DOMAIN" \
-            --capabilities CAPABILITY_NAMED_IAM
-    fi
-
-    echo "메인 스택 배포 완료: $MAIN_STACK_NAME"
-
-    # API Gateway URL 확인
-    API_URL=$(aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
-    echo "API Gateway URL: $API_URL"
-
-    # API Endpoint SSM에 저장
-    echo "API Endpoint를 SSM에 저장 중..."
-    aws ssm put-parameter \
-        --name "$SSM_PATH_PREFIX/ApiEndpoint" \
-        --value "$API_URL" \
-        --type "String" \
-        --overwrite
-
-    if [ -d "services/llm" ]; then
-        echo "LLM Lambda 함수 설정 확인:"
-        aws lambda get-function --function-name wga-llm-$ENV --query "Configuration.[FunctionName,Layers]" --output json || echo "LLM Lambda 함수가 존재하지 않거나 접근할 수 없습니다."
-    fi
-
-    echo "백엔드 배포 완료"
+# 기본 스택 배포 전 S3 버킷 존재 여부 확인
+if aws s3 ls "s3://$DEPLOYMENT_BUCKET" > /dev/null 2>&1; then
+    echo "배포 버킷($DEPLOYMENT_BUCKET)이 이미 존재합니다. 이 버킷을 재사용합니다."
+    BUCKET_EXISTS="true"
+    echo "$DEPLOYMENT_BUCKET 버킷 내용을 정리합니다..."
+    aws s3 rm "s3://$DEPLOYMENT_BUCKET" --recursive
 else
-    echo "백엔드 배포 스킵"
+    echo "배포 버킷($DEPLOYMENT_BUCKET)이 존재하지 않습니다. 새로 생성합니다."
+    BUCKET_EXISTS="false"
+fi
 
-    # SSM 파라미터에서 값 가져오기
-    echo "SSM 파라미터에서 값 가져오기..."
-    USER_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolId" --query "Parameter.Value" --output text)
-    USER_POOL_CLIENT_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolClientId" --query "Parameter.Value" --output text)
-    USER_POOL_DOMAIN=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolDomain" --query "Parameter.Value" --output text)
-    IDENTITY_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/IdentityPoolId" --query "Parameter.Value" --output text)
-    API_URL=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/ApiEndpoint" --query "Parameter.Value" --output text)
+# OutputBucket 존재 여부 확인
+if aws s3 ls "s3://$OUTPUT_BUCKET_NAME" > /dev/null 2>&1; then
+    echo "출력 버킷($OUTPUT_BUCKET_NAME)이 이미 존재합니다. 이 버킷을 재사용합니다."
+    OUTPUT_BUCKET_EXISTS="true"
+    echo "$OUTPUT_BUCKET_NAME 버킷 내용을 정리합니다..."
+    aws s3 rm "s3://$OUTPUT_BUCKET_NAME" --recursive
+else
+    echo "출력 버킷($OUTPUT_BUCKET_NAME)이 존재하지 않습니다. 새로 생성합니다."
+    OUTPUT_BUCKET_EXISTS="false"
+fi
+
+# 프론트엔드 버킷 존재 여부 확인
+if aws s3 ls "s3://$FRONTEND_BUCKET" > /dev/null 2>&1; then
+    echo "출력 버킷($FRONTEND_BUCKET)이 이미 존재합니다. 이 버킷을 재사용합니다."
+    echo "$FRONTEND_BUCKET 버킷 내용을 정리합니다..."
+    aws s3 rm "s3://$FRONTEND_BUCKET" --recursive
+fi
+
+# 기본 스택 배포
+echo "기본 인프라 스택 배포 중: $BASE_STACK_NAME..."
+
+if aws cloudformation describe-stacks --stack-name "$BASE_STACK_NAME" > /dev/null 2>&1; then
+    # 스택이 존재하면 업데이트
+    echo "기존 스택 업데이트 중: $BASE_STACK_NAME"
+    aws cloudformation update-stack \
+        --stack-name $BASE_STACK_NAME \
+        --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/base.yaml" \
+        --parameters ParameterKey=Environment,ParameterValue=$ENV \
+                    ParameterKey=BucketExists,ParameterValue=$BUCKET_EXISTS \
+                    ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
+                    ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
+        --capabilities CAPABILITY_NAMED_IAM
+
+    # 스택 업데이트 완료 대기
+    echo "스택 업데이트 완료 대기 중: $BASE_STACK_NAME"
+    aws cloudformation wait stack-update-complete --stack-name $BASE_STACK_NAME
+else
+    # 스택이 존재하지 않으면 생성
+    echo "새 스택 생성 중: $BASE_STACK_NAME"
+    aws cloudformation create-stack \
+        --stack-name $BASE_STACK_NAME \
+        --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/base.yaml" \
+        --parameters ParameterKey=Environment,ParameterValue=$ENV \
+                    ParameterKey=BucketExists,ParameterValue=$BUCKET_EXISTS \
+                    ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
+                    ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
+        --capabilities CAPABILITY_NAMED_IAM
+
+    # 스택 생성 완료 대기
+    echo "스택 생성 완료 대기 중: $BASE_STACK_NAME"
+    aws cloudformation wait stack-create-complete --stack-name $BASE_STACK_NAME
+fi
+
+echo "기본 인프라 스택 배포 완료: $BASE_STACK_NAME"
+
+# 배포 버킷이 이제 존재해야 함
+echo "배포 버킷이 존재하는지 확인 중: $DEPLOYMENT_BUCKET"
+if ! aws s3 ls "s3://$DEPLOYMENT_BUCKET" > /dev/null 2>&1; then
+    echo "배포 버킷이 없습니다. 기본 스택이 올바르게 생성되었는지 확인하세요."
+    exit 1
 fi
 
 #################################################
@@ -352,21 +217,125 @@ aws cloudformation update-stack \
 aws cloudformation wait stack-update-complete --stack-name $BASE_STACK_NAME
 echo "FrontendRedirectDomain 업데이트 완료"
 
-echo "[INFO] 프론트엔드 도메인 반영을 위해 메인 스택 업데이트 중..."
-aws cloudformation update-stack \
-    --stack-name $MAIN_STACK_NAME \
-    --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/main.yaml" \
-    --parameters \
-        ParameterKey=Environment,ParameterValue=$ENV \
-        ParameterKey=DeveloperMode,ParameterValue=$DEVELOPER_MODE \
-        ParameterKey=UserPoolId,ParameterValue="$SSM_PATH_PREFIX/UserPoolId" \
-        ParameterKey=UserPoolClientId,ParameterValue="$SSM_PATH_PREFIX/UserPoolClientId" \
-        ParameterKey=UserPoolDomain,ParameterValue="$SSM_PATH_PREFIX/UserPoolDomain" \
-        ParameterKey=IdentityPoolId,ParameterValue="$SSM_PATH_PREFIX/IdentityPoolId" \
-        ParameterKey=OutputBucketName,ParameterValue="$SSM_PATH_PREFIX/OutputBucketName" \
-    --capabilities CAPABILITY_NAMED_IAM
-aws cloudformation wait stack-update-complete --stack-name $MAIN_STACK_NAME
-echo "[INFO] 메인 스택 업데이트 완료"
+echo "====== Layer 및 Lambda 함수 패키징 ======"
+
+# 빌드 디렉토리 정리 (이전 빌드 파일 제거)
+echo "빌드 디렉토리 정리 중..."
+rm -rf build
+mkdir -p build
+
+# Common 레이어 패키징 및 업로드
+echo "Common 레이어 패키징 중..."
+mkdir -p build/layers/python/common
+mkdir -p build/layers/python/lib/python3.12/site-packages
+cp -r layers/common/* build/layers/python/common/
+
+echo "Common 레이어 의존성 설치 중..."
+pip install -r layers/common/requirements.txt -t build/layers/python/lib/python3.12/site-packages/
+
+cd build/layers
+echo "Common 레이어 압축 중..."
+zip -r common-layer-$ENV.zip python
+cd ../..
+
+# Layer 구조 확인
+echo "Layer 구조 확인:"
+unzip -l build/layers/common-layer-$ENV.zip | head -n 20
+
+# Layer 압축 파일 내용 검증
+if unzip -l build/layers/common-layer-$ENV.zip | grep -q "python/common/config.py"; then
+  echo "Layer 구조가 올바릅니다."
+else
+  echo "경고: Layer 구조가 올바르지 않을 수 있습니다!"
+  unzip -l build/layers/common-layer-$ENV.zip
+fi
+
+echo "Common 레이어 업로드 중..."
+aws s3 cp build/layers/common-layer-$ENV.zip "s3://$DEPLOYMENT_BUCKET/layers/common-layer-$ENV.zip"
+
+# LLM Lambda 패키징 및 업로드 (존재하는 경우)
+if [ -d "services/llm" ]; then
+    echo "LLM Lambda 패키징 중..."
+    mkdir -p build/llm
+    cp -r services/llm/* build/llm/
+    cd build/llm
+    echo "LLM Lambda 압축 중..."
+    zip -r llm-lambda-$ENV.zip *
+    cd ../..
+
+    echo "LLM 업로드 중..."
+    aws s3 cp build/llm/llm-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/llm/llm-lambda-$ENV.zip"
+fi
+
+# 기본 스택에서 출력값 가져오기
+echo "기본 스택에서 출력값 가져오는 중..."
+API_GATEWAY_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayId'].OutputValue" --output text)
+API_GATEWAY_ROOT_RESOURCE_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayRootResourceId'].OutputValue" --output text)
+FRONTEND_REDIRECT_DOMAIN=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='FrontendRedirectDomain'].OutputValue" --output text)
+
+echo "가져온 파라미터 확인:"
+echo "API_GATEWAY_ID: $API_GATEWAY_ID"
+echo "API_GATEWAY_ROOT_RESOURCE_ID: $API_GATEWAY_ROOT_RESOURCE_ID"
+echo "FRONTEND_REDIRECT_DOMAIN: $FRONTEND_REDIRECT_DOMAIN"
+
+# 메인 스택 배포 부분 수정
+if aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME > /dev/null 2>&1; then
+    # 스택이 존재하면 업데이트
+    echo "기존 스택 업데이트 중: $MAIN_STACK_NAME"
+    aws cloudformation update-stack \
+        --stack-name $MAIN_STACK_NAME \
+        --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/main.yaml" \
+        --parameters \
+            ParameterKey=Environment,ParameterValue=$ENV \
+            ParameterKey=DeveloperMode,ParameterValue=$DEVELOPER_MODE \
+            ParameterKey=UserPoolId,ParameterValue="$SSM_PATH_PREFIX/UserPoolId" \
+            ParameterKey=UserPoolClientId,ParameterValue="$SSM_PATH_PREFIX/UserPoolClientId" \
+            ParameterKey=UserPoolDomain,ParameterValue="$SSM_PATH_PREFIX/UserPoolDomain" \
+            ParameterKey=IdentityPoolId,ParameterValue="$SSM_PATH_PREFIX/IdentityPoolId" \
+            ParameterKey=OutputBucketName,ParameterValue="$SSM_PATH_PREFIX/OutputBucketName" \
+            ParameterKey=ApiGatewayIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayId" \
+            ParameterKey=ApiGatewayRootResourceIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayRootResourceId" \
+            ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
+        --capabilities CAPABILITY_NAMED_IAM
+else
+    # 스택이 존재하지 않으면 생성
+    echo "새 스택 생성 중: $MAIN_STACK_NAME"
+    aws cloudformation create-stack \
+        --stack-name $MAIN_STACK_NAME \
+        --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/main.yaml" \
+        --parameters \
+            ParameterKey=Environment,ParameterValue=$ENV \
+            ParameterKey=DeveloperMode,ParameterValue=$DEVELOPER_MODE \
+            ParameterKey=UserPoolId,ParameterValue="$SSM_PATH_PREFIX/UserPoolId" \
+            ParameterKey=UserPoolClientId,ParameterValue="$SSM_PATH_PREFIX/UserPoolClientId" \
+            ParameterKey=UserPoolDomain,ParameterValue="$SSM_PATH_PREFIX/UserPoolDomain" \
+            ParameterKey=IdentityPoolId,ParameterValue="$SSM_PATH_PREFIX/IdentityPoolId" \
+            ParameterKey=OutputBucketName,ParameterValue="$SSM_PATH_PREFIX/OutputBucketName" \
+            ParameterKey=ApiGatewayIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayId" \
+            ParameterKey=ApiGatewayRootResourceIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayRootResourceId" \
+            ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
+        --capabilities CAPABILITY_NAMED_IAM
+fi
+
+echo "메인 스택 배포 완료: $MAIN_STACK_NAME"
+
+# API Gateway URL 확인 (CloudFormation Output 대신 SSM 기반으로 구성)
+API_GATEWAY_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/ApiGatewayId" --query "Parameter.Value" --output text)
+API_URL="https://${API_GATEWAY_ID}.execute-api.${REGION}.amazonaws.com/prod"
+echo "API Gateway URL: $API_URL"
+
+# API Endpoint SSM에 저장
+echo "API Endpoint를 SSM에 저장 중..."
+aws ssm put-parameter \
+    --name "$SSM_PATH_PREFIX/ApiEndpoint" \
+    --value "$API_URL" \
+    --type "String" \
+    --overwrite
+
+if [ -d "services/llm" ]; then
+    echo "LLM Lambda 함수 설정 확인:"
+    aws lambda get-function --function-name wga-llm-$ENV --query "Configuration.[FunctionName,Layers]" --output json || echo "LLM Lambda 함수가 존재하지 않거나 접근할 수 없습니다."
+fi
 
 #################################################
 # 4. 환경 변수 설정
@@ -405,35 +374,47 @@ echo "환경 파일($ENV_FILE)이 업데이트되었습니다."
 #################################################
 # 5. 프론트엔드 빌드 및 배포
 #################################################
-if [ "$SKIP_FRONTEND" != "true" ]; then
-    echo "====== 5. 프론트엔드 빌드 및 배포 ======"
+echo "====== 5. 프론트엔드 빌드 및 배포 ======"
 
-    # frontend 디렉토리로 이동
-    cd frontend
+# frontend 디렉토리로 이동
+cd frontend
 
-    # 빌드 디렉토리 설정
-    BUILD_DIR="dist"
+# 빌드 디렉토리 설정
+BUILD_DIR="dist"
 
-    echo "의존성 설치 중..."
-    npm install
+echo "의존성 설치 중..."
+npm install
 
-    echo "프로젝트 빌드 중..."
-    npm run build
+echo "프로젝트 빌드 중..."
+npm run build
 
-    if [ ! -d "$BUILD_DIR" ]; then
-        echo "빌드 디렉토리($BUILD_DIR)가 존재하지 않습니다. 빌드가 실패했습니다."
-        exit 1
-    fi
-
-    echo "Amplify에 S3 업로드 중..."
-    aws s3 sync dist s3://wga-frontend-$ENV --delete
-    echo "Amplify 배포 완료"
-
-    # 기존 디렉토리로 돌아감
-    cd ..
-else
-    echo "프론트엔드 빌드 및 배포 스킵"
+if [ ! -d "$BUILD_DIR" ]; then
+    echo "빌드 디렉토리($BUILD_DIR)가 존재하지 않습니다. 빌드가 실패했습니다."
+    exit 1
 fi
+
+echo "Amplify에 S3 업로드 중..."
+aws s3 sync dist s3://wga-frontend-$ENV --delete
+  # Amplify에 S3 업로드 이후 수동 배포 트리거
+  echo "Amplify 수동 배포 트리거 중..."
+  TIMESTAMP=$(date +%s)
+  S3_DEPLOY_PATH="s3://wga-frontend-$ENV/amplify-upload-$TIMESTAMP/"
+
+  # 업로드한 dist 디렉토리를 복사 (원본 경로를 분리된 위치로 저장)
+  aws s3 cp --recursive dist "$S3_DEPLOY_PATH"
+
+  # Amplify 수동 배포 시작
+  aws amplify start-deployment \
+    --app-id "$AMPLIFY_APP_ID" \
+    --branch-name main \
+    --source-url "$S3_DEPLOY_PATH" \
+    --source-url-type BUCKET_PREFIX
+
+  echo "Amplify 배포 요청 완료"
+echo "Amplify 배포 완료"
+
+# 기존 디렉토리로 돌아감
+cd ..
 
 #################################################
 # 6. 배포 완료 요약

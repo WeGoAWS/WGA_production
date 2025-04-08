@@ -46,22 +46,19 @@ Parameters:
     Description: Name of the output S3 bucket
 
   ApiGatewayIdParameter:
-    Type: String
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/wga/${Environment}/ApiGatewayId'
     Description: ID of the API Gateway
 
   ApiGatewayRootResourceIdParameter:
-    Type: String
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/wga/${Environment}/ApiGatewayRootResourceId'
     Description: Root Resource ID of the API Gateway
 
   FrontendRedirectDomainParameter:
-    Type: String
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/wga/${Environment}/FrontendRedirectDomain'
     Description: Frontend redirect domain
-
-  # Add this parameter to reference the imported value
-  ImportedApiGatewayId:
-    Type: String
-    Default: ""
-    Description: "Imported API Gateway ID (set this to empty, it will be populated by ImportValue)"
 
 Resources:
   LlmStack:
@@ -76,119 +73,6 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref Environment
-
-  ApiGatewayDeployment:
-    Type: AWS::CloudFormation::CustomResource
-    DependsOn: LlmStack
-    Properties:
-      ServiceToken: !GetAtt DeploymentFunction.Arn
-      ApiId:
-        Fn::ImportValue:
-          Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
-      StageName: !Ref Environment
-
-  # 배포를 위한 Lambda 함수
-  DeploymentFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Handler: index.handler
-      Role: !GetAtt DeploymentFunctionRole.Arn
-      Runtime: python3.12
-      Code:
-        ZipFile: |
-          import boto3
-          import cfnresponse
-          import logging
-          
-          logger = logging.getLogger()
-          logger.setLevel(logging.INFO)
-          
-          def handler(event, context):
-              logger.info('Received event: %s', event)
-              
-              api_id = event['ResourceProperties']['ApiId']
-              stage_name = event['ResourceProperties']['StageName']
-              
-              client = boto3.client('apigateway')
-              
-              try:
-                  if event['RequestType'] == 'Create' or event['RequestType'] == 'Update':
-                      # 배포 생성
-                      deployment = client.create_deployment(
-                          restApiId=api_id,
-                          stageName=stage_name,
-                          description='Automated deployment from CloudFormation'
-                      )
-                      logger.info('Created deployment: %s', deployment)
-                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {
-                          'DeploymentId': deployment['id'],
-                          'ApiEndpoint': f"https://{api_id}.execute-api.{boto3.session.Session().region_name}.amazonaws.com/{stage_name}"
-                      })
-                  elif event['RequestType'] == 'Delete':
-                      # 삭제 요청 처리
-                      logger.info('Delete request - no action needed for API deployment')
-                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
-              except Exception as e:
-                  logger.error('Error: %s', e)
-                  cfnresponse.send(event, context, cfnresponse.FAILED, {'Error': str(e)})
-      Timeout: 30
-      
-  # Lambda 실행 역할
-  DeploymentFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: 'sts:AssumeRole'
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
-      Policies:
-        - PolicyName: ApiGatewayAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'apigateway:POST'
-                  - 'apigateway:GET'
-                Resource: '*'
-
-  # Set the imported values
-  ImportedApiGatewayIdValue:
-    Type: "Custom::ImportValue"
-    Properties:
-      ServiceToken: !GetAtt ImportValueFunction.Arn
-      ImportValueName: !Sub "wga-base-${Environment}-ApiGatewayId"
-
-  ImportValueFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Handler: index.handler
-      Role: !GetAtt ImportValueFunctionRole.Arn
-      Runtime: python3.12
-      Code:
-        ZipFile: |
-          import boto3
-          import cfnresponse
-          import logging
-
-          logger = logging.getLogger()
-          logger.setLevel(logging.INFO)
-
-          def handler(event, context):
-              logger.info('Received event: %s', event)
-
-              if event['RequestType'] == 'Create' or event['RequestType'] == 'Update':
-                  import_name = event['ResourceProperties']['ImportValueName']
-                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {
-                      'Value': import_name
-                  })
-              elif event['RequestType'] == 'Delete':
-                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
 
   ApiEndpointParameter:
     Type: AWS::SSM::Parameter
@@ -213,4 +97,4 @@ Outputs:
 
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
-    Value: !Sub "https://${ApiGatewayId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Value: !Sub "https://${ApiGatewayIdParameter}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
