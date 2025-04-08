@@ -67,6 +67,25 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
   
+  LlmStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/llm.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ApiGatewayId:
+          Fn::ImportValue:
+            Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
+        ApiGatewayRootResourceId:
+          Fn::ImportValue:
+            Fn::Sub: "wga-base-${Environment}-ApiGatewayRootResourceId"
+        FrontendRedirectDomain:
+          Fn::ImportValue:
+            Fn::Sub: "wga-base-${Environment}-FrontendRedirectDomain"
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
   ApiGatewayDeployment:
     Type: AWS::CloudFormation::CustomResource
     Properties:

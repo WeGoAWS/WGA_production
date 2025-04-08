@@ -317,57 +317,16 @@ Resources:
       ResponseType: DEFAULT_5XX
       RestApiId: !Ref ApiGateway
 
-  # OPTIONS 메서드를 처리하기 위한 공통 Lambda 함수
-  CorsLambdaRole:
-    Type: AWS::IAM::Role
+  # Cognito Authorizer
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
     Properties:
-      RoleName: !Sub 'wga-cors-lambda-role-${Environment}'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: 'sts:AssumeRole'
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-
-  CorsLambdaFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub 'wga-cors-${Environment}'
-      Runtime: python3.12
-      Handler: index.handler
-      Role: !GetAtt CorsLambdaRole.Arn
-      Environment:
-        Variables:
-          ENV: !Ref Environment
-          ALLOWED_ORIGINS: !Sub "'https://${FrontendRedirectDomain}'"
-      Code:
-        ZipFile: |
-          import os
-          import json
-          
-          def handler(event, context):
-              env = os.environ.get('ENV', 'dev')
-              allowed_origins = os.environ.get('ALLOWED_ORIGINS')
-              
-              return {
-                  'statusCode': 200,
-                  'headers': {
-                      'Access-Control-Allow-Origin': allowed_origins,
-                      'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-                      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-                      'Access-Control-Allow-Credentials': 'true'
-                  },
-                  'body': '{}'
-              }
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
+      Name: CognitoAuth
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      RestApiId: !Ref ApiGateway
+      ProviderARNs:
+        - !GetAtt UserPool.Arn
 
 Outputs:
   DeploymentBucketName:
@@ -381,45 +340,39 @@ Outputs:
     Value: !If [ShouldCreateOutputBucket, !Ref OutputBucket, !Sub 'wga-outputbucket-${Environment}']
     Export:
       Name: !Sub '${AWS::StackName}-OutputBucketName'
-  
+
   UserPoolId:
     Description: ID of the Cognito User Pool
     Value: !Ref UserPool
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolId'
-  
+
   UserPoolClientId:
     Description: ID of the Cognito User Pool Client
     Value: !Ref UserPoolClient
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolClientId'
-  
+
   UserPoolDomain:
     Description: Domain of the Cognito User Pool
     Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolDomain'
-  
+
   IdentityPoolId:
     Description: ID of the Cognito Identity Pool
     Value: !Ref IdentityPool
     Export:
       Name: !Sub '${AWS::StackName}-IdentityPoolId'
-  
+
   ApiGatewayId:
     Description: ID of the API Gateway
     Value: !Ref ApiGateway
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayId'
-  
+
   ApiGatewayRootResourceId:
     Description: Root Resource ID of the API Gateway
     Value: !GetAtt ApiGateway.RootResourceId
     Export:
       Name: !Sub '${AWS::StackName}-ApiGatewayRootResourceId'
-  
-  CorsLambdaArn:
-    Description: ARN of the CORS Lambda function
-    Value: !GetAtt CorsLambdaFunction.Arn
-    Export:
-      Name: !Sub '${AWS::StackName}-CorsLambdaArn'
