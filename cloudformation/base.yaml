@@ -262,57 +262,112 @@ Resources:
       ProviderARNs:
         - !GetAtt UserPool.Arn
 
+  # SSM Parameters
+  DeploymentBucketParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/DeploymentBucketName'
+      Type: String
+      Value: !If [ShouldCreateBucket, !Ref DeploymentBucket, !Sub 'wga-deployment-${Environment}']
+      Description: Name of the S3 bucket for deployment packages
+
+  OutputBucketParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/OutputBucketName'
+      Type: String
+      Value: !If [ShouldCreateOutputBucket, !Ref OutputBucket, !Sub 'wga-outputbucket-${Environment}']
+      Description: Name of the S3 bucket for output files
+
+  UserPoolIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/UserPoolId'
+      Type: String
+      Value: !Ref UserPool
+      Description: ID of the Cognito User Pool
+
+  UserPoolClientIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/UserPoolClientId'
+      Type: String
+      Value: !Ref UserPoolClient
+      Description: ID of the Cognito User Pool Client
+
+  UserPoolDomainParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/UserPoolDomain'
+      Type: String
+      Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+      Description: Domain of the Cognito User Pool
+
+  IdentityPoolIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/IdentityPoolId'
+      Type: String
+      Value: !Ref IdentityPool
+      Description: ID of the Cognito Identity Pool
+
+  ApiGatewayIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/ApiGatewayId'
+      Type: String
+      Value: !Ref ApiGateway
+      Description: ID of the API Gateway
+
+  ApiGatewayRootResourceIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/ApiGatewayRootResourceId'
+      Type: String
+      Value: !GetAtt ApiGateway.RootResourceId
+      Description: Root Resource ID of the API Gateway
+
+  FrontendRedirectDomainParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/FrontendRedirectDomain'
+      Type: String
+      Value: !Ref FrontendRedirectDomain
+      Description: Frontend redirect domain
+
 Outputs:
   DeploymentBucketName:
     Description: Name of the S3 bucket for deployment packages
     Value: !If [ShouldCreateBucket, !Ref DeploymentBucket, !Sub 'wga-deployment-${Environment}']
-    Export:
-      Name: !Sub '${AWS::StackName}-DeploymentBucketName'
 
   OutputBucketName:
     Description: Name of the S3 bucket for output files
     Value: !If [ShouldCreateOutputBucket, !Ref OutputBucket, !Sub 'wga-outputbucket-${Environment}']
-    Export:
-      Name: !Sub '${AWS::StackName}-OutputBucketName'
 
   UserPoolId:
     Description: ID of the Cognito User Pool
     Value: !Ref UserPool
-    Export:
-      Name: !Sub '${AWS::StackName}-UserPoolId'
 
   UserPoolClientId:
     Description: ID of the Cognito User Pool Client
     Value: !Ref UserPoolClient
-    Export:
-      Name: !Sub '${AWS::StackName}-UserPoolClientId'
 
   UserPoolDomain:
     Description: Domain of the Cognito User Pool
     Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
-    Export:
-      Name: !Sub '${AWS::StackName}-UserPoolDomain'
 
   IdentityPoolId:
     Description: ID of the Cognito Identity Pool
     Value: !Ref IdentityPool
-    Export:
-      Name: !Sub '${AWS::StackName}-IdentityPoolId'
 
   ApiGatewayId:
     Description: ID of the API Gateway
     Value: !Ref ApiGateway
-    Export:
-      Name: !Sub '${AWS::StackName}-ApiGatewayId'
 
   ApiGatewayRootResourceId:
     Description: Root Resource ID of the API Gateway
     Value: !GetAtt ApiGateway.RootResourceId
-    Export:
-      Name: !Sub '${AWS::StackName}-ApiGatewayRootResourceId'
 
   FrontendRedirectDomain:
     Description: Placeholder for frontend redirect domain
     Value: !Ref FrontendRedirectDomain
-    Export:
-      Name: !Sub '${AWS::StackName}-FrontendRedirectDomain'

@@ -10,12 +10,12 @@ Parameters:
       - test
       - prod
     Description: The deployment environment
-  
+
   DomainName:
     Type: String
     Default: ""
     Description: Domain name for the frontend (leave empty for CloudFront distribution URL only)
-  
+
   CertificateARN:
     Type: String
     Default: ""
@@ -60,15 +60,28 @@ Resources:
       AppId: !GetAtt AmplifyApp.AppId
       BranchName: main
 
+  # SSM Parameters
+  AmplifyAppIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/AmplifyAppId'
+      Type: String
+      Value: !GetAtt AmplifyApp.AppId
+      Description: Amplify App ID
+
+  AmplifyDefaultDomainParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/wga/${Environment}/AmplifyDefaultDomain'
+      Type: String
+      Value: !GetAtt AmplifyApp.DefaultDomain
+      Description: Default domain of the Amplify App
+
 Outputs:
   AmplifyAppId:
     Description: Amplify App ID
     Value: !GetAtt AmplifyApp.AppId
-    Export:
-      Name: !Sub '${AWS::StackName}-AmplifyAppId'
 
   AmplifyAppDefaultDomain:
     Description: Default domain of the Amplify App
     Value: !GetAtt AmplifyApp.DefaultDomain
-    Export:
-      Name: !Sub '${AWS::StackName}-AmplifyAppDefaultDomain'

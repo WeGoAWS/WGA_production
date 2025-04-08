@@ -19,30 +19,31 @@ Parameters:
       - "false"
     Description: Enable developer mode (disables zero trust evaluation)
     
-  # 새로 추가할 파라미터들
+  # 파라미터 정의를 SSM 참조 방식으로 변경
   UserPoolId:
-    Type: String
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/wga/dev/UserPoolId'
     Description: ID of the Cognito User Pool
-    
+
   UserPoolClientId:
-    Type: String
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/wga/dev/UserPoolClientId'
     Description: ID of the Cognito User Pool Client
-    
+
   UserPoolDomain:
-    Type: String
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/wga/dev/UserPoolDomain'
     Description: Domain of the Cognito User Pool
-  
+
   IdentityPoolId:
-    Type: String
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/wga/dev/IdentityPoolId'
     Description: ID of the Cognito Identity Pool
-  
+
   OutputBucketName:
-    Type: String
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/wga/dev/OutputBucketName'
     Description: Name of the output S3 bucket
-    
-  SecurityAlertsTopicArn:
-    Type: String
-    Description: ARN of the security alerts SNS topic
 
 Resources:
   LlmStack:
@@ -51,15 +52,9 @@ Resources:
       TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/llm.yaml'
       Parameters:
         Environment: !Ref Environment
-        ApiGatewayId:
-          Fn::ImportValue:
-            Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
-        ApiGatewayRootResourceId:
-          Fn::ImportValue:
-            Fn::Sub: "wga-base-${Environment}-ApiGatewayRootResourceId"
-        FrontendRedirectDomain:
-          Fn::ImportValue:
-            Fn::Sub: "wga-base-${Environment}-FrontendRedirectDomain"
+        ApiGatewayId: '{{resolve:ssm:/wga/${Environment}/ApiGatewayId}}'
+        ApiGatewayRootResourceId: '{{resolve:ssm:/wga/${Environment}/ApiGatewayRootResourceId}}'
+        FrontendRedirectDomain: '{{resolve:ssm:/wga/${Environment}/FrontendRedirectDomain}}'
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -144,6 +139,14 @@ Resources:
                   - 'apigateway:GET'
                 Resource: '*'
 
+  ApiEndpointParameter:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: !Sub '/wga/${Environment}/ApiEndpoint'
+        Type: String
+        Value: !Sub "https://${ApiGatewayId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+        Description: API Gateway endpoint URL
+
 Outputs:
   CognitoDomain:
     Description: Cognito User Pool Domain
@@ -156,12 +159,7 @@ Outputs:
   UserPoolClientId:
     Description: Cognito User Pool Client ID
     Value: !Ref UserPoolClientId
-  
+
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
-    Value:
-      Fn::Sub:
-        - "https://${ApiGatewayId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
-        - ApiGatewayId:
-            Fn::ImportValue:
-              Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
+    Value: !Sub "https://{{resolve:ssm:/wga/${Environment}/ApiGatewayId}}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"

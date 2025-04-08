@@ -39,6 +39,9 @@ else
   DEVELOPER_MODE=false
 fi
 
+# SSM 파라미터 경로 기본 prefix 설정
+SSM_PATH_PREFIX="/wga/$ENV"
+
 #################################################
 # 1. CloudFormation 버킷 확인 및 템플릿 업로드
 #################################################
@@ -198,6 +201,8 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     USER_POOL_DOMAIN=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" --output text)
     IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" --output text)
     OUTPUT_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='OutputBucketName'].OutputValue" --output text)
+    API_GATEWAY_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayId'].OutputValue" --output text)
+    API_GATEWAY_ROOT_RESOURCE_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayRootResourceId'].OutputValue" --output text)
 
     echo "가져온 파라미터 확인:"
     echo "USER_POOL_ID: $USER_POOL_ID"
@@ -205,6 +210,8 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     echo "USER_POOL_DOMAIN: $USER_POOL_DOMAIN"
     echo "IDENTITY_POOL_ID: $IDENTITY_POOL_ID"
     echo "OUTPUT_BUCKET_NAME: $OUTPUT_BUCKET_NAME"
+    echo "API_GATEWAY_ID: $API_GATEWAY_ID"
+    echo "API_GATEWAY_ROOT_RESOURCE_ID: $API_GATEWAY_ROOT_RESOURCE_ID"
     echo "SECURITY_ALERTS_TOPIC_ARN: $SECURITY_ALERTS_TOPIC_ARN"
 
     # 메인 스택 배포
@@ -219,12 +226,11 @@ if [ "$SKIP_BACKEND" != "true" ]; then
             --parameters \
                 ParameterKey=Environment,ParameterValue=$ENV \
                 ParameterKey=DeveloperMode,ParameterValue=$DEVELOPER_MODE \
-                ParameterKey=UserPoolId,ParameterValue=$USER_POOL_ID \
-                ParameterKey=UserPoolClientId,ParameterValue=$USER_POOL_CLIENT_ID \
-                ParameterKey=UserPoolDomain,ParameterValue=$USER_POOL_DOMAIN \
-                ParameterKey=IdentityPoolId,ParameterValue=$IDENTITY_POOL_ID \
-                ParameterKey=OutputBucketName,ParameterValue=$OUTPUT_BUCKET_NAME \
-                ParameterKey=SecurityAlertsTopicArn,ParameterValue=$SECURITY_ALERTS_TOPIC_ARN \
+                ParameterKey=UserPoolId,ParameterValue="$SSM_PATH_PREFIX/UserPoolId" \
+                ParameterKey=UserPoolClientId,ParameterValue="$SSM_PATH_PREFIX/UserPoolClientId" \
+                ParameterKey=UserPoolDomain,ParameterValue="$SSM_PATH_PREFIX/UserPoolDomain" \
+                ParameterKey=IdentityPoolId,ParameterValue="$SSM_PATH_PREFIX/IdentityPoolId" \
+                ParameterKey=OutputBucketName,ParameterValue="$SSM_PATH_PREFIX/OutputBucketName" \
             --capabilities CAPABILITY_NAMED_IAM
 
         # 스택 업데이트 완료 대기
@@ -239,12 +245,11 @@ if [ "$SKIP_BACKEND" != "true" ]; then
             --parameters \
                 ParameterKey=Environment,ParameterValue=$ENV \
                 ParameterKey=DeveloperMode,ParameterValue=$DEVELOPER_MODE \
-                ParameterKey=UserPoolId,ParameterValue=$USER_POOL_ID \
-                ParameterKey=UserPoolClientId,ParameterValue=$USER_POOL_CLIENT_ID \
-                ParameterKey=UserPoolDomain,ParameterValue=$USER_POOL_DOMAIN \
-                ParameterKey=IdentityPoolId,ParameterValue=$IDENTITY_POOL_ID \
-                ParameterKey=OutputBucketName,ParameterValue=$OUTPUT_BUCKET_NAME \
-                ParameterKey=SecurityAlertsTopicArn,ParameterValue=$SECURITY_ALERTS_TOPIC_ARN \
+                ParameterKey=UserPoolId,ParameterValue="$SSM_PATH_PREFIX/UserPoolId" \
+                ParameterKey=UserPoolClientId,ParameterValue="$SSM_PATH_PREFIX/UserPoolClientId" \
+                ParameterKey=UserPoolDomain,ParameterValue="$SSM_PATH_PREFIX/UserPoolDomain" \
+                ParameterKey=IdentityPoolId,ParameterValue="$SSM_PATH_PREFIX/IdentityPoolId" \
+                ParameterKey=OutputBucketName,ParameterValue="$SSM_PATH_PREFIX/OutputBucketName" \
             --capabilities CAPABILITY_NAMED_IAM
 
         # 스택 생성 완료 대기
@@ -258,22 +263,30 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     API_URL=$(aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
     echo "API Gateway URL: $API_URL"
 
+    # API Endpoint SSM에 저장
+    echo "API Endpoint를 SSM에 저장 중..."
+    aws ssm put-parameter \
+        --name "$SSM_PATH_PREFIX/ApiEndpoint" \
+        --value "$API_URL" \
+        --type "String" \
+        --overwrite
+
     if [ -d "services/llm" ]; then
         echo "LLM Lambda 함수 설정 확인:"
         aws lambda get-function --function-name wga-llm-$ENV --query "Configuration.[FunctionName,Layers]" --output json || echo "LLM Lambda 함수가 존재하지 않거나 접근할 수 없습니다."
     fi
-    
+
     echo "백엔드 배포 완료"
 else
     echo "백엔드 배포 스킵"
-    
-    # 기존 스택에서 값 가져오기
-    echo "기존 스택에서 필요한 값 가져오기..."
-    USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
-    USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" --output text)
-    USER_POOL_DOMAIN=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" --output text)
-    IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" --output text)
-    API_URL=$(aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
+
+    # SSM 파라미터에서 값 가져오기
+    echo "SSM 파라미터에서 값 가져오기..."
+    USER_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolId" --query "Parameter.Value" --output text)
+    USER_POOL_CLIENT_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolClientId" --query "Parameter.Value" --output text)
+    USER_POOL_DOMAIN=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolDomain" --query "Parameter.Value" --output text)
+    IDENTITY_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/IdentityPoolId" --query "Parameter.Value" --output text)
+    API_URL=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/ApiEndpoint" --query "Parameter.Value" --output text)
 fi
 
 #################################################
@@ -322,7 +335,6 @@ fi
 
 echo "프론트엔드 인프라 스택 배포 완료: $FRONTEND_STACK_NAME"
 
-
 # 프론트엔드 배포 정보 가져오기
 AMPLIFY_APP_ID=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='AmplifyAppId'].OutputValue" --output text)
 FRONTEND_URL=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='AmplifyAppDefaultDomain'].OutputValue" --output text)
@@ -330,7 +342,17 @@ FRONTEND_URL=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_N
 echo "프론트엔드 배포 정보:"
 echo "Amplify App ID: $AMPLIFY_APP_ID"
 echo "Amplify 기본 도메인: https://$FRONTEND_URL"
-echo "FrontendRedirectDomain 파라미터를 Amplify 도메인으로 업데이트 중..."
+
+# FrontendRedirectDomain 정보를 SSM에 업데이트
+echo "FrontendRedirectDomain 값을 SSM에 업데이트 중..."
+aws ssm put-parameter \
+    --name "$SSM_PATH_PREFIX/FrontendRedirectDomain" \
+    --value "$FRONTEND_URL" \
+    --type "String" \
+    --overwrite
+
+# SSM 파라미터 변경 후 base 스택 업데이트 (SSM 파라미터가 CloudFormation에 의해 생성되기 때문)
+echo "FrontendRedirectDomain 업데이트를 위해 base 스택 업데이트 중..."
 aws cloudformation update-stack \
     --stack-name $BASE_STACK_NAME \
     --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/base.yaml" \
@@ -350,11 +372,11 @@ aws cloudformation update-stack \
     --parameters \
         ParameterKey=Environment,ParameterValue=$ENV \
         ParameterKey=DeveloperMode,ParameterValue=$DEVELOPER_MODE \
-        ParameterKey=UserPoolId,ParameterValue=$USER_POOL_ID \
-        ParameterKey=UserPoolClientId,ParameterValue=$USER_POOL_CLIENT_ID \
-        ParameterKey=UserPoolDomain,ParameterValue=$USER_POOL_DOMAIN \
-        ParameterKey=IdentityPoolId,ParameterValue=$IDENTITY_POOL_ID \
-        ParameterKey=OutputBucketName,ParameterValue=$OUTPUT_BUCKET_NAME \
+        ParameterKey=UserPoolId,ParameterValue="$SSM_PATH_PREFIX/UserPoolId" \
+        ParameterKey=UserPoolClientId,ParameterValue="$SSM_PATH_PREFIX/UserPoolClientId" \
+        ParameterKey=UserPoolDomain,ParameterValue="$SSM_PATH_PREFIX/UserPoolDomain" \
+        ParameterKey=IdentityPoolId,ParameterValue="$SSM_PATH_PREFIX/IdentityPoolId" \
+        ParameterKey=OutputBucketName,ParameterValue="$SSM_PATH_PREFIX/OutputBucketName" \
     --capabilities CAPABILITY_NAMED_IAM
 aws cloudformation wait stack-update-complete --stack-name $MAIN_STACK_NAME
 echo "[INFO] 메인 스택 업데이트 완료"
@@ -363,32 +385,13 @@ echo "[INFO] 메인 스택 업데이트 완료"
 # 4. 환경 변수 설정
 #################################################
 echo "====== 4. 환경 변수 설정 ======"
- # 백엔드 스킵 시에도 기존 스택에서 출력값을 가져옴
- if [ -z "$USER_POOL_ID" ]; then
-   echo "[INFO] USER_POOL_ID 값을 기존 스택에서 다시 가져옵니다."
-   USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME \
-     --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
- fi
- if [ -z "$USER_POOL_CLIENT_ID" ]; then
-   echo "[INFO] USER_POOL_CLIENT_ID 값을 기존 스택에서 다시 가져옵니다."
-   USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME \
-     --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" --output text)
- fi
- if [ -z "$USER_POOL_DOMAIN" ]; then
-   echo "[INFO] USER_POOL_DOMAIN 값을 기존 스택에서 다시 가져옵니다."
-   USER_POOL_DOMAIN=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME \
-     --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" --output text)
- fi
- if [ -z "$IDENTITY_POOL_ID" ]; then
-   echo "[INFO] IDENTITY_POOL_ID 값을 기존 스택에서 다시 가져옵니다."
-   IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME \
-     --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" --output text)
- fi
- if [ -z "$API_URL" ]; then
-   echo "[INFO] API_URL 값을 기존 메인 스택에서 다시 가져옵니다."
-   API_URL=$(aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME \
-     --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
- fi
+# SSM 파라미터에서 값을 가져옴
+echo "[INFO] SSM에서 구성 값을 가져옵니다."
+USER_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolId" --query "Parameter.Value" --output text)
+USER_POOL_CLIENT_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolClientId" --query "Parameter.Value" --output text)
+USER_POOL_DOMAIN=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolDomain" --query "Parameter.Value" --output text)
+IDENTITY_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/IdentityPoolId" --query "Parameter.Value" --output text)
+API_URL=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/ApiEndpoint" --query "Parameter.Value" --output text)
 
 ENV_FILE="frontend/.env.local"
 
@@ -463,6 +466,13 @@ if [ "$SKIP_FRONTEND" != "true" ]; then
 else
     echo "프론트엔드 배포 상태: 스킵됨"
 fi
+
+# SSM 파라미터 요약 출력
+echo "====== SSM 파라미터 요약 ======"
+aws ssm get-parameters-by-path \
+    --path "$SSM_PATH_PREFIX" \
+    --query "Parameters[*].[Name,Value]" \
+    --output table
 
 echo "====== 배포 완료! ======"
 echo "배포 시간: $(date)"
