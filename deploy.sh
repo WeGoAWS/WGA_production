@@ -321,7 +321,7 @@ echo "메인 스택 배포 완료: $MAIN_STACK_NAME"
 
 # API Gateway URL 확인 (CloudFormation Output 대신 SSM 기반으로 구성)
 API_GATEWAY_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/ApiGatewayId" --query "Parameter.Value" --output text)
-API_URL="https://${API_GATEWAY_ID}.execute-api.${REGION}.amazonaws.com/prod"
+API_URL="https://${API_GATEWAY_ID}.execute-api.${REGION}.amazonaws.com/${ENV}"
 echo "API Gateway URL: $API_URL"
 
 # API Endpoint SSM에 저장
