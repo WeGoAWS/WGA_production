@@ -27,17 +27,6 @@ COGNITO_CLIENT_ID = os.environ.get('COGNITO_CLIENT_ID', '')
 COGNITO_DOMAIN = os.environ.get('COGNITO_DOMAIN', '')
 COGNITO_IDENTITY_POOL_ID = os.environ.get('COGNITO_IDENTITY_POOL_ID', '')
 
-# SNS 주제
-SNS_ALERT_TOPIC = os.environ.get('SNS_ALERT_TOPIC', f'wga-security-alerts-{ENV}')
-
-# 제로 트러스트 설정
-ZERO_TRUST_CONFIG = {
-    'session_duration': int(os.environ.get('SESSION_DURATION', '3600')),
-    'mfa_required_threshold': int(os.environ.get('MFA_REQUIRED_THRESHOLD', '50')),
-    'deny_threshold': int(os.environ.get('DENY_THRESHOLD', '70')),
-    'continuous_auth_interval': int(os.environ.get('CONTINUOUS_AUTH_INTERVAL', '900'))
-}
-
 # CORS 설정
 CORS_SETTINGS = {
     'dev': {

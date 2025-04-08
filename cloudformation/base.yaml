@@ -90,16 +90,6 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # SNS Topic for Alerts
-  SecurityAlertsTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      TopicName: !Sub 'wga-security-alerts-${Environment}'
-      DisplayName: 'WGA Security Alerts'
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-
   # Cognito User Pool
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -140,7 +130,7 @@ Resources:
         AllowAdminCreateUserOnly: false
       UserPoolTags:
         Environment: !Ref Environment
-        
+
   # User Pool Client
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -182,7 +172,7 @@ Resources:
       CognitoIdentityProviders:
         - ClientId: !Ref UserPoolClient
           ProviderName: !GetAtt UserPool.ProviderName
-      
+
   # Identity Pool Role Attachment
   IdentityPoolRoleAttachment:
     Type: AWS::Cognito::IdentityPoolRoleAttachment
@@ -246,10 +236,10 @@ Resources:
                 Resource:
                   !If
                     - ShouldCreateOutputBucket
-                    - 
+                    -
                       - !GetAtt OutputBucket.Arn
                       - !Sub '${OutputBucket.Arn}/*'
-                    - 
+                    -
                       - !Sub 'arn:aws:s3:::wga-outputbucket-${Environment}'
                       - !Sub 'arn:aws:s3:::wga-outputbucket-${Environment}/*'
       Tags:
@@ -282,7 +272,7 @@ Resources:
                 Action:
                   - 's3:GetObject'
                 Resource:
-                  - !If 
+                  - !If
                       - ShouldCreateOutputBucket
                       - !Sub '${OutputBucket.Arn}/public/*'
                       - !Sub 'arn:aws:s3:::wga-outputbucket-${Environment}/public/*'
@@ -302,7 +292,7 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref Environment
-  
+
   # API Gateway에 대한 CORS 설정
   ApiGatewayCorsSettings:
     Type: AWS::ApiGateway::GatewayResponse
@@ -314,7 +304,7 @@ Resources:
         gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
       ResponseType: DEFAULT_4XX
       RestApiId: !Ref ApiGateway
-  
+
   # 5XX 오류에 대한 CORS 설정도 추가
   ApiGatewayCorsSettings5XX:
     Type: AWS::ApiGateway::GatewayResponse
@@ -326,7 +316,7 @@ Resources:
         gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
       ResponseType: DEFAULT_5XX
       RestApiId: !Ref ApiGateway
-  
+
   # OPTIONS 메서드를 처리하기 위한 공통 Lambda 함수
   CorsLambdaRole:
     Type: AWS::IAM::Role
@@ -344,7 +334,7 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref Environment
-  
+
   CorsLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -385,18 +375,12 @@ Outputs:
     Value: !If [ShouldCreateBucket, !Ref DeploymentBucket, !Sub 'wga-deployment-${Environment}']
     Export:
       Name: !Sub '${AWS::StackName}-DeploymentBucketName'
-  
+
   OutputBucketName:
     Description: Name of the S3 bucket for output files
     Value: !If [ShouldCreateOutputBucket, !Ref OutputBucket, !Sub 'wga-outputbucket-${Environment}']
     Export:
       Name: !Sub '${AWS::StackName}-OutputBucketName'
-  
-  SecurityAlertsTopicArn:
-    Description: ARN of the security alerts SNS topic
-    Value: !Ref SecurityAlertsTopic
-    Export:
-      Name: !Sub '${AWS::StackName}-SecurityAlertsTopicArn'
   
   UserPoolId:
     Description: ID of the Cognito User Pool

@@ -280,44 +280,6 @@ def invoke_lambda(session, function_name, payload, invocation_type='RequestRespo
         logger.error(f"Error invoking Lambda: {e.response['Error']['Message']}", exc_info=True)
         return None
 
-def publish_to_sns(session, topic_arn, message, subject=None, attributes=None):
-    """
-    SNS 토픽에 메시지를 발행합니다.
-    
-    Args:
-        session (boto3.Session): AWS 세션
-        topic_arn (str): SNS 토픽 ARN
-        message (str/dict): 발행할 메시지
-        subject (str, optional): 메시지 제목
-        attributes (dict, optional): 메시지 속성
-        
-    Returns:
-        bool: 성공 여부
-    """
-    try:
-        sns_client = session.client('sns')
-        
-        # 메시지가 딕셔너리인 경우 JSON 문자열로 변환
-        if isinstance(message, dict):
-            message = json.dumps(message)
-        
-        params = {
-            'TopicArn': topic_arn,
-            'Message': message
-        }
-        
-        if subject:
-            params['Subject'] = subject
-        
-        if attributes:
-            params['MessageAttributes'] = attributes
-        
-        sns_client.publish(**params)
-        return True
-    except ClientError as e:
-        logger.error(f"Error publishing to SNS: {e.response['Error']['Message']}", exc_info=True)
-        return False
-
 def get_active_cloudtrail_s3_buckets(session):
     """
     CloudTrail이 활성화된 S3 버킷 목록을 가져옵니다.

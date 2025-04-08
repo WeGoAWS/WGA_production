@@ -76,53 +76,6 @@ Resources:
           Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
       StageName: !Ref Environment
 
-  SecurityAnalyticsStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/security-analytics.yaml'
-      Parameters:
-        Environment: !Ref Environment
-        CognitoUserPoolId: !Ref UserPoolId
-        CognitoClientId: !Ref UserPoolClientId
-        CognitoDomain: !Ref UserPoolDomain
-        CognitoIdentityPoolId: !Ref IdentityPoolId
-        OutputBucketName:
-          Fn::ImportValue:
-            Fn::Sub: "wga-base-${Environment}-OutputBucketName"
-        SecurityAlertsTopicArn: !Ref SecurityAlertsTopicArn
-        ApiGatewayId:
-          Fn::ImportValue:
-            Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
-        ApiGatewayRootResourceId:
-          Fn::ImportValue:
-            Fn::Sub: "wga-base-${Environment}-ApiGatewayRootResourceId"
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-
-  # # # Zero Trust Stack
-  # ZeroTrustStack:
-  #   Type: AWS::CloudFormation::Stack
-  #   Properties:
-  #     TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/zero-trust.yaml'
-  #     Parameters:
-  #       Environment: !Ref Environment
-  #       CognitoUserPoolId: !Ref UserPoolId
-  #       CognitoClientId: !Ref UserPoolClientId
-  #       CognitoDomain: !Ref UserPoolDomain
-  #       CognitoIdentityPoolId: !Ref IdentityPoolId
-  #       SecurityAlertsTopicArn: !Ref SecurityAlertsTopicArn
-  #       ApiGatewayId: !ImportValue
-  #         Fn::Sub: "wga-base-${Environment}-ApiGatewayId"
-  #       ApiGatewayRootResourceId: !ImportValue
-  #         Fn::Sub: "wga-base-${Environment}-ApiGatewayRootResourceId"
-  #     Tags:
-  #       - Key: Environment
-  #         Value: !Ref Environment
-
-
-  
-      
   # 배포를 위한 Lambda 함수
   DeploymentFunction:
     Type: AWS::Lambda::Function

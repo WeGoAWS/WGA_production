@@ -56,8 +56,7 @@ echo "====== CloudFormation 템플릿 업로드 ======"
 echo "CloudFormation 템플릿 업로드 중..."
 aws s3 cp cloudformation/base.yaml "s3://$CLOUDFORMATION_BUCKET/base.yaml"
 aws s3 cp cloudformation/auth.yaml "s3://$CLOUDFORMATION_BUCKET/auth.yaml"
-aws s3 cp cloudformation/security-analytics.yaml "s3://$CLOUDFORMATION_BUCKET/security-analytics.yaml" 2>/dev/null || echo "security-analytics.yaml 파일이 없습니다. 스킵합니다."
-aws s3 cp cloudformation/zero-trust.yaml "s3://$CLOUDFORMATION_BUCKET/zero-trust.yaml" 2>/dev/null || echo "zero-trust.yaml 파일이 없습니다. 스킵합니다."
+aws s3 cp cloudformation/llm.yaml "s3://$CLOUDFORMATION_BUCKET/llm.yaml"
 aws s3 cp cloudformation/main.yaml "s3://$CLOUDFORMATION_BUCKET/main.yaml"
 aws s3 cp cloudformation/frontend.yaml "s3://$CLOUDFORMATION_BUCKET/frontend.yaml"
 
@@ -70,7 +69,7 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     echo "====== 2. 백엔드 배포 시작 ======"
     
     # 기본 스택 배포 전 S3 버킷 존재 여부 확인
-    if aws s3 ls "s3://$DEPLOYMENT_BUCKET" 2>&1 > /dev/null; then
+    if aws s3 ls "s3://$DEPLOYMENT_BUCKET" > /dev/null 2>&1; then
         echo "배포 버킷($DEPLOYMENT_BUCKET)이 이미 존재합니다. 이 버킷을 재사용합니다."
         BUCKET_EXISTS="true"
     else
@@ -79,7 +78,7 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     fi
 
     # OutputBucket 존재 여부 확인
-    if aws s3 ls "s3://$OUTPUT_BUCKET_NAME" 2>&1 > /dev/null; then
+    if aws s3 ls "s3://$OUTPUT_BUCKET_NAME" > /dev/null 2>&1; then
         echo "출력 버킷($OUTPUT_BUCKET_NAME)이 이미 존재합니다. 이 버킷을 재사용합니다."
         OUTPUT_BUCKET_EXISTS="true"
     else
@@ -90,7 +89,7 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     # 기본 스택 배포
     echo "기본 인프라 스택 배포 중: $BASE_STACK_NAME..."
 
-    if aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME 2>&1 > /dev/null; then
+    if aws cloudformation describe-stacks --stack-name "$BASE_STACK_NAME" > /dev/null 2>&1; then
         # 스택이 존재하면 업데이트
         echo "기존 스택 업데이트 중: $BASE_STACK_NAME"
         aws cloudformation update-stack \
@@ -126,7 +125,7 @@ if [ "$SKIP_BACKEND" != "true" ]; then
 
     # 배포 버킷이 이제 존재해야 함
     echo "배포 버킷이 존재하는지 확인 중: $DEPLOYMENT_BUCKET"
-    if ! aws s3 ls "s3://$DEPLOYMENT_BUCKET" 2>&1 > /dev/null; then
+    if ! aws s3 ls "s3://$DEPLOYMENT_BUCKET" > /dev/null 2>&1; then
         echo "배포 버킷이 없습니다. 기본 스택이 올바르게 생성되었는지 확인하세요."
         exit 1
     fi
@@ -179,32 +178,18 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     echo "Auth Lambda 업로드 중..."
     aws s3 cp build/auth/auth-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/auth/auth-lambda-$ENV.zip"
 
-    # Security Analytics Lambda 패키징 및 업로드 (존재하는 경우)
-    if [ -d "services/security_analytics" ]; then
-        echo "Security Analytics Lambda 패키징 중..."
-        mkdir -p build/security_analytics
-        cp -r services/security_analytics/* build/security_analytics/
-        cd build/security_analytics
-        echo "Security Analytics Lambda 압축 중..."
-        zip -r security-analytics-lambda-$ENV.zip *
+    # LLM Lambda 패키징 및 업로드 (존재하는 경우)
+    if [ -d "services/llm" ]; then
+        echo "LLM Lambda 패키징 중..."
+        mkdir -p build/llm
+        cp -r services/security_analytics/* build/llm/
+        cd build/llm
+        echo "LLM Lambda 압축 중..."
+        zip -r llm-lambda-$ENV.zip *
         cd ../..
 
-        echo "Security Analytics Lambda 업로드 중..."
-        aws s3 cp build/security_analytics/security-analytics-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/security_analytics/security-analytics-lambda-$ENV.zip"
-    fi
-
-    # Zero Trust Lambda 패키징 및 업로드 (존재하는 경우)
-    if [ -d "services/zero_trust" ]; then
-        echo "Zero Trust Lambda 패키징 중..."
-        mkdir -p build/zero_trust
-        cp -r services/zero_trust/* build/zero_trust/
-        cd build/zero_trust
-        echo "Zero Trust Lambda 압축 중..."
-        zip -r zero-trust-lambda-$ENV.zip *
-        cd ../..
-
-        echo "Zero Trust Lambda 업로드 중..."
-        aws s3 cp build/zero_trust/zero-trust-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/zero_trust/zero-trust-lambda-$ENV.zip"
+        echo "LLM 업로드 중..."
+        aws s3 cp build/llm/llm-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/llm/llm-lambda-$ENV.zip"
     fi
 
     # 기본 스택에서 출력값 가져오기
@@ -227,7 +212,7 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     # 메인 스택 배포
     echo "메인 스택 배포 중: $MAIN_STACK_NAME..."
 
-    if aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME 2>&1 > /dev/null; then
+    if aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME > /dev/null 2>&1; then
         # 스택이 존재하면 업데이트
         echo "기존 스택 업데이트 중: $MAIN_STACK_NAME"
         aws cloudformation update-stack \
@@ -280,14 +265,9 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     echo "Auth Lambda 함수 설정 확인:"
     aws lambda get-function --function-name wga-auth-$ENV --query "Configuration.[FunctionName,Layers]" --output json || echo "Auth Lambda 함수가 존재하지 않거나 접근할 수 없습니다."
 
-    if [ -d "services/security_analytics" ]; then
+    if [ -d "services/llm" ]; then
         echo "Security Analytics Lambda 함수 설정 확인:"
-        aws lambda get-function --function-name wga-security-analytics-$ENV --query "Configuration.[FunctionName,Layers]" --output json || echo "Security Analytics Lambda 함수가 존재하지 않거나 접근할 수 없습니다."
-    fi
-
-    if [ -d "services/zero_trust" ]; then
-        echo "Zero Trust Lambda 함수 설정 확인:"
-        aws lambda get-function --function-name wga-zero-trust-enforcer-$ENV --query "Configuration.[FunctionName,Layers]" --output json || echo "Zero Trust Lambda 함수가 존재하지 않거나 접근할 수 없습니다."
+        aws lambda get-function --function-name wga-llm-$ENV --query "Configuration.[FunctionName,Layers]" --output json || echo "LLM Lambda 함수가 존재하지 않거나 접근할 수 없습니다."
     fi
     
     echo "백엔드 배포 완료"
@@ -315,7 +295,7 @@ if [ -n "$DOMAIN_NAME" ] && [ -n "$CERTIFICATE_ARN" ]; then
     echo "사용자 정의 도메인: $DOMAIN_NAME (인증서: $CERTIFICATE_ARN)"
 fi
 
-if aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME 2>&1 > /dev/null; then
+if aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME > /dev/null 2>&1; then
     # 스택이 존재하면 업데이트
     echo "기존 프론트엔드 스택 업데이트 중: $FRONTEND_STACK_NAME"
     aws cloudformation update-stack \
@@ -349,32 +329,14 @@ fi
 
 echo "프론트엔드 인프라 스택 배포 완료: $FRONTEND_STACK_NAME"
 
-# 3-1. Cognito 도메인 반영을 위한 base 스택 재배포
-echo "====== 3-1. Cognito 도메인 업데이트를 위한 base 스택 재배포 ======"
-echo "실제 CloudFront 도메인을 Cognito에 반영합니다: $CLOUDFRONT_URL"
-aws cloudformation update-stack \
-    --stack-name $BASE_STACK_NAME \
-    --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/base.yaml" \
-    --parameters \
-        ParameterKey=Environment,ParameterValue=$ENV \
-        ParameterKey=BucketExists,ParameterValue=true \
-        ParameterKey=OutputBucketExists,ParameterValue=true \
-        ParameterKey=FrontendRedirectDomain,ParameterValue=$CLOUDFRONT_URL \
-    --capabilities CAPABILITY_NAMED_IAM
-aws cloudformation wait stack-update-complete --stack-name $BASE_STACK_NAME
-echo "Cognito 리디렉션 도메인 업데이트 완료"
 
 # 프론트엔드 배포 정보 가져오기
-FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" --output text)
-CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" --output text)
-CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDomainName'].OutputValue" --output text)
-FRONTEND_URL=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='FrontendURL'].OutputValue" --output text)
+AMPLIFY_APP_ID=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='AmplifyAppId'].OutputValue" --output text)
+FRONTEND_URL=$(aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='AmplifyAppDefaultDomain'].OutputValue" --output text)
 
 echo "프론트엔드 배포 정보:"
-echo "S3 버킷: $FRONTEND_BUCKET"
-echo "CloudFront 배포 ID: $CLOUDFRONT_DISTRIBUTION_ID"
-echo "CloudFront URL: https://$CLOUDFRONT_URL"
-echo "프론트엔드 URL: $FRONTEND_URL"
+echo "Amplify App ID: $AMPLIFY_APP_ID"
+echo "Amplify 기본 도메인: https://$FRONTEND_URL"
 
 #################################################
 # 4. 환경 변수 설정
@@ -422,7 +384,7 @@ VITE_API_DEST=$API_URL
 COGNITO_DOMAIN=$(echo "$USER_POOL_DOMAIN" | sed -E 's#https://([^.]*)\..*#\1#')
 COGNITO_CLIENT_ID=$USER_POOL_CLIENT_ID
 COGNITO_CLIENT_SECRET=
-COGNITO_REDIRECT_URI=https://$CLOUDFRONT_URL/redirect
+COGNITO_REDIRECT_URI=https://${FRONTEND_URL}/redirect
 COGNITO_IDENTITY_POOL_ID=$IDENTITY_POOL_ID
 USER_POOL_ID=$USER_POOL_ID
 EOF
@@ -437,17 +399,14 @@ if [ "$SKIP_FRONTEND" != "true" ]; then
 
     # frontend 디렉토리로 이동
     cd frontend
-    
+
     # 빌드 디렉토리 설정
     BUILD_DIR="dist"
-    
-    # Vue.js 프로젝트 빌드
-    echo "Vue.js 프로젝트 빌드 중..."
+
     echo "의존성 설치 중..."
     npm install
 
     echo "프로젝트 빌드 중..."
-    # .env.local 환경변수를 기준으로 빌드
     npm run build
 
     if [ ! -d "$BUILD_DIR" ]; then
@@ -455,48 +414,16 @@ if [ "$SKIP_FRONTEND" != "true" ]; then
         exit 1
     fi
 
-    # S3에 배포
-    echo "S3 버킷에 배포 중..."
-    echo "배포 버킷: $FRONTEND_BUCKET"
-
-    # S3 버킷 내용물 삭제 (기존 파일 제거)
-    echo "기존 파일 제거 중..."
-    aws s3 rm "s3://$FRONTEND_BUCKET" --recursive
-
-    # 새 파일 업로드
-    echo "새 파일 업로드 중..."
-    aws s3 sync "$BUILD_DIR" "s3://$FRONTEND_BUCKET" --delete
+    echo "Amplify 배포 준비 완료 (S3 업로드는 별도 수동 또는 CI/CD로 처리됩니다)"
 
     # 기존 디렉토리로 돌아감
     cd ..
-
-    # CloudFront 캐시 무효화
-    echo "CloudFront 캐시 무효화 중..."
-    echo "CloudFront 배포 ID: $CLOUDFRONT_DISTRIBUTION_ID"
-
-    # CloudFront 캐시 무효화 요청 생성
-    INVALIDATION_ID=$(aws cloudfront create-invalidation \
-        --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
-        --paths "/*" \
-        --query "Invalidation.Id" \
-        --output text)
-
-    echo "캐시 무효화 ID: $INVALIDATION_ID"
-    echo "캐시 무효화 상태 확인 중..."
-
-    # 캐시 무효화가 완료될 때까지 대기
-    aws cloudfront wait invalidation-completed \
-        --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
-        --id $INVALIDATION_ID
-
-    echo "프론트엔드 빌드 및 배포 완료"
 else
     echo "프론트엔드 빌드 및 배포 스킵"
 fi
 
 #################################################
 # 6. 배포 완료 요약
-#################################################
 echo "====== 6. 배포 완료 요약 ======"
 echo "환경: $ENV"
 
