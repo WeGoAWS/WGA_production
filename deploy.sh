@@ -181,7 +181,7 @@ if [ "$SKIP_BACKEND" != "true" ]; then
     if [ -d "services/llm" ]; then
         echo "LLM Lambda 패키징 중..."
         mkdir -p build/llm
-        cp -r services/security_analytics/* build/llm/
+        cp -r services/llm/* build/llm/
         cd build/llm
         echo "LLM Lambda 압축 중..."
         zip -r llm-lambda-$ENV.zip *
