@@ -45,6 +45,24 @@ Parameters:
     Default: '/wga/dev/OutputBucketName'
     Description: Name of the output S3 bucket
 
+  ApiGatewayIdParameter:
+    Type: String
+    Description: ID of the API Gateway
+
+  ApiGatewayRootResourceIdParameter:
+    Type: String
+    Description: Root Resource ID of the API Gateway
+
+  FrontendRedirectDomainParameter:
+    Type: String
+    Description: Frontend redirect domain
+
+  # Add this parameter to reference the imported value
+  ImportedApiGatewayId:
+    Type: String
+    Default: ""
+    Description: "Imported API Gateway ID (set this to empty, it will be populated by ImportValue)"
+
 Resources:
   LlmStack:
     Type: AWS::CloudFormation::Stack
@@ -52,9 +70,9 @@ Resources:
       TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/llm.yaml'
       Parameters:
         Environment: !Ref Environment
-        ApiGatewayId: '{{resolve:ssm:/wga/${Environment}/ApiGatewayId}}'
-        ApiGatewayRootResourceId: '{{resolve:ssm:/wga/${Environment}/ApiGatewayRootResourceId}}'
-        FrontendRedirectDomain: '{{resolve:ssm:/wga/${Environment}/FrontendRedirectDomain}}'
+        ApiGatewayId: !Ref ApiGatewayIdParameter
+        ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
+        FrontendRedirectDomain: !Ref FrontendRedirectDomainParameter
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -139,12 +157,45 @@ Resources:
                   - 'apigateway:GET'
                 Resource: '*'
 
+  # Set the imported values
+  ImportedApiGatewayIdValue:
+    Type: "Custom::ImportValue"
+    Properties:
+      ServiceToken: !GetAtt ImportValueFunction.Arn
+      ImportValueName: !Sub "wga-base-${Environment}-ApiGatewayId"
+
+  ImportValueFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt ImportValueFunctionRole.Arn
+      Runtime: python3.12
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def handler(event, context):
+              logger.info('Received event: %s', event)
+
+              if event['RequestType'] == 'Create' or event['RequestType'] == 'Update':
+                  import_name = event['ResourceProperties']['ImportValueName']
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                      'Value': import_name
+                  })
+              elif event['RequestType'] == 'Delete':
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+
   ApiEndpointParameter:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub '/wga/${Environment}/ApiEndpoint'
       Type: String
-      Value: !Sub "https://{{resolve:ssm:/wga/${Environment}/ApiGatewayId}}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+      Value: !Sub "https://${ApiGatewayIdParameter}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
       Description: API Gateway endpoint URL
 
 Outputs:
@@ -162,4 +213,4 @@ Outputs:
 
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
-    Value: !Sub "https://{{resolve:ssm:/wga/${Environment}/ApiGatewayId}}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Value: !Sub "https://${ApiGatewayId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"

@@ -196,26 +196,16 @@ if [ "$SKIP_BACKEND" != "true" ]; then
 
     # 기본 스택에서 출력값 가져오기
     echo "기본 스택에서 출력값 가져오는 중..."
-    USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
-    USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" --output text)
-    USER_POOL_DOMAIN=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='UserPoolDomain'].OutputValue" --output text)
-    IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" --output text)
-    OUTPUT_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='OutputBucketName'].OutputValue" --output text)
     API_GATEWAY_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayId'].OutputValue" --output text)
     API_GATEWAY_ROOT_RESOURCE_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayRootResourceId'].OutputValue" --output text)
+    FRONTEND_REDIRECT_DOMAIN=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='FrontendRedirectDomain'].OutputValue" --output text)
 
     echo "가져온 파라미터 확인:"
-    echo "USER_POOL_ID: $USER_POOL_ID"
-    echo "USER_POOL_CLIENT_ID: $USER_POOL_CLIENT_ID"
-    echo "USER_POOL_DOMAIN: $USER_POOL_DOMAIN"
-    echo "IDENTITY_POOL_ID: $IDENTITY_POOL_ID"
-    echo "OUTPUT_BUCKET_NAME: $OUTPUT_BUCKET_NAME"
     echo "API_GATEWAY_ID: $API_GATEWAY_ID"
     echo "API_GATEWAY_ROOT_RESOURCE_ID: $API_GATEWAY_ROOT_RESOURCE_ID"
+    echo "FRONTEND_REDIRECT_DOMAIN: $FRONTEND_REDIRECT_DOMAIN"
 
-    # 메인 스택 배포
-    echo "메인 스택 배포 중: $MAIN_STACK_NAME..."
-
+    # 메인 스택 배포 부분 수정
     if aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME > /dev/null 2>&1; then
         # 스택이 존재하면 업데이트
         echo "기존 스택 업데이트 중: $MAIN_STACK_NAME"
@@ -230,11 +220,10 @@ if [ "$SKIP_BACKEND" != "true" ]; then
                 ParameterKey=UserPoolDomain,ParameterValue="$SSM_PATH_PREFIX/UserPoolDomain" \
                 ParameterKey=IdentityPoolId,ParameterValue="$SSM_PATH_PREFIX/IdentityPoolId" \
                 ParameterKey=OutputBucketName,ParameterValue="$SSM_PATH_PREFIX/OutputBucketName" \
+                ParameterKey=ApiGatewayIdParameter,ParameterValue="$API_GATEWAY_ID" \
+                ParameterKey=ApiGatewayRootResourceIdParameter,ParameterValue="$API_GATEWAY_ROOT_RESOURCE_ID" \
+                ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$FRONTEND_REDIRECT_DOMAIN" \
             --capabilities CAPABILITY_NAMED_IAM
-
-        # 스택 업데이트 완료 대기
-        echo "스택 업데이트 완료 대기 중: $MAIN_STACK_NAME"
-        aws cloudformation wait stack-update-complete --stack-name $MAIN_STACK_NAME
     else
         # 스택이 존재하지 않으면 생성
         echo "새 스택 생성 중: $MAIN_STACK_NAME"
@@ -249,11 +238,10 @@ if [ "$SKIP_BACKEND" != "true" ]; then
                 ParameterKey=UserPoolDomain,ParameterValue="$SSM_PATH_PREFIX/UserPoolDomain" \
                 ParameterKey=IdentityPoolId,ParameterValue="$SSM_PATH_PREFIX/IdentityPoolId" \
                 ParameterKey=OutputBucketName,ParameterValue="$SSM_PATH_PREFIX/OutputBucketName" \
+                ParameterKey=ApiGatewayIdParameter,ParameterValue="$API_GATEWAY_ID" \
+                ParameterKey=ApiGatewayRootResourceIdParameter,ParameterValue="$API_GATEWAY_ROOT_RESOURCE_ID" \
+                ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$FRONTEND_REDIRECT_DOMAIN" \
             --capabilities CAPABILITY_NAMED_IAM
-
-        # 스택 생성 완료 대기
-        echo "스택 생성 완료 대기 중: $MAIN_STACK_NAME"
-        aws cloudformation wait stack-create-complete --stack-name $MAIN_STACK_NAME
     fi
 
     echo "메인 스택 배포 완료: $MAIN_STACK_NAME"
