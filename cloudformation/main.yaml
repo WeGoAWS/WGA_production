@@ -66,6 +66,7 @@ Resources:
 
   ApiGatewayDeployment:
     Type: AWS::CloudFormation::CustomResource
+    DependsOn: LlmStack
     Properties:
       ServiceToken: !GetAtt DeploymentFunction.Arn
       ApiId:
