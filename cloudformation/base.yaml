@@ -137,9 +137,9 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
       CallbackURLs:
-        - !Sub 'https://${FrontendRedirectDomain}/redirect'
+        - !Sub 'https://${FrontendRedirectDomainWithEnv}/redirect'
       LogoutURLs:
-        - !Sub 'https://${FrontendRedirectDomain}/redirect'
+        - !Sub 'https://${FrontendRedirectDomainWithEnv}/redirect'
       AllowedOAuthFlows:
         - code
       AllowedOAuthScopes:
