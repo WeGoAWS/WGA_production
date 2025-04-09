@@ -137,9 +137,9 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
       CallbackURLs:
-        - !Sub 'https://${FrontendRedirectDomainWithEnv}/redirect'
+        - !Sub 'https://${Environment}.${FrontendRedirectDomain}/redirect'
       LogoutURLs:
-        - !Sub 'https://${FrontendRedirectDomainWithEnv}/redirect'
+        - !Sub 'https://${Environment}.${FrontendRedirectDomain}/redirect'
       AllowedOAuthFlows:
         - code
       AllowedOAuthScopes:
@@ -345,15 +345,6 @@ Resources:
       Value: !Ref FrontendRedirectDomain
       Description: Frontend redirect domain
 
-  FrontendRedirectDomainWithEnvParameter:
-    Type: AWS::SSM::Parameter
-    DeletionPolicy: Delete
-    Properties:
-      Name: !Sub '/wga/${Environment}/FrontendRedirectDomainWithEnv'
-      Type: String
-      Value: !Sub '${Environment}.${FrontendRedirectDomain}'
-      Description: Frontend redirect domain with environment prefix
-
 Outputs:
   DeploymentBucketName:
     Description: Name of the S3 bucket for deployment packages
@@ -390,7 +381,3 @@ Outputs:
   FrontendRedirectDomain:
     Description: Placeholder for frontend redirect domain
     Value: !Ref FrontendRedirectDomain
-
-  FrontendRedirectDomainWithEnv:
-    Description: Frontend redirect domain with environment prefix
-    Value: !Sub '${Environment}.${FrontendRedirectDomain}'
