@@ -131,12 +131,23 @@ def create_success_response(data=None, message=None):
 def invoke_bedrock_nova(prompt):
     bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
     response = bedrock.invoke_model(
-        modelId="ai21.j2-ultra-v1",  # 예시: Nova Pro가 이 모델일 경우
+        modelId="amazon.nova-pro-v1:0",
         contentType="application/json",
+        accept="application/json",
         body=json.dumps({
-            "prompt": prompt,
-            "maxTokens": 1000,
-            "temperature": 0.7
+            "inferenceConfig": {
+                "max_new_tokens": 1000
+            },
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
         })
     )
     return json.loads(response["body"].read())
