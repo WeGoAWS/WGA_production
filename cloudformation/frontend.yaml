@@ -73,6 +73,10 @@ Resources:
           cache:
             paths:
               - node_modules/**
+          redirects:
+            - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>'
+              target: '/index.html'
+              status: '200'
 
   AmplifyBranch:
     Type: AWS::Amplify::Branch
@@ -99,6 +103,15 @@ Resources:
       Value: !GetAtt AmplifyApp.DefaultDomain
       Description: Default domain of the Amplify App
 
+  AmplifyDefaultDomainWithEnvParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '/wga/${Environment}/AmplifyDefaultDomainWithEnv'
+      Type: String
+      Value: !Sub '${Environment}.${AmplifyApp.DefaultDomain}'
+      Description: Default domain of the Amplify App with Environment prefix
+
 Outputs:
   AmplifyAppId:
     Description: Amplify App ID
@@ -107,3 +120,7 @@ Outputs:
   AmplifyAppDefaultDomain:
     Description: Default domain of the Amplify App
     Value: !GetAtt AmplifyApp.DefaultDomain
+
+  AmplifyAppDefaultDomainWithEnv:
+    Description: Amplify Default Domain with Environment prefix
+    Value: !Sub '${Environment}.${AmplifyApp.DefaultDomain}'
