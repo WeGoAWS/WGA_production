@@ -265,6 +265,7 @@ Resources:
   # SSM Parameters
   DeploymentBucketParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/DeploymentBucketName'
       Type: String
@@ -273,6 +274,7 @@ Resources:
 
   OutputBucketParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/OutputBucketName'
       Type: String
@@ -281,6 +283,7 @@ Resources:
 
   UserPoolIdParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/UserPoolId'
       Type: String
@@ -289,6 +292,7 @@ Resources:
 
   UserPoolClientIdParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/UserPoolClientId'
       Type: String
@@ -297,6 +301,7 @@ Resources:
 
   UserPoolDomainParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/UserPoolDomain'
       Type: String
@@ -305,6 +310,7 @@ Resources:
 
   IdentityPoolIdParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/IdentityPoolId'
       Type: String
@@ -313,6 +319,7 @@ Resources:
 
   ApiGatewayIdParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/ApiGatewayId'
       Type: String
@@ -321,6 +328,7 @@ Resources:
 
   ApiGatewayRootResourceIdParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/ApiGatewayRootResourceId'
       Type: String
@@ -329,6 +337,7 @@ Resources:
 
   FrontendRedirectDomainParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/FrontendRedirectDomain'
       Type: String

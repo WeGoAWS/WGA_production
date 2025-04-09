@@ -28,6 +28,26 @@ Resources:
       BucketName: !Sub wga-frontend-${Environment}
       AccessControl: Private
 
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAmplifyFullReadAccess
+            Effect: Allow
+            Principal:
+              Service: amplify.amazonaws.com
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+              - s3:ListBucket
+              - s3:GetBucketLocation
+            Resource:
+              - !Sub arn:aws:s3:::wga-frontend-${Environment}
+              - !Sub arn:aws:s3:::wga-frontend-${Environment}/*
+
   # Amplify App for frontend hosting
   AmplifyApp:
     Type: AWS::Amplify::App
@@ -63,6 +83,7 @@ Resources:
   # SSM Parameters
   AmplifyAppIdParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/AmplifyAppId'
       Type: String
@@ -71,6 +92,7 @@ Resources:
 
   AmplifyDefaultDomainParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/AmplifyDefaultDomain'
       Type: String
