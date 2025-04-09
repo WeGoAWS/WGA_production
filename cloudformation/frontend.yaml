@@ -82,7 +82,12 @@ Resources:
     Type: AWS::Amplify::Branch
     Properties:
       AppId: !GetAtt AmplifyApp.AppId
-      BranchName: main
+      BranchName: !Ref Environment
+      Stage: !Ref Environment
+      EnableAutoBuild: true
+      EnvironmentVariables:
+        - Name: ENV
+          Value: !Ref Environment
 
   # SSM Parameters
   AmplifyAppIdParameter:
