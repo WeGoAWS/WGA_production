@@ -46,6 +46,17 @@ Resources:
                   - bedrock:InvokeModel
                 Resource: '*'
 
+  LlmLambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'llm-layer-${Environment}'
+      Description: Common Python dependencies
+      Content:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'layers/common-layer-${Environment}.zip'
+      CompatibleRuntimes:
+        - python3.12
+
   LlmLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -58,6 +69,8 @@ Resources:
       Timeout: 30
       MemorySize: 256
       Role: !GetAtt LlmLambdaExecutionRole.Arn
+      Layers:
+        - !Ref LlmLambdaLayer
       Tags:
         - Key: Environment
           Value: !Ref Environment

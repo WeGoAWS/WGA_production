@@ -322,12 +322,6 @@ API_GATEWAY_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/ApiGatewayId" --
 API_URL="https://${API_GATEWAY_ID}.execute-api.${REGION}.amazonaws.com/${ENV}"
 echo "API Gateway URL: $API_URL"
 
-
-if [ -d "services/llm" ]; then
-    echo "LLM Lambda 함수 설정 확인:"
-    aws lambda get-function --function-name wga-llm-$ENV --query "Configuration.[FunctionName,Layers]" --output json || echo "LLM Lambda 함수가 존재하지 않거나 접근할 수 없습니다."
-fi
-
 #################################################
 # 4. 환경 변수 설정
 #################################################
@@ -354,7 +348,7 @@ VITE_API_DEST=$API_URL
 COGNITO_DOMAIN=$(echo "$USER_POOL_DOMAIN" | sed -E 's#https://([^.]*)\..*#\1#')
 COGNITO_CLIENT_ID=$USER_POOL_CLIENT_ID
 COGNITO_CLIENT_SECRET=
-COGNITO_REDIRECT_URI=https://${FRONTEND_URL}/redirect
+COGNITO_REDIRECT_URI=https://${ENV}.${FRONTEND_URL}/redirect
 COGNITO_IDENTITY_POOL_ID=$IDENTITY_POOL_ID
 USER_POOL_ID=$USER_POOL_ID
 EOF
@@ -396,7 +390,7 @@ aws s3 sync dist s3://wga-frontend-$ENV --delete
   # Amplify 수동 배포 시작
   aws amplify start-deployment \
     --app-id "$AMPLIFY_APP_ID" \
-    --branch-name main \
+    --branch-name "$ENV" \
     --source-url "$S3_DEPLOY_PATH" \
     --source-url-type BUCKET_PREFIX
 
