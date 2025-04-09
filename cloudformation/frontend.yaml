@@ -21,6 +21,10 @@ Parameters:
     Default: ""
     Description: ARN of ACM certificate for HTTPS (required if DomainName is provided)
 
+Conditions:
+  IsProd: !Equals [!Ref Environment, "prod"]
+  IsDev: !Equals [!Ref Environment, "dev"]
+
 Resources:
   FrontendBucket:
     Type: AWS::S3::Bucket
@@ -83,7 +87,13 @@ Resources:
     Properties:
       AppId: !GetAtt AmplifyApp.AppId
       BranchName: !Ref Environment
-      Stage: !Ref Environment
+      Stage: !If
+        - IsProd
+        - PRODUCTION
+        - !If
+            - IsDev
+            - DEVELOPMENT
+            - BETA
       EnableAutoBuild: true
       EnvironmentVariables:
         - Name: ENV
