@@ -77,10 +77,10 @@ Resources:
           cache:
             paths:
               - node_modules/**
-          redirects:
-            - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>'
-              target: '/index.html'
-              status: '200'
+      CustomRules:
+        - Source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>'
+          Target: '/index.html'
+          Status: '200'
 
   AmplifyBranch:
     Type: AWS::Amplify::Branch
