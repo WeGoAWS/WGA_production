@@ -396,7 +396,7 @@ aws s3 sync dist s3://wga-frontend-$ENV --delete
   # Amplify 수동 배포 시작
   aws amplify start-deployment \
     --app-id "$AMPLIFY_APP_ID" \
-    --branch-name main \
+    --branch-name "$ENV" \
     --source-url "$S3_DEPLOY_PATH" \
     --source-url-type BUCKET_PREFIX
 
