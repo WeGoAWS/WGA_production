@@ -76,6 +76,7 @@ Resources:
 
   ApiEndpointParameter:
     Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '/wga/${Environment}/ApiEndpoint'
       Type: String

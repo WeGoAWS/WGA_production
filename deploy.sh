@@ -13,8 +13,6 @@ echo "========================================"
 echo "통합 배포 시작 - 환경: $ENV"
 echo "AWS 계정 ID: $ACCOUNT_ID"
 echo "AWS 리전: $REGION"
-echo "백엔드 배포 스킵: $SKIP_BACKEND"
-echo "프론트엔드 배포 스킵: $SKIP_FRONTEND"
 echo "========================================"
 
 # 배포 버킷 이름
@@ -324,13 +322,6 @@ API_GATEWAY_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/ApiGatewayId" --
 API_URL="https://${API_GATEWAY_ID}.execute-api.${REGION}.amazonaws.com/${ENV}"
 echo "API Gateway URL: $API_URL"
 
-# API Endpoint SSM에 저장
-echo "API Endpoint를 SSM에 저장 중..."
-aws ssm put-parameter \
-    --name "$SSM_PATH_PREFIX/ApiEndpoint" \
-    --value "$API_URL" \
-    --type "String" \
-    --overwrite
 
 if [ -d "services/llm" ]; then
     echo "LLM Lambda 함수 설정 확인:"
@@ -341,13 +332,12 @@ fi
 # 4. 환경 변수 설정
 #################################################
 echo "====== 4. 환경 변수 설정 ======"
-# SSM 파라미터에서 값을 가져옴
+# SSM 파라미터에서 값을 가져옴 (API URL 제외)
 echo "[INFO] SSM에서 구성 값을 가져옵니다."
 USER_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolId" --query "Parameter.Value" --output text)
 USER_POOL_CLIENT_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolClientId" --query "Parameter.Value" --output text)
 USER_POOL_DOMAIN=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolDomain" --query "Parameter.Value" --output text)
 IDENTITY_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/IdentityPoolId" --query "Parameter.Value" --output text)
-API_URL=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/ApiEndpoint" --query "Parameter.Value" --output text)
 
 ENV_FILE="frontend/.env.local"
 
