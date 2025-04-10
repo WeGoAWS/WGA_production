@@ -1,9 +1,10 @@
 import boto3
-import re
 import os
 import time
 import json
-
+import textwrap
+from urllib.parse import urlparse
+s3 = boto3.client("s3")
 athena = boto3.client("athena")
 
 ATHENA_DB = os.environ.get("ATHENA_DATABASE", "logdb")
@@ -19,10 +20,10 @@ def wait_for_query(query_id):
     if state != "SUCCEEDED":
         raise Exception(f"Athena query failed: {state}")
 
+#입력받아야 될 것 : log_type,  s3_path, table_name
 def get_create_table_query(log_type, s3_path, table_name):
     if log_type == "cloudtrail":
-        return f"""
-        CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.{table_name} (
+        return textwrap.dedent(f"""CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.{table_name} (
           `eventversion` string,
           `useridentity` struct<type:string,principalid:string,arn:string,accountid:string,invokedby:string,accesskeyid:string,username:string,sessioncontext:struct<attributes:struct<mfaauthenticated:string,creationdate:string>,sessionissuer:struct<type:string,principalid:string,arn:string,accountid:string,username:string>,ec2roledelivery:string,webidfederationdata:struct<federatedprovider:string,attributes:map<string,string>>>>,
           `eventtime` string,
@@ -61,11 +62,10 @@ def get_create_table_query(log_type, s3_path, table_name):
           'projection.timestamp.type'='date',
           'storage.location.template'='{s3_path}${{timestamp}}'
         );
-        """
+        """)
     
     elif log_type == "guardduty":
-        return f"""
-        CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.{table_name} (
+        return textwrap.dedent(f"""CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.{table_name} (
           `schemaVersion` string,
           `accountId` string,
           `region` string,
@@ -85,7 +85,7 @@ def get_create_table_query(log_type, s3_path, table_name):
           'ignore.malformed.json' = 'true'
         )
         LOCATION '{s3_path}';
-        """
+        """)
     
     else:
         raise ValueError(f"Unsupported log_type: {log_type}")
@@ -103,11 +103,27 @@ def lambda_handler(event, context):
         if not log_type or not s3_path:
             return {"statusCode": 400, "body": "Missing 'log_type' or 's3_path'"}
 
+        # S3 버킷 존재 여부 확인 후 없으면 생성
+        parsed = urlparse(S3_OUTPUT)
+        bucket_name = parsed.netloc
+        try:
+            s3.head_bucket(Bucket=bucket_name)
+        except s3.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                s3.create_bucket(Bucket=bucket_name)
+
+        # 데이터베이스가 없으면 생성
+        create_db_query = f"CREATE DATABASE IF NOT EXISTS {ATHENA_DB}"
+        db_exec_id = athena.start_query_execution(
+            QueryString=create_db_query,
+            ResultConfiguration={"OutputLocation": S3_OUTPUT}
+        )["QueryExecutionId"]
+        wait_for_query(db_exec_id)
+
         query = get_create_table_query(log_type, s3_path, table_name)
 
         exec_id = athena.start_query_execution(
             QueryString=query,
-            QueryExecutionContext={"Database": ATHENA_DB},
             ResultConfiguration={"OutputLocation": S3_OUTPUT}
         )["QueryExecutionId"]
 
