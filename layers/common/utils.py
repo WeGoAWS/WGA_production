@@ -4,7 +4,7 @@ import boto3
 import requests
 import logging
 from botocore.exceptions import ClientError
-from common.config import CONFIG, NOVA_ENDPOINT, AWS_REGION
+from common.config import CONFIG, AWS_REGION
 
 # 로깅 설정
 logger = logging.getLogger("wga-utils")
