@@ -414,7 +414,7 @@ fi
 
 if [ "$SKIP_FRONTEND" != "true" ]; then
     echo "프론트엔드 배포 상태: 성공"
-    echo "프론트엔드 URL: $FRONTEND_URL"
+    echo "프론트엔드 URL: $ENV.$FRONTEND_URL"
 else
     echo "프론트엔드 배포 상태: 스킵됨"
 fi

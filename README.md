@@ -1,4 +1,4 @@
-# WGA (Web/General Application) 프로젝트
+# WGA (WeGoAWS) 프로젝트
 
 이 프로젝트는 AWS 서비스를 활용한 완전 관리형 웹 애플리케이션 인프라를 구축합니다. CloudFormation을 사용하여 AWS 리소스를 정의하고 배포하는 Infrastructure as Code(IaC) 아키텍처를 구현했습니다.
 
