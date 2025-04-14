@@ -339,6 +339,7 @@ if aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME > /dev/null 
             ParameterKey=ApiGatewayIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayId" \
             ParameterKey=ApiGatewayRootResourceIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayRootResourceId" \
             ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
+            ParameterKey=SlackBotTokenSSMPathParameter,ParameterValue="$SSM_PATH_PREFIX/SlackbotToken" \
             ParameterKey=AthenaOutputBucketParameter,ParameterValue="$SSM_PATH_PREFIX/AthenaOutputBucketName" \
         --capabilities CAPABILITY_NAMED_IAM
 else
@@ -358,6 +359,7 @@ else
             ParameterKey=ApiGatewayIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayId" \
             ParameterKey=ApiGatewayRootResourceIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayRootResourceId" \
             ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
+            ParameterKey=SlackBotTokenSSMPathParameter,ParameterValue="$SSM_PATH_PREFIX/SlackbotToken" \
             ParameterKey=AthenaOutputBucketParameter,ParameterValue="$SSM_PATH_PREFIX/AthenaOutputBucketName" \
         --capabilities CAPABILITY_NAMED_IAM
 fi

@@ -123,14 +123,3 @@ Resources:
       FunctionName: !Ref SlackbotLambdaFunction
       Principal: "apigateway.amazonaws.com"
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*"
-
-    SlackbotSessionTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: SlackbotSessions
-        AttributeDefinitions:
-          - AttributeName: slack_user_id
-            AttributeType: S
-        KeySchema:
-          - AttributeName: slack_user_id
-            KeyType: HASH
