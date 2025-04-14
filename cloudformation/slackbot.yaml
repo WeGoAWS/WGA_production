@@ -73,6 +73,17 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/SlackbotSessions"
 
+  SlackbotLambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'slackbot-layer-${Environment}'
+      Description: Common Python dependencies
+      Content:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'layers/common-layer-${Environment}.zip'
+      CompatibleRuntimes:
+        - python3.12
+
   SlackbotLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -83,7 +94,7 @@ Resources:
         S3Bucket: !Sub "wga-deployment-${Environment}"
         S3Key: !Sub "slackbot/slackbot-lambda-${Environment}.zip"
       Layers:
-        - !Ref AthenaUtilityLambdaLayer
+        - !Ref SlackbotLambdaLayer
       Timeout: 15
       MemorySize: 256
       Role: !GetAtt SlackbotLambdaExecutionRole.Arn
