@@ -129,6 +129,7 @@ Resources:
       ClientName: !Sub 'wga-app-client-${Environment}'
       UserPoolId: !Ref UserPool
       GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
       ExplicitAuthFlows:
         - ALLOW_USER_PASSWORD_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
@@ -136,9 +137,9 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
       CallbackURLs:
-        - !Sub 'https://${FrontendRedirectDomain}/redirect'
+        - !Sub 'https://${Environment}.${FrontendRedirectDomain}/redirect'
       LogoutURLs:
-        - !Sub 'https://${FrontendRedirectDomain}/redirect'
+        - !Sub 'https://${Environment}.${FrontendRedirectDomain}/redirect'
       AllowedOAuthFlows:
         - code
       AllowedOAuthScopes:

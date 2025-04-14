@@ -8,9 +8,6 @@ from botocore.exceptions import ClientError
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 ENV = os.environ.get('ENV', 'dev')
 
-### Nova 모델 선언
-NOVA_ENDPOINT = "모델 endpoint"
-
 # DynamoDB 테이블
 SESSIONS_TABLE = os.environ.get('SESSIONS_TABLE', f'Sessions-{ENV}')
 USERS_TABLE = os.environ.get('USERS_TABLE', f'Users-{ENV}')

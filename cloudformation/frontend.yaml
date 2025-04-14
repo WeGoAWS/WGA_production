@@ -21,6 +21,10 @@ Parameters:
     Default: ""
     Description: ARN of ACM certificate for HTTPS (required if DomainName is provided)
 
+Conditions:
+  IsProd: !Equals [!Ref Environment, "prod"]
+  IsDev: !Equals [!Ref Environment, "dev"]
+
 Resources:
   FrontendBucket:
     Type: AWS::S3::Bucket
@@ -73,12 +77,27 @@ Resources:
           cache:
             paths:
               - node_modules/**
+      CustomRules:
+        - Source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>'
+          Target: '/index.html'
+          Status: '200'
 
   AmplifyBranch:
     Type: AWS::Amplify::Branch
     Properties:
       AppId: !GetAtt AmplifyApp.AppId
-      BranchName: main
+      BranchName: !Ref Environment
+      Stage: !If
+        - IsProd
+        - PRODUCTION
+        - !If
+            - IsDev
+            - DEVELOPMENT
+            - BETA
+      EnableAutoBuild: true
+      EnvironmentVariables:
+        - Name: ENV
+          Value: !Ref Environment
 
   # SSM Parameters
   AmplifyAppIdParameter:
@@ -99,6 +118,15 @@ Resources:
       Value: !GetAtt AmplifyApp.DefaultDomain
       Description: Default domain of the Amplify App
 
+  AmplifyDefaultDomainWithEnvParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '/wga/${Environment}/AmplifyDefaultDomainWithEnv'
+      Type: String
+      Value: !Sub '${Environment}.${AmplifyApp.DefaultDomain}'
+      Description: Default domain of the Amplify App with Environment prefix
+
 Outputs:
   AmplifyAppId:
     Description: Amplify App ID
@@ -107,3 +135,7 @@ Outputs:
   AmplifyAppDefaultDomain:
     Description: Default domain of the Amplify App
     Value: !GetAtt AmplifyApp.DefaultDomain
+
+  AmplifyAppDefaultDomainWithEnv:
+    Description: Amplify Default Domain with Environment prefix
+    Value: !Sub '${Environment}.${AmplifyApp.DefaultDomain}'
