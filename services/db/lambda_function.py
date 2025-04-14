@@ -8,8 +8,8 @@ from urllib.parse import urlparse
 athena = boto3.client("athena")
 s3 = boto3.client("s3")
 
-ATHENA_DB = os.environ.get("ATHENA_DB", "logdb")
-S3_OUTPUT = os.environ.get("S3_QUERY_OUTPUT", "s3://wga-gluequery-1")
+ATHENA_DB = os.environ.get("ATHENA_DB")
+S3_OUTPUT = os.environ.get("S3_QUERY_OUTPUT")
 
 def wait_for_query(query_id):
     while True:
