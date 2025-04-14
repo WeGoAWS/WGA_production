@@ -8,7 +8,7 @@ def send_login_button(slack_user_id):
         f"https://{CONFIG['cognito']['domain']}.auth.us-east-1.amazoncognito.com/oauth2/authorize"
         "?response_type=code"
         f"&client_id={CONFIG['cognito']['client_id']}"
-        f"&redirect_uri=https://wfpns1xzqk.execute-api.us-east-1.amazonaws.com/dev/callback"
+        f"&redirect_uri={CONFIG['api']['endpoint']}/callback"
         f"&scope=openid+email+profile&state={slack_user_id}"
     )
 

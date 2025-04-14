@@ -6,6 +6,10 @@ Parameters:
     Type: String
     Description: The deployment environment
 
+  ApiEndpointParameter:
+    Type: String
+    Description: API Endpoint
+
   ApiGatewayId:
     Type: String
     Description: API Gateway ID
@@ -56,6 +60,7 @@ Resources:
                   - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SlackBotTokenSSMPath}"
                   - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${CognitoClientIdSSMPath}"
                   - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${CognitoDomainSSMPath}"
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${CognitoDomainSSMPath}"
 
   SlackbotLambdaFunction:
     Type: AWS::Lambda::Function
@@ -74,6 +79,7 @@ Resources:
           SLACK_BOT_TOKEN_PATH: !Ref SlackBotTokenSSMPath
           COGNITO_CLIENT_ID_PATH: !Ref CognitoClientIdSSMPath
           COGNITO_DOMAIN_PATH: !Ref CognitoDomainSSMPath
+          API_ENDPOINT: !Ref ApiEndpointParameter
       Tags:
         - Key: Environment
           Value: !Ref Environment

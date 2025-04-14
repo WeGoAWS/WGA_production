@@ -14,7 +14,7 @@ def lambda_handler(event, context):
             "grant_type": "authorization_code",
             "client_id": CONFIG['cognito']['client_id'],
             "code": code,
-            "redirect_uri": "https://wfpns1xzqk.execute-api.us-east-1.amazonaws.com/dev/callback"
+            "redirect_uri": f"{CONFIG['api']['endpoint']}/callback"
         },
         headers={"Content-Type": "application/x-www-form-urlencoded"}
     )

@@ -82,6 +82,7 @@ Resources:
         Environment: !Ref Environment
         ApiGatewayId: !Ref ApiGatewayIdParameter
         ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
+        ApiEndpointParameter: !Ref ApiEndpointParameter
         SlackBotTokenSSMPath: /SlackbotToken
         CognitoClientIdSSMPath: !Ref UserPoolClientId
         CognitoDomainSSMPath: !Ref UserPoolDomain
