@@ -54,6 +54,8 @@ Resources:
     Properties:
       FunctionName: !Sub 'wga-athena-utility-${Environment}'
       Role: !GetAtt AthenaUtilityLambdaRole.Arn
+      Layers:
+        - !Ref AthenaUtilityLambdaLayer
       Runtime: python3.12
       Handler: lambda_function.lambda_handler
       Timeout: 60
