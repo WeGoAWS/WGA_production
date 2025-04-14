@@ -54,7 +54,21 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref Environment
-
+  AthenaOutputBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldCreateAthenaOutputBucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub 'wga-gluequery-${Environment}'
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
   OutputBucket:
     Type: AWS::S3::Bucket
     Condition: ShouldCreateOutputBucket

@@ -35,6 +35,8 @@ else
   DEVELOPER_MODE=false
 fi
 
+
+
 # SSM 파라미터 경로 기본 prefix 설정
 SSM_PATH_PREFIX="/wga/$ENV"
 
@@ -251,7 +253,19 @@ fi
 
 echo "Common 레이어 업로드 중..."
 aws s3 cp build/layers/common-layer-$ENV.zip "s3://$DEPLOYMENT_BUCKET/layers/common-layer-$ENV.zip"
+# Athena Utility Lambda 패키징 및 업로드
+if [ -d "services/db" ]; then
+    echo "Athena Utility Lambda 패키징 중..."
+    mkdir -p build/db
+    cp -r services/db/* build/db/
+    cd build/db
+    echo "Athena Utility Lambda 압축 중..."
+    zip -r wga-athena-utility-$ENV.zip *
+    cd ../..
 
+    echo "Athena Utility Lambda 업로드 중..."
+    aws s3 cp build/db/wga-athena-utility-$ENV.zip "s3://$DEPLOYMENT_BUCKET/lambda/wga-athena-utility-$ENV.zip"
+fi
 # LLM Lambda 패키징 및 업로드 (존재하는 경우)
 if [ -d "services/llm" ]; then
     echo "LLM Lambda 패키징 중..."

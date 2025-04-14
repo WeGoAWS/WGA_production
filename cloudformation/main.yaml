@@ -73,7 +73,18 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref Environment
-
+  dbStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/logs.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ApiGatewayId: !Ref ApiGatewayIdParameter
+        ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
+        FrontendRedirectDomain: !Ref FrontendRedirectDomainParameter
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
   ApiEndpointParameter:
     Type: AWS::SSM::Parameter
     DeletionPolicy: Delete

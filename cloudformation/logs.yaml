@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'WGA - Athena Lambda Functions for Log Query and Table Creation'
+Description: WGA - Athena Query & Table Lambda
 
 Parameters:
   Environment:
@@ -13,28 +13,12 @@ Parameters:
 
 Resources:
 
-  AthenaGlueDatabase:
-    Type: AWS::Glue::Database
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseInput:
-        Name: !Sub wga_logs_${Environment}
-        Description: !Sub Glue DB for WGA Athena in ${Environment} environment
-
-  AthenaDatabaseNameParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /wga/${Environment}/AthenaDatabase
-      Type: String
-      Value: !Ref AthenaGlueDatabase
-      Description: Name of the Glue database used by Athena
-
-  AthenaLambdaRole:
+  AthenaUtilityLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub wga-athena-lambda-role-${Environment}
+      RoleName: !Sub wga-athena-utility-role-${Environment}
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
@@ -46,53 +30,33 @@ Resources:
         - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
         - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
       Policies:
-        - PolicyName: !Sub wga-athena-logging-inline-${Environment}
+        - PolicyName: !Sub athena-utility-logging-inline-${Environment}
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action: logs:*
+                Action:
+                  - logs:*
                 Resource: '*'
 
-  AnalyzeLogsFunction:
+  AthenaUtilityLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub analyze-logs-${Environment}
-      Role: !GetAtt AthenaLambdaRole.Arn
-      Handler: lambda_function.lambda_handler
+      FunctionName: !Sub wga-athena-utility-${Environment}
+      Role: !GetAtt AthenaUtilityLambdaRole.Arn
       Runtime: python3.12
+      Handler: lambda_function.lambda_handler
       Timeout: 60
       MemorySize: 512
       Environment:
         Variables:
-          ATHENA_DATABASE: !Ref AthenaGlueDatabase
-          S3_QUERY_OUTPUT: !Sub s3://wga-glueoutputbucket-${Environment}/athena-results/
+          ATHENA_DB: !Sub wga_logs_${Environment}
+          S3_QUERY_OUTPUT: !Sub s3://wga-outputbucket-${Environment}/athena-results/
       Code:
         S3Bucket: !Sub wga-deployment-${Environment}
-        S3Key: !Sub lambda/analyze-logs-${Environment}.zip
-
-  CreateTableFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub create-table-${Environment}
-      Role: !GetAtt AthenaLambdaRole.Arn
-      Handler: lambda_function.lambda_handler
-      Runtime: python3.12
-      Timeout: 60
-      MemorySize: 512
-      Environment:
-        Variables:
-          ATHENA_DATABASE: !Ref AthenaGlueDatabase
-          S3_QUERY_OUTPUT: !Sub s3://wga-glueoutputbucket-${Environment}/athena-results/
-      Code:
-        S3Bucket: !Sub wga-deployment-${Environment}
-        S3Key: !Sub lambda/create-table-${Environment}.zip
+        S3Key: !Sub lambda/wga-athena-utility-${Environment}.zip
 
 Outputs:
-  AnalyzeLogsFunctionArn:
-    Description: ARN of the log analysis Lambda function
-    Value: !GetAtt AnalyzeLogsFunction.Arn
-
-  CreateTableFunctionArn:
-    Description: ARN of the table creation Lambda function
-    Value: !GetAtt CreateTableFunction.Arn
+  AthenaUtilityLambdaArn:
+    Description: ARN of the unified Athena utility Lambda
+    Value: !GetAtt AthenaUtilityLambda.Arn
