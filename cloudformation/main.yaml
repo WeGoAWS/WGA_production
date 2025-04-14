@@ -22,27 +22,27 @@ Parameters:
   # 파라미터 정의를 SSM 참조 방식으로 변경
   UserPoolId:
     Type: "AWS::SSM::Parameter::Value<String>"
-    Default: "/wga/dev/UserPoolId"
+    Default: "/wga/${Environment}/UserPoolId"
     Description: ID of the Cognito User Pool
 
   UserPoolClientId:
     Type: "AWS::SSM::Parameter::Value<String>"
-    Default: "/wga/dev/UserPoolClientId"
+    Default: "/wga/${Environment}/UserPoolClientId"
     Description: ID of the Cognito User Pool Client
 
   UserPoolDomain:
     Type: "AWS::SSM::Parameter::Value<String>"
-    Default: "/wga/dev/UserPoolDomain"
+    Default: "/wga/${Environment}/UserPoolDomain"
     Description: Domain of the Cognito User Pool
 
   IdentityPoolId:
     Type: "AWS::SSM::Parameter::Value<String>"
-    Default: "/wga/dev/IdentityPoolId"
+    Default: "/wga/${Environment}/IdentityPoolId"
     Description: ID of the Cognito Identity Pool
 
   OutputBucketName:
     Type: "AWS::SSM::Parameter::Value<String>"
-    Default: "/wga/dev/OutputBucketName"
+    Default: "/wga/${Environment}/OutputBucketName"
     Description: Name of the output S3 bucket
 
   ApiGatewayIdParameter:
@@ -60,10 +60,10 @@ Parameters:
     Default: "/wga/${Environment}/FrontendRedirectDomain"
     Description: Frontend redirect domain
 
-  SlackBotTokenSSMPath:
-    Type: String
-    Default: "/wga/${Environment}/SlackbotToken"
-    Description: Path to the Slack Bot Token in SSM
+  AthenaOutputBucketParameter:
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/AthenaOutputBucketName"
+    Description: Frontend redirect domain
 
 Resources:
   LlmStack:
@@ -85,22 +85,10 @@ Resources:
       TemplateURL: !Sub "https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/logs.yaml"
       Parameters:
         Environment: !Ref Environment
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-
-  SlackbotStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/slackbot.yaml"
-      Parameters:
-        Environment: !Ref Environment
         ApiGatewayId: !Ref ApiGatewayIdParameter
         ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
-        ApiEndpointParameter: !Ref ApiEndpointParameter
-        SlackBotTokenSSMPath: !Ref SlackBotTokenSSMPath
-        CognitoClientIdSSMPath: !Ref UserPoolClientId
-        CognitoDomainSSMPath: !Ref UserPoolDomain
+        FrontendRedirectDomain: !Ref FrontendRedirectDomainParameter
+        AthenaOutputBucketName: !Ref AthenaOutputBucketParameter
       Tags:
         - Key: Environment
           Value: !Ref Environment
