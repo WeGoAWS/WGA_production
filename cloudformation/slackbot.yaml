@@ -20,7 +20,7 @@ Parameters:
 
   SlackBotTokenSSMPath:
     Type: String
-    Default: /SlackbotToken
+    Description: Path to the Slack Bot Token in SSM Parameter Store
 
   CognitoClientIdSSMPath:
     Type: String

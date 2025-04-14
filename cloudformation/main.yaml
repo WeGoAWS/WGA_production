@@ -60,6 +60,11 @@ Parameters:
     Default: "/wga/${Environment}/FrontendRedirectDomain"
     Description: Frontend redirect domain
 
+  SlackBotTokenSSMPath:
+    Type: String
+    Default: "/wga/dev/SlackbotToken"
+    Description: Path to the Slack Bot Token in SSM
+
 Resources:
   LlmStack:
     Type: AWS::CloudFormation::Stack
@@ -93,7 +98,7 @@ Resources:
         ApiGatewayId: !Ref ApiGatewayIdParameter
         ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
         ApiEndpointParameter: !Ref ApiEndpointParameter
-        SlackBotTokenSSMPath: /SlackbotToken
+        SlackBotTokenSSMPath: !Ref SlackBotTokenSSMPath
         CognitoClientIdSSMPath: !Ref UserPoolClientId
         CognitoDomainSSMPath: !Ref UserPoolDomain
       Tags:
