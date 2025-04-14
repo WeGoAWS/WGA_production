@@ -13,14 +13,14 @@ Parameters:
   AthenaOutputBucketName:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter for Athena query result S3 bucket
-    Default: /wga/dev/AthenaOutputBucket
+    Default: /wga/dev/AthenaOutputBucketName
 
 Resources:
 
   AthenaOutputBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub wga-gluequery-${Environment}
+      BucketName: !Sub wga-athena-output-${Environment}
       VersioningConfiguration:
         Status: Enabled
       BucketEncryption:
@@ -34,9 +34,9 @@ Resources:
   AthenaOutputBucketParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /wga/${Environment}/AthenaOutputBucket
+      Name: !Sub /wga/${Environment}/AthenaOutputBucketName
       Type: String
-      Value: !Ref AthenaOutputBucket
+      Value: !Sub wga-athena-output-${Environment}
       Description: S3 bucket for Athena query results
 
   AthenaUtilityLambdaRole:
