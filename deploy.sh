@@ -310,6 +310,19 @@ if [ -d "services/llm" ]; then
     echo "LLM 업로드 중..."
     aws s3 cp build/llm/llm-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/llm/llm-lambda-$ENV.zip"
 fi
+# Slackbot Lambda 패키징 및 업로드 (존재하는 경우)
+if [ -d "services/slackbot" ]; then
+    echo "Slackbot Lambda 패키징 중..."
+    mkdir -p build/slackbot
+    cp -r services/slackbot/* build/slackbot/
+    cd build/slackbot
+    echo "Slackbot Lambda 압축 중..."
+    zip -r slackbot-lambda-$ENV.zip *
+    cd ../..
+
+    echo "Slackbot 업로드 중..."
+    aws s3 cp build/slackbot/slackbot-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/slackbot/slackbot-lambda-$ENV.zip"
+fi
 
 # 기본 스택에서 출력값 가져오기
 echo "기본 스택에서 출력값 가져오는 중..."

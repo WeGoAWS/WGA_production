@@ -82,6 +82,8 @@ Resources:
       Code:
         S3Bucket: !Sub "wga-deployment-${Environment}"
         S3Key: !Sub "slackbot/slackbot-lambda-${Environment}.zip"
+      Layers:
+        - !Ref AthenaUtilityLambdaLayer
       Timeout: 15
       MemorySize: 256
       Role: !GetAtt SlackbotLambdaExecutionRole.Arn
