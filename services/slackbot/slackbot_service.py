@@ -3,6 +3,9 @@ from slack_sdk import WebClient
 from common.config import CONFIG
 import threading
 
+print("==== Lambda 호출됨 ====")
+print("SLACK TOKEN:", CONFIG['slackbot']['token'])
+
 client = WebClient(token=CONFIG['slackbot']['token'])
 
 def handle_login_command(slack_user_id: str, channel_id: str):
@@ -15,7 +18,7 @@ def handle_login_command(slack_user_id: str, channel_id: str):
         "body": "🔐 로그인 링크를 전송 중입니다..."
     }
 
-def send_login_button(slack_user_id: str):
+def send_login_button(slack_user_id):
     login_url = (
         f"https://{CONFIG['cognito']['domain']}.auth.us-east-1.amazoncognito.com/oauth2/authorize"
         "?response_type=code"
