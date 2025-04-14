@@ -118,13 +118,13 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
-  LlmLambdaPermission:
+  LlmLambdaPermissionForLlm1:
     Type: AWS::Lambda::Permission
     Properties:
       Action: 'lambda:InvokeFunction'
       FunctionName: !Ref LlmLambdaFunction
       Principal: 'apigateway.amazonaws.com'
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/llm1'
 
   Llm2ApiResource:
     Type: AWS::ApiGateway::Resource
@@ -169,6 +169,14 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
+  LlmLambdaPermissionForLlm2:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref LlmLambdaFunction
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/llm2'
+
   HealthApiResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -211,3 +219,21 @@ Resources:
         - StatusCode: '500'
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
+
+  LlmLambdaPermissionForHealth:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref LlmLambdaFunction
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/GET/health'
+
+  LlmApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - LlmMethod
+      - Llm2Method
+      - HealthMethod
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      StageName: !Ref Environment

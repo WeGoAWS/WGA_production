@@ -135,4 +135,12 @@ Resources:
       Action: "lambda:InvokeFunction"
       FunctionName: !Ref SlackbotLambdaFunction
       Principal: "apigateway.amazonaws.com"
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/slackbot"
+
+  SlackbotApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - SlackbotMethod
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      StageName: !Ref Environment

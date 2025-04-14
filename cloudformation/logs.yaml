@@ -122,6 +122,14 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
+  AthenaUtilityLambdaPermissionForExecuteQuery:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref AthenaUtilityLambdaFunction
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/execute-query'
+
   CreateTableApiResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -165,6 +173,22 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
+  AthenaUtilityLambdaPermissionForCreateTable:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref AthenaUtilityLambdaFunction
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/create-table'
+
+  AthenaUtilityApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ExecuteQueryMethod
+      - CreateTableMethod
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      StageName: !Ref Environment
 
 Outputs:
   AthenaUtilityLambdaFunctionArn:
