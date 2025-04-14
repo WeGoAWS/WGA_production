@@ -265,6 +265,12 @@ if [ -d "services/db" ]; then
 
     echo "Athena Utility Lambda 업로드 중..."
     aws s3 cp build/db/wga-athena-utility-$ENV.zip "s3://$DEPLOYMENT_BUCKET/lambda/wga-athena-utility-$ENV.zip"
+    
+    echo "GuardDuty 초기화 Lambda 복사 중..."
+    cp build/db/wga-athena-utility-$ENV.zip build/db/guardduty-init-$ENV.zip
+
+    echo "GuardDuty 초기화 Lambda 업로드 중..."
+    aws s3 cp build/db/guardduty-init-$ENV.zip "s3://$DEPLOYMENT_BUCKET/lambda/guardduty-init-$ENV.zip"
 fi
 # LLM Lambda 패키징 및 업로드 (존재하는 경우)
 if [ -d "services/llm" ]; then

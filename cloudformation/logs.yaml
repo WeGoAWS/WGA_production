@@ -10,8 +10,34 @@ Parameters:
       - test
       - prod
     Description: Deployment environment
+  AthenaOutputBucketName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter for Athena query result S3 bucket
+    Default: /wga/dev/AthenaOutputBucket
 
 Resources:
+
+  AthenaOutputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub wga-gluequery-${Environment}
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  AthenaOutputBucketParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /wga/${Environment}/AthenaOutputBucket
+      Type: String
+      Value: !Ref AthenaOutputBucket
+      Description: S3 bucket for Athena query results
 
   AthenaUtilityLambdaRole:
     Type: AWS::IAM::Role
@@ -45,16 +71,54 @@ Resources:
       FunctionName: !Sub wga-athena-utility-${Environment}
       Role: !GetAtt AthenaUtilityLambdaRole.Arn
       Runtime: python3.12
-      Handler: lambda_function.lambda_handler
+      Handler: enable_guardduty.lambda_handler
       Timeout: 60
       MemorySize: 512
       Environment:
         Variables:
           ATHENA_DB: !Sub wga_logs_${Environment}
-          S3_QUERY_OUTPUT: !Sub s3://wga-outputbucket-${Environment}/athena-results/
+          S3_QUERY_OUTPUT: !Ref AthenaOutputBucketName
       Code:
         S3Bucket: !Sub wga-deployment-${Environment}
         S3Key: !Sub lambda/wga-athena-utility-${Environment}.zip
+
+  GuardDutyExportBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub wga-guardduty-${Environment}
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  GuardDutyExportBucketParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /wga/${Environment}/GuardDutyExportBucket
+      Type: String
+      Value: !Ref GuardDutyExportBucket
+      Description: S3 bucket for GuardDuty findings export
+
+  GuardDutyDetector:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub wga-guardduty-detector-init-${Environment}
+      Role: !GetAtt AthenaUtilityLambdaRole.Arn
+      Runtime: python3.12
+      Handler: lambda_function.lambda_handler
+      Timeout: 60
+      MemorySize: 128
+      Environment:
+        Variables:
+          GUARDDUTY_EXPORT_BUCKET: !Sub wga-guardduty-${Environment}
+      Code:
+        S3Bucket: !Sub wga-deployment-${Environment}
+        S3Key: !Sub lambda/guardduty-init-${Environment}.zip
 
 Outputs:
   AthenaUtilityLambdaArn:
