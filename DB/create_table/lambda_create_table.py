@@ -112,14 +112,6 @@ def lambda_handler(event, context):
             if e.response['Error']['Code'] == '404':
                 s3.create_bucket(Bucket=bucket_name)
 
-        # 데이터베이스가 없으면 생성
-        create_db_query = f"CREATE DATABASE IF NOT EXISTS {ATHENA_DB}"
-        db_exec_id = athena.start_query_execution(
-            QueryString=create_db_query,
-            ResultConfiguration={"OutputLocation": S3_OUTPUT}
-        )["QueryExecutionId"]
-        wait_for_query(db_exec_id)
-
         query = get_create_table_query(log_type, s3_path, table_name)
 
         exec_id = athena.start_query_execution(
