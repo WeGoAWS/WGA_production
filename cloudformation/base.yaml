@@ -38,7 +38,7 @@ Parameters:
     AllowedValues:
       - "true"
       - "false"
-      -
+
   FrontendRedirectDomain:
     Type: String
     Default: placeholder.example.com
