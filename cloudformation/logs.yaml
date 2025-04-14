@@ -19,7 +19,7 @@ Parameters:
     Description: The domain for frontend redirection
 
   AthenaOutputBucketName:
-    Type: AWS::SSM::Parameter::Value<String>
+    Type: String
     Description: SSM parameter for Athena query result S3 bucket
 
 Resources:
