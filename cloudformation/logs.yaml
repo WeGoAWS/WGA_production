@@ -160,6 +160,6 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 Outputs:
-  AthenaUtilityLambdaArn:
+  AthenaUtilityLambdaFunctionArn:
     Description: ARN of the unified Athena utility Lambda
-    Value: !GetAtt AthenaUtilityLambda.Arn
+    Value: !GetAtt AthenaUtilityLambdaFunction.Arn
