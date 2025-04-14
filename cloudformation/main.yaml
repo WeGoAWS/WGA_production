@@ -62,7 +62,7 @@ Parameters:
 
   SlackBotTokenSSMPath:
     Type: String
-    Default: "/wga/dev/SlackbotToken"
+    Default: "/wga/${Environment}/SlackbotToken"
     Description: Path to the Slack Bot Token in SSM
 
 Resources:

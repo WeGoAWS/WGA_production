@@ -1,3 +1,4 @@
+from common.slackbot_session import get_session
 from slack_sdk import WebClient
 from common.config import CONFIG
 
@@ -30,4 +31,20 @@ def send_login_button(slack_user_id):
                 ]
             }
         ]
+    )
+
+def handle_protected_command(slack_user_id: str):
+    session = get_session(slack_user_id)
+
+    if not session:
+        client.chat_postMessage(
+            channel=slack_user_id,
+            text="❗ 로그인이 필요합니다. `/login`을 입력해주세요."
+        )
+        return
+
+    access_token = session["access_token"]
+    client.chat_postMessage(
+        channel=slack_user_id,
+        text=f"✅ 로그인 상태입니다. 토큰 일부: `{access_token[:10]}...`"
     )

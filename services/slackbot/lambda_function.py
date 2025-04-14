@@ -1,6 +1,8 @@
 import requests
 import os
 from common.config import CONFIG
+from common.slackbot_session import save_session
+import jwt
 
 def lambda_handler(event, context):
     params = event["queryStringParameters"]
@@ -24,6 +26,16 @@ def lambda_handler(event, context):
     print("슬랙 사용자:", slack_user_id)
     print("토큰:", tokens)
 
+    user_info = jwt.decode(tokens["id_token"], options={"verify_signature": False})
+    email = user_info.get("email")
+
+    save_session(
+        slack_user_id=slack_user_id,
+        access_token=tokens["access_token"],
+        id_token=tokens["id_token"],
+        email=email
+    )
+    
     return {
         "statusCode": 200,
         "body": "<h2>로그인 성공 🎉</h2> 이제 슬랙에서 질문하세요.",
