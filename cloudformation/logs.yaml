@@ -60,7 +60,7 @@ Resources:
   AthenaUtilityLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub wga-athena-utility-${Environment}
+      FunctionName: !Sub 'wga-athena-utility-${Environment}'
       Role: !GetAtt AthenaUtilityLambdaRole.Arn
       Runtime: python3.12
       Handler: lambda_function.lambda_handler
@@ -68,27 +68,11 @@ Resources:
       MemorySize: 512
       Environment:
         Variables:
-          ATHENA_DB: !Sub wga_logs_${Environment}
+          ATHENA_DB: !Sub 'wga_logs_${Environment}'
           S3_QUERY_OUTPUT: !Ref AthenaOutputBucketName
       Code:
-        S3Bucket: !Sub wga-deployment-${Environment}
-        S3Key: !Sub db/athena-utility-lambda-$ENV.zip
-
-  GuardDutyDetector:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub wga-guardduty-detector-init-${Environment}
-      Role: !GetAtt AthenaUtilityLambdaRole.Arn
-      Runtime: python3.12
-      Handler: lambda_function.lambda_handler
-      Timeout: 60
-      MemorySize: 128
-      Environment:
-        Variables:
-          GUARDDUTY_EXPORT_BUCKET: !Sub wga-guardduty-${Environment}
-      Code:
-        S3Bucket: !Sub wga-deployment-${Environment}
-        S3Key: !Sub lambda/guardduty-init-${Environment}.zip
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'db/athena-utility-lambda-$ENV.zip'
 
 Outputs:
   AthenaUtilityLambdaArn:
