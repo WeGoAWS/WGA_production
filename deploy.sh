@@ -134,6 +134,8 @@ if aws cloudformation describe-stacks --stack-name "$BASE_STACK_NAME" > /dev/nul
         --parameters ParameterKey=Environment,ParameterValue=$ENV \
                     ParameterKey=BucketExists,ParameterValue=$BUCKET_EXISTS \
                     ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
+                    ParameterKey=AthenaOutputBucketExists,ParameterValue=$ATHENA_OUTPUT_BUCKET_EXISTS \
+                    ParameterKey=GuardDutyExportBucketExists,ParameterValue=$GUARDDUTY_EXPORT_BUCKET_EXISTS \
                     ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
         --capabilities CAPABILITY_NAMED_IAM
 
@@ -149,6 +151,8 @@ else
         --parameters ParameterKey=Environment,ParameterValue=$ENV \
                     ParameterKey=BucketExists,ParameterValue=$BUCKET_EXISTS \
                     ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
+                    ParameterKey=AthenaOutputBucketExists,ParameterValue=$ATHENA_OUTPUT_BUCKET_EXISTS \
+                    ParameterKey=GuardDutyExportBucketExists,ParameterValue=$GUARDDUTY_EXPORT_BUCKET_EXISTS \
                     ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
         --capabilities CAPABILITY_NAMED_IAM
 
