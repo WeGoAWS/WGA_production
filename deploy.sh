@@ -20,6 +20,7 @@ CLOUDFORMATION_BUCKET="wga-cloudformation-$ACCOUNT_ID"
 DEPLOYMENT_BUCKET="wga-deployment-$ENV"
 FRONTEND_BUCKET="wga-frontend-$ENV"
 OUTPUT_BUCKET_NAME="wga-outputbucket-$ENV"
+ATHENA_OUTPUT_BUCKET_NAME="wga-athenaoutputbucket-$ENV"
 
 # 스택 이름 설정
 BASE_STACK_NAME="wga-base-$ENV"
@@ -89,6 +90,17 @@ if aws s3 ls "s3://$OUTPUT_BUCKET_NAME" > /dev/null 2>&1; then
 else
     echo "출력 버킷($OUTPUT_BUCKET_NAME)이 존재하지 않습니다. 새로 생성합니다."
     OUTPUT_BUCKET_EXISTS="false"
+fi
+
+# OutputBucket 존재 여부 확인
+if aws s3 ls "s3://$ATHENA_OUTPUT_BUCKET_NAME" > /dev/null 2>&1; then
+    echo "출력 버킷($ATHENA_OUTPUT_BUCKET_NAME)이 이미 존재합니다. 이 버킷을 재사용합니다."
+    ATHENA_OUTPUT_BUCKET_EXISTS="true"
+    echo "$ATHENA_OUTPUT_BUCKET_NAME 버킷 내용을 정리합니다..."
+    aws s3 rm "s3://$ATHENA_OUTPUT_BUCKET_NAME" --recursive
+else
+    echo "출력 버킷($ATHENA_OUTPUT_BUCKET_NAME)이 존재하지 않습니다. 새로 생성합니다."
+    ATHENA_OUTPUT_BUCKET_EXISTS="false"
 fi
 
 # 프론트엔드 버킷 존재 여부 확인

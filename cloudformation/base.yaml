@@ -25,6 +25,13 @@ Parameters:
       - "true"
       - "false"
 
+  AthenaOutputBucketExists:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+
   FrontendRedirectDomain:
     Type: String
     Default: placeholder.example.com
@@ -33,6 +40,7 @@ Parameters:
 Conditions:
   ShouldCreateBucket: !Equals [!Ref BucketExists, "false"]
   ShouldCreateOutputBucket: !Equals [!Ref OutputBucketExists, "false"]
+  ShouldCreateAthenaOutputBucket: !Equals [!Ref AthenaOutputBucketExists, "false"]
   IsProd: !Equals [!Ref Environment, "prod"]
   IsTest: !Equals [!Ref Environment, "test"]
   IsDev: !Equals [!Ref Environment, "dev"]
@@ -59,13 +67,32 @@ Resources:
     Condition: ShouldCreateAthenaOutputBucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub 'wga-gluequery-${Environment}'
+      BucketName: !Sub 'wga-athenaoutputbucket-${Environment}'
       VersioningConfiguration:
-        Status: Enabled
+        !If
+        - ShouldCreateAthenaOutputBucket
+        - Status: Enabled
+        - !Ref "AWS::NoValue"
       BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
+        !If
+        - ShouldCreateAthenaOutputBucket
+        - ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        - !Ref "AWS::NoValue"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -296,6 +323,15 @@ Resources:
       Value: !If [ShouldCreateOutputBucket, !Ref OutputBucket, !Sub 'wga-outputbucket-${Environment}']
       Description: Name of the S3 bucket for output files
 
+  AthenaOutputBucketParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub /wga/${Environment}/AthenaOutputBucketName
+      Type: String
+      Value: !Sub wga-athena-output-${Environment}
+      Description: S3 bucket for Athena query results
+
   UserPoolIdParameter:
     Type: AWS::SSM::Parameter
     DeletionPolicy: Delete
@@ -367,6 +403,10 @@ Outputs:
   OutputBucketName:
     Description: Name of the S3 bucket for output files
     Value: !If [ShouldCreateOutputBucket, !Ref OutputBucket, !Sub 'wga-outputbucket-${Environment}']
+
+  AthenaOutputBucketName:
+    Description: Name of the S3 bucket for athena output files
+    Value: !If [ ShouldCreateAthenaOutputBucket, !Ref AthenaOutputBucket, !Sub 'wga-athenaoutputbucket-${Environment}' ]
 
   UserPoolId:
     Description: ID of the Cognito User Pool
