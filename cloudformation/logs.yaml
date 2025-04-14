@@ -72,7 +72,7 @@ Resources:
           S3_QUERY_OUTPUT: !Ref AthenaOutputBucketName
       Code:
         S3Bucket: !Sub 'wga-deployment-${Environment}'
-        S3Key: !Sub 'db/athena-utility-lambda-$ENV.zip'
+        S3Key: !Sub 'db/athena-utility-lambda-${Environment}.zip'
 
   ExecuteQueryApiResource:
     Type: AWS::ApiGateway::Resource
