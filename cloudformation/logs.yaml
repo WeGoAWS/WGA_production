@@ -17,28 +17,6 @@ Parameters:
 
 Resources:
 
-  AthenaOutputBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub wga-athena-output-${Environment}
-      VersioningConfiguration:
-        Status: Enabled
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-
-  AthenaOutputBucketParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /wga/${Environment}/AthenaOutputBucketName
-      Type: String
-      Value: !Sub wga-athena-output-${Environment}
-      Description: S3 bucket for Athena query results
-
   AthenaUtilityLambdaRole:
     Type: AWS::IAM::Role
     Properties:
