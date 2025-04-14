@@ -2,7 +2,7 @@ import requests
 import os
 from common.config import CONFIG
 from common.slackbot_session import save_session
-import jwt
+from jose import jwt
 
 def lambda_handler(event, context):
     params = event["queryStringParameters"]
@@ -20,6 +20,13 @@ def lambda_handler(event, context):
         },
         headers={"Content-Type": "application/x-www-form-urlencoded"}
     )
+    
+    if res.status_code != 200:
+        return {
+            "statusCode": 500,
+            "body": "토큰 교환 실패",
+            "headers": {"Content-Type": "text/html"}
+        }
 
     tokens = res.json()
     # 여기에 access_token, id_token 저장 or 검증

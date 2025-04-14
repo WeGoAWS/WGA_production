@@ -1,10 +1,21 @@
 from common.slackbot_session import get_session
 from slack_sdk import WebClient
 from common.config import CONFIG
+import threading
 
 client = WebClient(token=CONFIG['slackbot']['token'])
 
-def send_login_button(slack_user_id):
+def handle_login_command(slack_user_id: str, channel_id: str):
+    # 응답을 지연시키지 않기 위해 백그라운드로 실행
+    threading.Thread(target=send_login_button, args=(slack_user_id,)).start()
+    
+    # 슬랙 slash command 요청에 즉시 응답 (Slack이 요구하는 3초 제한 대응)
+    return {
+        "statusCode": 200,
+        "body": "🔐 로그인 링크를 전송 중입니다..."
+    }
+
+def send_login_button(slack_user_id: str):
     login_url = (
         f"https://{CONFIG['cognito']['domain']}.auth.us-east-1.amazoncognito.com/oauth2/authorize"
         "?response_type=code"
