@@ -60,6 +60,11 @@ Parameters:
     Default: '/wga/${Environment}/FrontendRedirectDomain'
     Description: Frontend redirect domain
 
+  AthenaOutputBucketParameter:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/wga/${Environment}/AthenaOutputBucketName'
+    Description: Frontend redirect domain
+
 Resources:
   LlmStack:
     Type: AWS::CloudFormation::Stack
@@ -83,6 +88,7 @@ Resources:
         ApiGatewayId: !Ref ApiGatewayIdParameter
         ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
         FrontendRedirectDomain: !Ref FrontendRedirectDomainParameter
+        AthenaOutputBucketName: !Ref AthenaOutputBucketParameter
       Tags:
         - Key: Environment
           Value: !Ref Environment

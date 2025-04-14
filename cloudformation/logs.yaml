@@ -21,7 +21,6 @@ Parameters:
   AthenaOutputBucketName:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter for Athena query result S3 bucket
-    Default: '/wga/${Environment}/AthenaOutputBucketName'
 
 Resources:
   AthenaUtilityLambdaRole:
