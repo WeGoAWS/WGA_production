@@ -80,8 +80,6 @@ Resources:
       TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/logs.yaml'
       Parameters:
         Environment: !Ref Environment
-        ApiGatewayId: !Ref ApiGatewayIdParameter
-        ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
       Tags:
         - Key: Environment
           Value: !Ref Environment
