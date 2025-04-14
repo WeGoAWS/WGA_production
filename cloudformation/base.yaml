@@ -185,6 +185,9 @@ Resources:
       KeySchema:
         - AttributeName: 'slack_user_id'
           KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
 
   # Cognito User Pool
   UserPool:
