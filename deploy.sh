@@ -240,6 +240,8 @@ aws cloudformation update-stack \
     --parameters ParameterKey=Environment,ParameterValue=$ENV \
                 ParameterKey=BucketExists,ParameterValue=true \
                 ParameterKey=OutputBucketExists,ParameterValue=true \
+                ParameterKey=AthenaOutputBucketExists,ParameterValue=true \
+                ParameterKey=GuardDutyExportBucketExists,ParameterValue=true \
                 ParameterKey=FrontendRedirectDomain,ParameterValue=$FRONTEND_URL \
     --capabilities CAPABILITY_NAMED_IAM
 
