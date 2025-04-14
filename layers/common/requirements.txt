@@ -9,4 +9,3 @@ cryptography
 python-dateutil
 jsonschema
 slack_sdk
-jwt
