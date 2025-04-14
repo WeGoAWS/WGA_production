@@ -32,6 +32,13 @@ Parameters:
       - "true"
       - "false"
 
+  GuardDutyExportBucketExists:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+      -
   FrontendRedirectDomain:
     Type: String
     Default: placeholder.example.com
@@ -41,6 +48,7 @@ Conditions:
   ShouldCreateBucket: !Equals [!Ref BucketExists, "false"]
   ShouldCreateOutputBucket: !Equals [!Ref OutputBucketExists, "false"]
   ShouldCreateAthenaOutputBucket: !Equals [!Ref AthenaOutputBucketExists, "false"]
+  ShouldCreateGuardDutyExportBucket: !Equals [!Ref GuardDutyExportBucketExists, "false"]
   IsProd: !Equals [!Ref Environment, "prod"]
   IsTest: !Equals [!Ref Environment, "test"]
   IsDev: !Equals [!Ref Environment, "dev"]
@@ -114,6 +122,41 @@ Resources:
               - ServerSideEncryptionByDefault:
                   SSEAlgorithm: AES256
           - !Ref "AWS::NoValue"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  GuardDutyExportBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldCreateGuardDutyExportBucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub 'wga-guarddutyexportbucket-${Environment}'
+      VersioningConfiguration:
+        !If
+        - ShouldCreateGuardDutyExportBucket
+        - Status: Enabled
+        - !Ref "AWS::NoValue"
+      BucketEncryption:
+        !If
+        - ShouldCreateGuardDutyExportBucket
+        - ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        - !Ref "AWS::NoValue"
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders:
@@ -327,10 +370,19 @@ Resources:
     Type: AWS::SSM::Parameter
     DeletionPolicy: Delete
     Properties:
-      Name: !Sub /wga/${Environment}/AthenaOutputBucketName
+      Name: !Sub '/wga/${Environment}/AthenaOutputBucketName'
       Type: String
-      Value: !Sub wga-athena-output-${Environment}
+      Value: !If [ShouldCreateAthenaOutputBucket, !Ref AthenaOutputBucket, !Sub 'wga-athenaoutputbucket-${Environment}']
       Description: S3 bucket for Athena query results
+
+  GuardDutyExportBucketParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '/wga/${Environment}/GuardDutyExportBucketName'
+      Type: String
+      Value: !If [ShouldCreateGuardDutyExportBucket, !Ref GuardDutyExportBucket, !Sub 'wga-guarddutyexportbucket-${Environment}']
+      Description: S3 bucket for GuardDuty Export
 
   UserPoolIdParameter:
     Type: AWS::SSM::Parameter
@@ -406,7 +458,11 @@ Outputs:
 
   AthenaOutputBucketName:
     Description: Name of the S3 bucket for athena output files
-    Value: !If [ ShouldCreateAthenaOutputBucket, !Ref AthenaOutputBucket, !Sub 'wga-athenaoutputbucket-${Environment}' ]
+    Value: !If [ShouldCreateAthenaOutputBucket, !Ref AthenaOutputBucket, !Sub 'wga-athenaoutputbucket-${Environment}']
+
+  GuardDutyExportBucketName:
+    Description: Name of the S3 bucket for guardduty export files
+    Value: !If [ShouldCreateGuardDutyExportBucket, !Ref GuardDutyExportBucket, !Sub 'wga-guarddutyexportbucket-${Environment}']
 
   UserPoolId:
     Description: ID of the Cognito User Pool
