@@ -74,6 +74,16 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  DBStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/logs.yaml"
+      Parameters:
+        Environment: !Ref Environment
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
   SlackbotStack:
     Type: AWS::CloudFormation::Stack
     Properties:

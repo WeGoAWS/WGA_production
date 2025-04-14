@@ -20,6 +20,8 @@ CLOUDFORMATION_BUCKET="wga-cloudformation-$ACCOUNT_ID"
 DEPLOYMENT_BUCKET="wga-deployment-$ENV"
 FRONTEND_BUCKET="wga-frontend-$ENV"
 OUTPUT_BUCKET_NAME="wga-outputbucket-$ENV"
+ATHENA_OUTPUT_BUCKET_NAME="wga-athenaoutputbucket-$ENV"
+GUARDDUTY_EXPORT_BUCKET_NAME="wga-guarddutyexportbucket-$ENV"
 
 # 스택 이름 설정
 BASE_STACK_NAME="wga-base-$ENV"
@@ -34,6 +36,8 @@ if [ "$ENV" = "dev" ]; then
 else
   DEVELOPER_MODE=false
 fi
+
+
 
 # SSM 파라미터 경로 기본 prefix 설정
 SSM_PATH_PREFIX="/wga/$ENV"
@@ -58,6 +62,7 @@ aws s3 cp cloudformation/base.yaml "s3://$CLOUDFORMATION_BUCKET/base.yaml"
 aws s3 cp cloudformation/llm.yaml "s3://$CLOUDFORMATION_BUCKET/llm.yaml"
 aws s3 cp cloudformation/main.yaml "s3://$CLOUDFORMATION_BUCKET/main.yaml"
 aws s3 cp cloudformation/frontend.yaml "s3://$CLOUDFORMATION_BUCKET/frontend.yaml"
+aws s3 cp cloudformation/logs.yaml "s3://$CLOUDFORMATION_BUCKET/logs.yaml"
 
 echo "CloudFormation 템플릿 업로드 완료"
 
@@ -88,6 +93,28 @@ else
     OUTPUT_BUCKET_EXISTS="false"
 fi
 
+# AthenaOutputBucket 존재 여부 확인
+if aws s3 ls "s3://$ATHENA_OUTPUT_BUCKET_NAME" > /dev/null 2>&1; then
+    echo "출력 버킷($ATHENA_OUTPUT_BUCKET_NAME)이 이미 존재합니다. 이 버킷을 재사용합니다."
+    ATHENA_OUTPUT_BUCKET_EXISTS="true"
+    echo "$ATHENA_OUTPUT_BUCKET_NAME 버킷 내용을 정리합니다..."
+    aws s3 rm "s3://$ATHENA_OUTPUT_BUCKET_NAME" --recursive
+else
+    echo "출력 버킷($ATHENA_OUTPUT_BUCKET_NAME)이 존재하지 않습니다. 새로 생성합니다."
+    ATHENA_OUTPUT_BUCKET_EXISTS="false"
+fi
+
+# GuardDutyExportBucket 존재 여부 확인
+if aws s3 ls "s3://$GUARDDUTY_EXPORT_BUCKET_NAME" > /dev/null 2>&1; then
+    echo "출력 버킷($GUARDDUTY_EXPORT_BUCKET_NAME)이 이미 존재합니다. 이 버킷을 재사용합니다."
+    GUARDDUTY_EXPORT_BUCKET_EXISTS="true"
+    echo "$GUARDDUTY_EXPORT_BUCKET_NAME 버킷 내용을 정리합니다..."
+    aws s3 rm "s3://$GUARDDUTY_EXPORT_BUCKET_NAME" --recursive
+else
+    echo "출력 버킷($GUARDDUTY_EXPORT_BUCKET_NAME)이 존재하지 않습니다. 새로 생성합니다."
+    GUARDDUTY_EXPORT_BUCKET_EXISTS="false"
+fi
+
 # 프론트엔드 버킷 존재 여부 확인
 if aws s3 ls "s3://$FRONTEND_BUCKET" > /dev/null 2>&1; then
     echo "출력 버킷($FRONTEND_BUCKET)이 이미 존재합니다. 이 버킷을 재사용합니다."
@@ -107,6 +134,8 @@ if aws cloudformation describe-stacks --stack-name "$BASE_STACK_NAME" > /dev/nul
         --parameters ParameterKey=Environment,ParameterValue=$ENV \
                     ParameterKey=BucketExists,ParameterValue=$BUCKET_EXISTS \
                     ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
+                    ParameterKey=AthenaOutputBucketExists,ParameterValue=$ATHENA_OUTPUT_BUCKET_EXISTS \
+                    ParameterKey=GuardDutyExportBucketExists,ParameterValue=$GUARDDUTY_EXPORT_BUCKET_EXISTS \
                     ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
         --capabilities CAPABILITY_NAMED_IAM
 
@@ -122,6 +151,8 @@ else
         --parameters ParameterKey=Environment,ParameterValue=$ENV \
                     ParameterKey=BucketExists,ParameterValue=$BUCKET_EXISTS \
                     ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
+                    ParameterKey=AthenaOutputBucketExists,ParameterValue=$ATHENA_OUTPUT_BUCKET_EXISTS \
+                    ParameterKey=GuardDutyExportBucketExists,ParameterValue=$GUARDDUTY_EXPORT_BUCKET_EXISTS \
                     ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
         --capabilities CAPABILITY_NAMED_IAM
 
@@ -209,6 +240,8 @@ aws cloudformation update-stack \
     --parameters ParameterKey=Environment,ParameterValue=$ENV \
                 ParameterKey=BucketExists,ParameterValue=true \
                 ParameterKey=OutputBucketExists,ParameterValue=true \
+                ParameterKey=AthenaOutputBucketExists,ParameterValue=true \
+                ParameterKey=GuardDutyExportBucketExists,ParameterValue=true \
                 ParameterKey=FrontendRedirectDomain,ParameterValue=$FRONTEND_URL \
     --capabilities CAPABILITY_NAMED_IAM
 
@@ -250,7 +283,19 @@ fi
 
 echo "Common 레이어 업로드 중..."
 aws s3 cp build/layers/common-layer-$ENV.zip "s3://$DEPLOYMENT_BUCKET/layers/common-layer-$ENV.zip"
+# Athena Utility Lambda 패키징 및 업로드
+if [ -d "services/db" ]; then
+    echo "Athena Utility Lambda 패키징 중..."
+    mkdir -p build/db
+    cp -r services/db/* build/db/
+    cd build/db
+    echo "Athena Utility Lambda 압축 중..."
+    zip -r athena-utility-lambda-$ENV.zip *
+    cd ../..
 
+    echo "Athena Utility Lambda 업로드 중..."
+    aws s3 cp build/db/athena-utility-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/db/athena-utility-lambda-$ENV.zip"
+fi
 # LLM Lambda 패키징 및 업로드 (존재하는 경우)
 if [ -d "services/llm" ]; then
     echo "LLM Lambda 패키징 중..."

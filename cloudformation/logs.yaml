@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: WGA - Athena Query & Table Lambda
+
+Parameters:
+  Environment:
+    Type: String
+    Description: The deployment environment
+
+  AthenaOutputBucketName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter for Athena query result S3 bucket
+    Default: /wga/dev/AthenaOutputBucketName
+
+Resources:
+  AthenaUtilityLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub wga-athena-utility-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonAthenaFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
+        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+      Policies:
+        - PolicyName: !Sub athena-utility-logging-inline-${Environment}
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:*
+                Resource: '*'
+
+  AthenaUtilityLambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'athena-utility-layer-${Environment}'
+      Description: Common Python dependencies
+      Content:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'layers/common-layer-${Environment}.zip'
+      CompatibleRuntimes:
+        - python3.12
+
+  AthenaUtilityLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'wga-athena-utility-${Environment}'
+      Role: !GetAtt AthenaUtilityLambdaRole.Arn
+      Runtime: python3.12
+      Handler: lambda_function.lambda_handler
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          ATHENA_DB: !Sub 'wga_logs_${Environment}'
+          S3_QUERY_OUTPUT: !Ref 's3://${AthenaOutputBucketName}/'
+      Code:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'db/athena-utility-lambda-${Environment}.zip'
+
+
+Outputs:
+  AthenaUtilityLambdaFunctionArn:
+    Description: ARN of the unified Athena utility Lambda
+    Value: !GetAtt AthenaUtilityLambdaFunction.Arn
