@@ -71,7 +71,7 @@ Resources:
       FunctionName: !Sub wga-athena-utility-${Environment}
       Role: !GetAtt AthenaUtilityLambdaRole.Arn
       Runtime: python3.12
-      Handler: enable_guardduty.lambda_handler
+      Handler: lambda_function.lambda_handler
       Timeout: 60
       MemorySize: 512
       Environment:
