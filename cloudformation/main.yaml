@@ -60,6 +60,11 @@ Parameters:
     Default: "/wga/${Environment}/FrontendRedirectDomain"
     Description: Frontend redirect domain
 
+  SlackBotTokenSSMPath:
+    Type: String
+    Default: "/wga/${Environment}/SlackbotToken"
+    Description: Path to the Slack Bot Token in SSM
+
   AthenaOutputBucketParameter:
     Type: "AWS::SSM::Parameter::Value<String>"
     Default: "/wga/${Environment}/AthenaOutputBucketName"
@@ -89,6 +94,22 @@ Resources:
         ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
         FrontendRedirectDomain: !Ref FrontendRedirectDomainParameter
         AthenaOutputBucketName: !Ref AthenaOutputBucketParameter
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  SlackbotStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/slackbot.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ApiGatewayId: !Ref ApiGatewayIdParameter
+        ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
+        ApiEndpointParameter: !Ref ApiEndpointParameter
+        SlackBotTokenSSMPath: !Ref SlackBotTokenSSMPath
+        CognitoClientIdSSMPath: !Ref UserPoolClientId
+        CognitoDomainSSMPath: !Ref UserPoolDomain
       Tags:
         - Key: Environment
           Value: !Ref Environment
