@@ -46,7 +46,7 @@ Parameters:
 
   CallbackDomain:
     Type: String
-    Default: placeholder.example.com
+    Default: https://placeholder.example.com/callback
     Description: Slackbot callback domain
 
 Conditions:
