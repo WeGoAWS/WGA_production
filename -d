@@ -1,0 +1,5 @@
+{"error": "the JSON object must be str, bytes or bytearray, not NoneType"}--_curl_--
+>     "query": "SELECT time
+--_curl_-- region
+--_curl_-- detail_type FROM guardduty_logs3 WHERE timestamp BETWEEN '2025/04/07/00' AND '2025/04/08/06' LIMIT 10"
+>   
