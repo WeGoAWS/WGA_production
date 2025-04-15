@@ -74,11 +74,7 @@ def get_create_table_query(log_type, s3_path, table_name):
   `region` string COMMENT 'from deserializer', 
   `resources` array<string> COMMENT 'from deserializer', 
   `detail` string COMMENT 'from deserializer')
-PARTITIONED BY ( 
-  `year` string, 
-  `month` string, 
-  `day` string, 
-  `hour` string)
+PARTITIONED BY (`timestamp` string)
 ROW FORMAT SERDE 
   'org.openx.data.jsonserde.JsonSerDe' 
 WITH SERDEPROPERTIES ( 
@@ -89,17 +85,14 @@ OUTPUTFORMAT
   'org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat'
 LOCATION '{s3_path}'
 TBLPROPERTIES (
-  'projection.day.range'='1,31', 
-  'projection.day.type'='integer', 
-  'projection.enabled'='true', 
-  'projection.hour.range'='0,23', 
-  'projection.hour.type'='integer', 
-  'projection.month.range'='1,12', 
-  'projection.month.type'='integer', 
-  'projection.year.range'='2024,2026', 
-  'projection.year.type'='integer', 
-  'storage.location.template'='s3://wga-guardduty-logs/guardduty-logs/${{year}}/${{month}}/${{day}}/${{hour}}/', 
-  'transient_lastDdlTime'='1744691349');""")
+  'projection.timestamp.type'='date',
+  'projection.timestamp.format'='yyyy/MM/dd/HH',
+  'projection.timestamp.range'='2025/01/01/00,NOW',
+  'projection.timestamp.interval'='1',
+  'projection.timestamp.interval.unit'='HOURS',
+  'projection.enabled'='true',
+  'storage.location.template'='{s3_path}${{timestamp}}'
+);""")
 
     else:
         raise ValueError(f"Unsupported log_type: {log_type}")
@@ -110,7 +103,6 @@ def lambda_handler(event, context):
         http_method = event.get("httpMethod", "")
         body = json.loads(event.get("body", "{}"))
 
-        # /execute-query
         if path == "/execute-query" and http_method == "POST":
             query = body.get("query")
             if not query:
@@ -141,7 +133,6 @@ def lambda_handler(event, context):
 
             return {"statusCode": 200, "body": json.dumps(records, ensure_ascii=False)}
 
-        # /create-table
         elif path == "/create-table" and http_method == "POST":
             log_type = body.get("log_type")
             s3_path = body.get("s3_path")
