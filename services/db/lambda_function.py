@@ -48,19 +48,19 @@ def get_create_table_query(log_type, s3_path, table_name):
           `sharedeventid` string,
           `vpcendpointid` string,
           `tlsdetails` struct<tlsversion:string,ciphersuite:string,clientprovidedhostheader:string>)
-        PARTITIONED BY (`timestamp` string)
+        PARTITIONED BY (`partition_date` string)
         ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
         STORED AS INPUTFORMAT 'com.amazon.emr.cloudtrail.CloudTrailInputFormat'
         OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
         LOCATION '{s3_path}'
         TBLPROPERTIES (
           'projection.enabled'='true',
-          'projection.timestamp.format'='yyyy/MM/dd',
-          'projection.timestamp.interval'='1',
-          'projection.timestamp.interval.unit'='DAYS',
-          'projection.timestamp.range'='2025/01/01,NOW',
-          'projection.timestamp.type'='date',
-          'storage.location.template'='{s3_path}${{timestamp}}'
+          'projection.partition_date.format'='yyyy/MM/dd',
+          'projection.partition_date.interval'='1',
+          'projection.partition_date.interval.unit'='DAYS',
+          'projection.partition_date.range'='2025/01/01,NOW',
+          'projection.partition_date.type'='date',
+          'storage.location.template'='{s3_path}${{partition_date}}'
         );""")
 
     elif log_type == "guardduty":
@@ -74,7 +74,7 @@ def get_create_table_query(log_type, s3_path, table_name):
   `region` string COMMENT 'from deserializer', 
   `resources` array<string> COMMENT 'from deserializer', 
   `detail` string COMMENT 'from deserializer')
-PARTITIONED BY (`timestamp` string)
+PARTITIONED BY (`partition_date` string)
 ROW FORMAT SERDE 
   'org.openx.data.jsonserde.JsonSerDe' 
 WITH SERDEPROPERTIES ( 
@@ -85,13 +85,13 @@ OUTPUTFORMAT
   'org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat'
 LOCATION '{s3_path}'
 TBLPROPERTIES (
-  'projection.timestamp.type'='date',
-  'projection.timestamp.format'='yyyy/MM/dd/HH',
-  'projection.timestamp.range'='2025/01/01/00,NOW',
-  'projection.timestamp.interval'='1',
-  'projection.timestamp.interval.unit'='HOURS',
+  'projection.partition_date.type'='date',
+  'projection.partition_date.format'='yyyy/MM/dd/HH',
+  'projection.partition_date.range'='2025/01/01/00,NOW',
+  'projection.partition_date.interval'='1',
+  'projection.partition_date.interval.unit'='HOURS',
   'projection.enabled'='true',
-  'storage.location.template'='{s3_path}${{timestamp}}'
+  'storage.location.template'='{s3_path}${{partition_date}}'
 );""")
 
     else:
