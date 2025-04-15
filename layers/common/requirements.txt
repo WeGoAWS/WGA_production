@@ -1,5 +1,5 @@
 boto3
-python-jose
+python-jose[pycryptodome]
 numpy
 requests
 urllib3
@@ -8,3 +8,4 @@ botocore
 cryptography
 python-dateutil
 jsonschema
+slack_sdk

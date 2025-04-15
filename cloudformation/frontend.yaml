@@ -28,6 +28,7 @@ Conditions:
 Resources:
   FrontendBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
     Properties:
       BucketName: !Sub wga-frontend-${Environment}
       AccessControl: Private

@@ -29,6 +29,13 @@ COGNITO_IDENTITY_POOL_ID = os.environ.get('COGNITO_IDENTITY_POOL_ID', '')
 
 DEVELOPER_MODE = os.environ.get('DEVELOPER_MODE', 'false').lower() == 'true'
 
+# Slackbot 설정
+SLACKBOT_TOKEN = os.environ.get('SLACKBOT_TOKEN', '')
+
+# API 설정
+API_ENDPOINT = os.environ.get("API_ENDPOINT", '')
+
+
 # AWS SSM에서 비밀 설정 가져오기
 def get_ssm_parameter(param_name, with_decryption=True):
     """
@@ -68,6 +75,12 @@ def load_config():
             'client_id': COGNITO_CLIENT_ID,
             'domain': COGNITO_DOMAIN,
             'identity_pool_id': COGNITO_IDENTITY_POOL_ID
+        },
+        'slackbot': {
+            'token': SLACKBOT_TOKEN
+        }, 
+        'api': {
+            'endpoint': API_ENDPOINT
         },
         # 개발자 모드 설정 - 개발 환경에서는 기본적으로 활성화
         'developer_mode': ENV == 'dev',

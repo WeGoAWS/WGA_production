@@ -63,6 +63,7 @@ aws s3 cp cloudformation/llm.yaml "s3://$CLOUDFORMATION_BUCKET/llm.yaml"
 aws s3 cp cloudformation/main.yaml "s3://$CLOUDFORMATION_BUCKET/main.yaml"
 aws s3 cp cloudformation/frontend.yaml "s3://$CLOUDFORMATION_BUCKET/frontend.yaml"
 aws s3 cp cloudformation/logs.yaml "s3://$CLOUDFORMATION_BUCKET/logs.yaml"
+aws s3 cp cloudformation/slackbot.yaml "s3://$CLOUDFORMATION_BUCKET/slackbot.yaml"
 
 echo "CloudFormation 템플릿 업로드 완료"
 
@@ -309,6 +310,19 @@ if [ -d "services/llm" ]; then
     echo "LLM 업로드 중..."
     aws s3 cp build/llm/llm-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/llm/llm-lambda-$ENV.zip"
 fi
+# Slackbot Lambda 패키징 및 업로드 (존재하는 경우)
+if [ -d "services/slackbot" ]; then
+    echo "Slackbot Lambda 패키징 중..."
+    mkdir -p build/slackbot
+    cp -r services/slackbot/* build/slackbot/
+    cd build/slackbot
+    echo "Slackbot Lambda 압축 중..."
+    zip -r slackbot-lambda-$ENV.zip *
+    cd ../..
+
+    echo "Slackbot 업로드 중..."
+    aws s3 cp build/slackbot/slackbot-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/slackbot/slackbot-lambda-$ENV.zip"
+fi
 
 # 기본 스택에서 출력값 가져오기
 echo "기본 스택에서 출력값 가져오는 중..."
@@ -339,6 +353,8 @@ if aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME > /dev/null 
             ParameterKey=ApiGatewayIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayId" \
             ParameterKey=ApiGatewayRootResourceIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayRootResourceId" \
             ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
+            ParameterKey=SlackBotTokenSSMPathParameter,ParameterValue="$SSM_PATH_PREFIX/SlackbotToken" \
+            ParameterKey=AthenaOutputBucketParameter,ParameterValue="$SSM_PATH_PREFIX/AthenaOutputBucketName" \
         --capabilities CAPABILITY_NAMED_IAM
 else
     # 스택이 존재하지 않으면 생성
@@ -357,6 +373,8 @@ else
             ParameterKey=ApiGatewayIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayId" \
             ParameterKey=ApiGatewayRootResourceIdParameter,ParameterValue="$SSM_PATH_PREFIX/ApiGatewayRootResourceId" \
             ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
+            ParameterKey=SlackBotTokenSSMPathParameter,ParameterValue="$SSM_PATH_PREFIX/SlackbotToken" \
+            ParameterKey=AthenaOutputBucketParameter,ParameterValue="$SSM_PATH_PREFIX/AthenaOutputBucketName" \
         --capabilities CAPABILITY_NAMED_IAM
 fi
 
@@ -377,7 +395,6 @@ USER_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolId" --quer
 USER_POOL_CLIENT_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolClientId" --query "Parameter.Value" --output text)
 USER_POOL_DOMAIN=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolDomain" --query "Parameter.Value" --output text)
 IDENTITY_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/IdentityPoolId" --query "Parameter.Value" --output text)
-
 ENV_FILE="frontend/.env.local"
 
 echo "환경 파일 생성 중: $ENV_FILE"

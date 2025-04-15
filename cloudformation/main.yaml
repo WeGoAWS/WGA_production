@@ -1,5 +1,5 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'WGA - Main CloudFormation Template'
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "WGA - Main CloudFormation Template"
 
 Parameters:
   Environment:
@@ -18,53 +18,63 @@ Parameters:
       - "true"
       - "false"
     Description: Enable developer mode (disables zero trust evaluation)
-    
+
   # 파라미터 정의를 SSM 참조 방식으로 변경
   UserPoolId:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/wga/dev/UserPoolId'
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/UserPoolId"
     Description: ID of the Cognito User Pool
 
   UserPoolClientId:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/wga/dev/UserPoolClientId'
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/UserPoolClientId"
     Description: ID of the Cognito User Pool Client
 
   UserPoolDomain:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/wga/dev/UserPoolDomain'
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/UserPoolDomain"
     Description: Domain of the Cognito User Pool
 
   IdentityPoolId:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/wga/dev/IdentityPoolId'
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/IdentityPoolId"
     Description: ID of the Cognito Identity Pool
 
   OutputBucketName:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/wga/dev/OutputBucketName'
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/OutputBucketName"
     Description: Name of the output S3 bucket
 
   ApiGatewayIdParameter:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/wga/${Environment}/ApiGatewayId'
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/ApiGatewayId"
     Description: ID of the API Gateway
 
   ApiGatewayRootResourceIdParameter:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/wga/${Environment}/ApiGatewayRootResourceId'
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/ApiGatewayRootResourceId"
     Description: Root Resource ID of the API Gateway
 
   FrontendRedirectDomainParameter:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: '/wga/${Environment}/FrontendRedirectDomain'
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/FrontendRedirectDomain"
+    Description: Frontend redirect domain
+
+  SlackBotTokenSSMPathParameter:
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/SlackbotToken"
+    Description: Path to the Slack Bot Token in SSM
+
+  AthenaOutputBucketParameter:
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/AthenaOutputBucketName"
     Description: Frontend redirect domain
 
 Resources:
   LlmStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/llm.yaml'
+      TemplateURL: !Sub "https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/llm.yaml"
       Parameters:
         Environment: !Ref Environment
         ApiGatewayId: !Ref ApiGatewayIdParameter
@@ -77,9 +87,29 @@ Resources:
   DBStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/logs.yaml'
+      TemplateURL: !Sub "https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/logs.yaml"
       Parameters:
         Environment: !Ref Environment
+        ApiGatewayId: !Ref ApiGatewayIdParameter
+        ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
+        FrontendRedirectDomain: !Ref FrontendRedirectDomainParameter
+        AthenaOutputBucketName: !Ref AthenaOutputBucketParameter
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  SlackbotStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/slackbot.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ApiGatewayId: !Ref ApiGatewayIdParameter
+        ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
+        ApiEndpointParameter: !Ref ApiEndpointParameter
+        SlackBotTokenSSMPath: !Ref SlackBotTokenSSMPathParameter
+        CognitoClientIdSSMPath: !Ref UserPoolClientId
+        CognitoDomainSSMPath: !Ref UserPoolDomain
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -88,7 +118,7 @@ Resources:
     Type: AWS::SSM::Parameter
     DeletionPolicy: Delete
     Properties:
-      Name: !Sub '/wga/${Environment}/ApiEndpoint'
+      Name: !Sub "/wga/${Environment}/ApiEndpoint"
       Type: String
       Value: !Sub "https://${ApiGatewayIdParameter}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
       Description: API Gateway endpoint URL
