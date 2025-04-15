@@ -1,4 +1,3 @@
-<!-- src/views/ChatbotPage.vue -->
 <template>
     <AppLayout>
         <div class="chatbot-container">
@@ -16,9 +15,9 @@
                 </div>
 
                 <div v-else-if="store.hasSessions" class="chat-sessions">
-                    <div 
-                        v-for="session in store.sessions" 
-                        :key="session.id" 
+                    <div
+                        v-for="session in store.sessions"
+                        :key="session.id"
                         class="chat-session-item"
                         :class="{ active: store.currentSession?.id === session.id }"
                         @click="selectSession(session.id)"
@@ -51,7 +50,7 @@
                         <div class="empty-chat-content">
                             <h2>새로운 대화 시작하기</h2>
                             <p>아래 예시 질문을 클릭하거나 직접 질문을 입력하세요.</p>
-                            
+
                             <div class="example-questions">
                                 <button @click="askExampleQuestion('AWS S3 버킷 접근 권한 설정은 어떻게 하나요?')" class="example-question">
                                     AWS S3 버킷 접근 권한 설정은 어떻게 하나요?
@@ -67,9 +66,9 @@
                     </div>
 
                     <template v-else>
-                        <div 
-                            v-for="message in store.currentMessages" 
-                            :key="message.id" 
+                        <div
+                            v-for="message in store.currentMessages"
+                            :key="message.id"
                             class="message"
                             :class="{ 'user-message': message.sender === 'user', 'bot-message': message.sender === 'bot' }"
                         >
@@ -80,15 +79,15 @@
                 </div>
 
                 <div class="chat-input-container">
-                    <textarea 
-                        v-model="messageText" 
-                        class="chat-input" 
-                        placeholder="질문을 입력하세요..." 
+                    <textarea
+                        v-model="messageText"
+                        class="chat-input"
+                        placeholder="질문을 입력하세요..."
                         @keydown.enter.prevent="sendMessage"
                         :disabled="store.waitingForResponse"
                     ></textarea>
-                    <button 
-                        @click="sendMessage" 
+                    <button
+                        @click="sendMessage"
                         class="send-button"
                         :disabled="!messageText.trim() || store.waitingForResponse"
                     >
@@ -152,9 +151,10 @@
 
             // 메시지 전송
             const sendMessage = async () => {
-                if (!messageText.value.trim() || store.waitingForResponse) return;
-                
-                await store.sendMessage(messageText.value);
+                const question = messageText.value.trim();
+                if (!question || store.waitingForResponse) return;
+
+                await store.sendMessage(question);
                 messageText.value = '';
                 scrollToBottom();
             };

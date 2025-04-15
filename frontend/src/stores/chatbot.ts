@@ -1,5 +1,6 @@
 // src/stores/chatbot.ts
 import { defineStore } from 'pinia';
+import api from '@/utils/api';
 
 interface ChatMessage {
   id: string;
@@ -40,7 +41,7 @@ export const useChatbotStore = defineStore('chatbot', {
 
   getters: {
     hasSessions: (state) => state.sessions.length > 0,
-    
+
     currentMessages: (state) => {
       return state.currentSession?.messages || [];
     },
@@ -56,10 +57,10 @@ export const useChatbotStore = defineStore('chatbot', {
         // API 호출을 통해 채팅 세션 목록을 가져오는 로직
         // 여기서는 간단한 시뮬레이션
         await new Promise(resolve => setTimeout(resolve, 500));
-        
+
         const now = new Date().toISOString();
         const yesterday = new Date(Date.now() - 86400000).toISOString();
-        
+
         if (this.sessions.length === 0) {
           this.sessions = [
             {
@@ -122,10 +123,10 @@ export const useChatbotStore = defineStore('chatbot', {
         createdAt: now,
         updatedAt: now
       };
-      
+
       this.sessions.unshift(newSession);
       this.currentSession = newSession;
-      
+
       return newSession;
     },
 
@@ -140,14 +141,14 @@ export const useChatbotStore = defineStore('chatbot', {
     // 메시지 전송
     async sendMessage(text: string) {
       if (!text.trim()) return;
-      
+
       // 현재 세션이 없으면 새 세션 생성
       if (!this.currentSession) {
         this.createNewSession();
       }
-      
+
       const now = new Date().toISOString();
-      
+
       // 사용자 메시지 추가
       const userMessage: ChatMessage = {
         id: generateId(),
@@ -155,43 +156,47 @@ export const useChatbotStore = defineStore('chatbot', {
         text: text,
         timestamp: now
       };
-      
+
       this.currentSession!.messages.push(userMessage);
       this.currentSession!.updatedAt = now;
-      
+
       // 첫 메시지인 경우 세션 제목 업데이트
       if (this.currentSession!.messages.length === 1) {
         this.currentSession!.title = text.length > 30 ? text.substring(0, 30) + '...' : text;
       }
-      
+
       // 봇 응답 처리
       this.waitingForResponse = true;
-      
+
       try {
-        // 실제 API 호출을 통해 봇 응답을 가져오는 로직
-        // 여기서는 간단한 시뮬레이션
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
+        const res1 = await api.post('/llm1', { text });
+        const { question, query_result } = res1.data;
+
+        const res2 = await api.post('/llm2', {
+          question,
+          result: query_result
+        });
+        const answer = res2.data.answer.output.message.content[0].text;
+
         const botMessage: ChatMessage = {
           id: generateId(),
           sender: 'bot',
-          text: this.generateBotResponse(text),
+          text: answer,
           timestamp: new Date().toISOString()
         };
-        
+
         this.currentSession!.messages.push(botMessage);
         this.currentSession!.updatedAt = botMessage.timestamp;
       } catch (err: any) {
         console.error('봇 응답 가져오기 오류:', err);
-        
-        // 오류 메시지 추가
+
         const errorMessage: ChatMessage = {
           id: generateId(),
           sender: 'bot',
           text: '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.',
           timestamp: new Date().toISOString()
         };
-        
+
         this.currentSession!.messages.push(errorMessage);
         this.currentSession!.updatedAt = errorMessage.timestamp;
       } finally {
@@ -239,6 +244,32 @@ export const useChatbotStore = defineStore('chatbot', {
       this.sessions = [];
       this.currentSession = null;
       this.waitingForResponse = false;
-    }
+    },
+
+    addUserMessage(text: string) {
+      if (!this.currentSession) return;
+      const now = new Date().toISOString();
+      const message: ChatMessage = {
+        id: generateId(),
+        sender: 'user',
+        text,
+        timestamp: now,
+      };
+      this.currentSession.messages.push(message);
+      this.currentSession.updatedAt = now;
+    },
+
+    addBotMessage(text: string) {
+      if (!this.currentSession) return;
+      const now = new Date().toISOString();
+      const message: ChatMessage = {
+        id: generateId(),
+        sender: 'bot',
+        text,
+        timestamp: now,
+      };
+      this.currentSession.messages.push(message);
+      this.currentSession.updatedAt = now;
+    },
   }
 });
