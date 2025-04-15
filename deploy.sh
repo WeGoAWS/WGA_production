@@ -395,7 +395,7 @@ USER_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolId" --quer
 USER_POOL_CLIENT_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolClientId" --query "Parameter.Value" --output text)
 USER_POOL_DOMAIN=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/UserPoolDomain" --query "Parameter.Value" --output text)
 IDENTITY_POOL_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/IdentityPoolId" --query "Parameter.Value" --output text)
-
+SLACKBOT_TOKEN=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/SlackbotToken" --query "Parameter.Value" --output text)
 ENV_FILE="frontend/.env.local"
 
 echo "환경 파일 생성 중: $ENV_FILE"
@@ -414,6 +414,7 @@ COGNITO_CLIENT_SECRET=
 COGNITO_REDIRECT_URI=https://${ENV}.${FRONTEND_URL}/redirect
 COGNITO_IDENTITY_POOL_ID=$IDENTITY_POOL_ID
 USER_POOL_ID=$USER_POOL_ID
+SLACKBOT_TOKEN=$SLACKBOT_TOKEN
 EOF
 
 echo "환경 파일($ENV_FILE)이 업데이트되었습니다."
