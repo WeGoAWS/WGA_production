@@ -19,145 +19,100 @@ def wait_for_query(query_id):
             break
         time.sleep(2)
     if state != "SUCCEEDED":
-        reason = response["QueryExecution"]["Status"].get("StateChangeReason", "Unknown")
-        raise Exception(f"Athena query failed with state: {state}, reason: {reason}")
+        raise Exception(f"Athena query failed with state: {state}")
 
 def get_create_table_query(log_type, s3_path, table_name):
     if log_type == "cloudtrail":
-        return textwrap.dedent(f"""CREATE EXTERNAL TABLE IF NOT EXISTS guardduty_findings (
-  schemaVersion string,
-  accountId string,
-  region string,
-  id string,
-  arn string,
-  type string,
-  resource struct<
-    resourceType: string,
-    accessKeyDetails: struct<
-      accessKeyId: string,
-      principalId: string,
-      userType: string,
-      userName: string
-    >
-  >,
-  service struct<
-    action: struct<
-      actionType: string,
-      awsApiCallAction: struct<
-        api: string,
-        serviceName: string
-      >
-    >,
-    additionalInfo: map<string, string>,
-    eventFirstSeen: string,
-    eventLastSeen: string
-  >,
-  severity double,
-  createdAt string,
-  updatedAt string,
-  title string,
-  description string
-)
-PARTITIONED BY (
-  year string,
-  month string,
-  day string
-)
-ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
-WITH SERDEPROPERTIES (
-  'ignore.malformed.json' = 'true'
-)
-STORED AS TEXTFILE
-LOCATION 's3://wga-guardduty-logs/guardduty-logs/'
-TBLPROPERTIES (
-  'projection.enabled'='true',
-  'projection.year.type'='integer',
-  'projection.year.range'='2024,2026',
-  'projection.month.type'='integer',
-  'projection.month.range'='1,12',
-  'projection.day.type'='integer',
-  'projection.day.range'='1,31',
-  'storage.location.template'='s3://wga-guardduty-logs/guardduty-logs/${year}/${month}/${day}/'
-);
-""")
+        return textwrap.dedent(f"""CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.{table_name} (
+          `eventversion` string,
+          `useridentity` struct<type:string,principalid:string,arn:string,accountid:string,invokedby:string,accesskeyid:string,username:string,sessioncontext:struct<attributes:struct<mfaauthenticated:string,creationdate:string>,sessionissuer:struct<type:string,principalid:string,arn:string,accountid:string,username:string>,ec2roledelivery:string,webidfederationdata:struct<federatedprovider:string,attributes:map<string,string>>>>,
+          `eventtime` string,
+          `eventsource` string,
+          `eventname` string,
+          `awsregion` string,
+          `sourceipaddress` string,
+          `useragent` string,
+          `errorcode` string,
+          `errormessage` string,
+          `requestparameters` string,
+          `responseelements` string,
+          `additionaleventdata` string,
+          `requestid` string,
+          `eventid` string,
+          `resources` array<struct<arn:string,accountid:string,type:string>>,
+          `eventtype` string,
+          `apiversion` string,
+          `readonly` string,
+          `recipientaccountid` string,
+          `serviceeventdetails` string,
+          `sharedeventid` string,
+          `vpcendpointid` string,
+          `tlsdetails` struct<tlsversion:string,ciphersuite:string,clientprovidedhostheader:string>)
+        PARTITIONED BY (`timestamp` string)
+        ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+        STORED AS INPUTFORMAT 'com.amazon.emr.cloudtrail.CloudTrailInputFormat'
+        OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+        LOCATION '{s3_path}'
+        TBLPROPERTIES (
+          'projection.enabled'='true',
+          'projection.timestamp.format'='yyyy/MM/dd',
+          'projection.timestamp.interval'='1',
+          'projection.timestamp.interval.unit'='DAYS',
+          'projection.timestamp.range'='2025/01/01,NOW',
+          'projection.timestamp.type'='date',
+          'storage.location.template'='{s3_path}${{timestamp}}'
+        );""")
 
     elif log_type == "guardduty":
         return textwrap.dedent(f"""CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.{table_name} (
-    schemaVersion string,
-    accountId string,
-    region string,
-    id string,
-    arn string,
-    type string,
-    resource struct<
-        resourceType: string,
-        accessKeyDetails: struct<
-            accessKeyId: string,
-            principalId: string,
-            userType: string,
-            userName: string
-        >
-    >,
-    service struct<
-        action: struct<
-            actionType: string,
-            awsApiCallAction: struct<
-                api: string,
-                serviceName: string
-            >
-        >,
-        additionalInfo: map<string, string>,
-        eventFirstSeen: string,
-        eventLastSeen: string
-    >,
-    severity double,
-    createdAt string,
-    updatedAt string,
-    title string,
-    description string
-)
-PARTITIONED BY (
-    year string,
-    month string,
-    day string
-)
-ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
-WITH SERDEPROPERTIES (
-    'ignore.malformed.json' = 'true'
-)
-STORED AS TEXTFILE
+  `version` string COMMENT 'from deserializer', 
+  `id` string COMMENT 'from deserializer', 
+  `detail_type` string COMMENT 'from deserializer', 
+  `source` string COMMENT 'from deserializer', 
+  `account` string COMMENT 'from deserializer', 
+  `time` string COMMENT 'from deserializer', 
+  `region` string COMMENT 'from deserializer', 
+  `resources` array<string> COMMENT 'from deserializer', 
+  `detail` string COMMENT 'from deserializer')
+PARTITIONED BY ( 
+  `year` string, 
+  `month` string, 
+  `day` string, 
+  `hour` string)
+ROW FORMAT SERDE 
+  'org.openx.data.jsonserde.JsonSerDe' 
+WITH SERDEPROPERTIES ( 
+  'ignore.malformed.json'='true') 
+STORED AS INPUTFORMAT 
+  'org.apache.hadoop.mapred.TextInputFormat' 
+OUTPUTFORMAT 
+  'org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat'
 LOCATION '{s3_path}'
 TBLPROPERTIES (
-    'projection.enabled'='true',
-    'projection.year.type'='integer',
-    'projection.year.range'='2024,2026',
-    'projection.month.type'='integer',
-    'projection.month.range'='1,12',
-    'projection.day.type'='integer',
-    'projection.day.range'='1,31',
-    'storage.location.template'='{s3_path}${{year}}/${{month}}/${{day}}/'
-);""")
+  'projection.day.range'='1,31', 
+  'projection.day.type'='integer', 
+  'projection.enabled'='true', 
+  'projection.hour.range'='0,23', 
+  'projection.hour.type'='integer', 
+  'projection.month.range'='1,12', 
+  'projection.month.type'='integer', 
+  'projection.year.range'='2024,2026', 
+  'projection.year.type'='integer', 
+  'storage.location.template'='s3://wga-guardduty-logs/guardduty-logs/${{year}}/${{month}}/${{day}}/${{hour}}/', 
+  'transient_lastDdlTime'='1744691349');""")
+
     else:
         raise ValueError(f"Unsupported log_type: {log_type}")
 
 def lambda_handler(event, context):
     try:
-        # ✅ 1차 디코딩: API Gateway로 들어온 경우
-        if isinstance(event.get("body"), str):
-            outer_body = json.loads(event["body"])
-        else:
-            outer_body = event.get("body", {})
+        path = event.get("path", "")
+        http_method = event.get("httpMethod", "")
+        body = json.loads(event.get("body", "{}"))
 
-        # ✅ 2차 디코딩: Lambda 테스트 이벤트로 실행한 경우
-        path = outer_body.get("path", event.get("path", ""))
-        http_method = outer_body.get("httpMethod", event.get("httpMethod", ""))
-        inner_body = json.loads(outer_body.get("body", "{}"))
-
-        # =====================
         # /execute-query
-        # =====================
         if path == "/execute-query" and http_method == "POST":
-            query = inner_body.get("query")
+            query = body.get("query")
             if not query:
                 return {"statusCode": 400, "body": json.dumps({"error": "Missing 'query' in request."})}
 
@@ -186,16 +141,22 @@ def lambda_handler(event, context):
 
             return {"statusCode": 200, "body": json.dumps(records, ensure_ascii=False)}
 
-        # =====================
         # /create-table
-        # =====================
         elif path == "/create-table" and http_method == "POST":
-            log_type = inner_body.get("log_type")
-            s3_path = inner_body.get("s3_path")
-            table_name = inner_body.get("table_name", f"{log_type}_logs")
+            log_type = body.get("log_type")
+            s3_path = body.get("s3_path")
+            table_name = body.get("table_name", f"{log_type}_logs")
 
             if not log_type or not s3_path:
                 return {"statusCode": 400, "body": json.dumps({"error": "Missing 'log_type' or 's3_path'"})}
+
+            parsed = urlparse(S3_OUTPUT)
+            bucket_name = parsed.netloc
+            try:
+                s3.head_bucket(Bucket=bucket_name)
+            except s3.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == '404':
+                    s3.create_bucket(Bucket=bucket_name)
 
             create_db_query = f"CREATE DATABASE IF NOT EXISTS {ATHENA_DB}"
             db_exec_id = athena.start_query_execution(
@@ -207,19 +168,15 @@ def lambda_handler(event, context):
             query = get_create_table_query(log_type, s3_path, table_name)
             exec_id = athena.start_query_execution(
                 QueryString=query,
-                QueryExecutionContext={"Database": ATHENA_DB},
                 ResultConfiguration={"OutputLocation": S3_OUTPUT}
             )["QueryExecutionId"]
             wait_for_query(exec_id)
 
             return {
                 "statusCode": 200,
-                "body": f"✅ {log_type} projection 테이블 생성 완료: {ATHENA_DB}.{table_name}"
+                "body": f"✅ {log_type} 테이블 생성 완료: {ATHENA_DB}.{table_name}"
             }
 
-        # =====================
-        # Not Found
-        # =====================
         else:
             return {
                 "statusCode": 404,
