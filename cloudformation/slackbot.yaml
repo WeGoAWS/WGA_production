@@ -75,11 +75,11 @@ Resources:
   SlackbotLambdaLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
-      LayerName: !Sub 'slackbot-layer-${Environment}'
+      LayerName: !Sub "slackbot-layer-${Environment}"
       Description: Common Python dependencies
       Content:
-        S3Bucket: !Sub 'wga-deployment-${Environment}'
-        S3Key: !Sub 'layers/common-layer-${Environment}.zip'
+        S3Bucket: !Sub "wga-deployment-${Environment}"
+        S3Key: !Sub "layers/common-layer-${Environment}.zip"
       CompatibleRuntimes:
         - python3.12
 
