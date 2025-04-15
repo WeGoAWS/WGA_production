@@ -1,8 +1,6 @@
 import requests
 import urllib.parse
 import json
-import boto3
-import os
 from common.config import CONFIG
 from common.slackbot_session import save_session
 from jose import jwt
@@ -22,22 +20,16 @@ def lambda_handler(event, context):
                 "statusCode": 200,
                 "body": "🔐 로그인 링크를 Slack DM으로 전송했습니다!"
             }
-
         return {
             "statusCode": 400,
             "body": "❗ 지원하지 않는 명령어입니다."
         }
 
+
     print("EVENT:", json.dumps(event))
     params = event.get("queryStringParameters") or {}
     code = params.get("code")
     slack_user_id = params.get("state")
-
-    ssm = boto3.client("ssm")
-    path = os.environ.get("SLACK_BOT_TOKEN_PATH")
-    domain = os.environ.get("COGNITO_DOMAIN_PATH")
-    client_id = os.environ.get("COGNITO_CLIENT_ID_PATH")
-    endpoint = os.environ.get("API_ENDPOINT")
 
     if not code or not slack_user_id:
         return {
@@ -48,12 +40,12 @@ def lambda_handler(event, context):
 
     # Cognito 토큰 교환
     res = requests.post(
-        f"{domain}/oauth2/token",
+        f"{CONFIG['cognito']['domain']}/oauth2/token",
         data={
             "grant_type": "authorization_code",
-            "client_id": client_id,
+            "client_id": CONFIG['cognito']['client_id'],
             "code": code,
-            "redirect_uri": f"https://2nkfifjwil.execute-api.us-east-1.amazonaws.com/dev/callback"
+            "redirect_uri": f"{CONFIG['api']['endpoint']}/callback" # Api ENDPOINT/callback URL 입력
         },
         headers={"Content-Type": "application/x-www-form-urlencoded"}
     )
