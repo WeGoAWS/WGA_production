@@ -237,7 +237,7 @@ aws ssm put-parameter \
 
 echo "기본 스택에서 출력값 가져오는 중..."
 API_GATEWAY_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayId'].OutputValue" --output text)
-CALLBACK_DOMAIN="https://${API_GATEWAY_ID}.execute-api.${REGION}.amazonaws.com/${ENV}/callback"
+CALLBACK_DOMAIN="${API_GATEWAY_ID}.execute-api.${REGION}.amazonaws.com/${ENV}/callback"
 echo "Callback Domain: ${CALLBACK_DOMAIN}"
 # SSM 파라미터 변경 후 base 스택 업데이트 (SSM 파라미터가 CloudFormation에 의해 생성되기 때문)
 echo "FrontendRedirectDomain 및 Callback URL 업데이트를 위해 base 스택 업데이트 중..."
