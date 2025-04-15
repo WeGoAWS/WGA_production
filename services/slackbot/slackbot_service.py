@@ -2,11 +2,17 @@ from common.slackbot_session import get_session
 from slack_sdk import WebClient
 from common.config import CONFIG
 import threading
+import boto3
+import os
 
 print("==== Lambda 호출됨 ====")
-print("SLACK TOKEN:", CONFIG['slackbot']['token'])
+ssm = boto3.client("ssm")
+path = os.environ.get("SLACK_BOT_TOKEN_PATH")
+domain = os.environ.get("COGNITO_DOMAIN_PATH")
+client_id = os.environ.get("COGNITO_CLIENT_ID_PATH")
+endpoint = os.environ.get("API_ENDPOINT")
 
-client = WebClient(token=CONFIG['slackbot']['token'])
+client = WebClient(token=path)
 
 def handle_login_command(slack_user_id: str, channel_id: str):
     # 응답을 지연시키지 않기 위해 백그라운드로 실행
@@ -20,12 +26,14 @@ def handle_login_command(slack_user_id: str, channel_id: str):
 
 def send_login_button(slack_user_id):
     login_url = (
-        f"https://{CONFIG['cognito']['domain']}.auth.us-east-1.amazoncognito.com/oauth2/authorize"
+        f"{domain}/oauth2/authorize"
         "?response_type=code"
-        f"&client_id={CONFIG['cognito']['client_id']}"
-        f"&redirect_uri={CONFIG['api']['endpoint']}/callback"
+        f"&client_id={client_id}"
+        f"&redirect_uri=https://2nkfifjwil.execute-api.us-east-1.amazonaws.com/dev/callback"
         f"&scope=openid+email+profile&state={slack_user_id}"
     )
+
+    print(login_url)
 
     client.chat_postMessage(
         channel=slack_user_id,
