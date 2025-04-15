@@ -46,7 +46,7 @@ Parameters:
 
   CallbackDomain:
     Type: String
-    Default: placeholder.example.com
+    Default: placeholder.example.com/callback
     Description: Slackbot callback domain
 
 Conditions:
@@ -242,7 +242,7 @@ Resources:
         - COGNITO
       CallbackURLs:
         - !Sub 'https://${Environment}.${FrontendRedirectDomain}/redirect'
-        - !Sub '${CallbackDomain}'
+        - !Sub 'https://${CallbackDomain}'
       LogoutURLs:
         - !Sub 'https://${Environment}.${FrontendRedirectDomain}/redirect'
       AllowedOAuthFlows:
