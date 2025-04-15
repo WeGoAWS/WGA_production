@@ -138,6 +138,7 @@ if aws cloudformation describe-stacks --stack-name "$BASE_STACK_NAME" > /dev/nul
                     ParameterKey=AthenaOutputBucketExists,ParameterValue=$ATHENA_OUTPUT_BUCKET_EXISTS \
                     ParameterKey=GuardDutyExportBucketExists,ParameterValue=$GUARDDUTY_EXPORT_BUCKET_EXISTS \
                     ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
+                    ParameterKey=CallbackDomain,ParameterValue=placeholder.example.com \
         --capabilities CAPABILITY_NAMED_IAM
 
     # 스택 업데이트 완료 대기
@@ -155,6 +156,7 @@ else
                     ParameterKey=AthenaOutputBucketExists,ParameterValue=$ATHENA_OUTPUT_BUCKET_EXISTS \
                     ParameterKey=GuardDutyExportBucketExists,ParameterValue=$GUARDDUTY_EXPORT_BUCKET_EXISTS \
                     ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
+                    ParameterKey=CallbackDomain,ParameterValue=placeholder.example.com \
         --capabilities CAPABILITY_NAMED_IAM
 
     # 스택 생성 완료 대기
@@ -233,8 +235,11 @@ aws ssm put-parameter \
     --type "String" \
     --overwrite
 
+echo "기본 스택에서 출력값 가져오는 중..."
+API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
+CALLBACK_DOMAIN="${API_ENDPOINT}/callback"
 # SSM 파라미터 변경 후 base 스택 업데이트 (SSM 파라미터가 CloudFormation에 의해 생성되기 때문)
-echo "FrontendRedirectDomain 업데이트를 위해 base 스택 업데이트 중..."
+echo "FrontendRedirectDomain 및 Callback URL 업데이트를 위해 base 스택 업데이트 중..."
 aws cloudformation update-stack \
     --stack-name $BASE_STACK_NAME \
     --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/base.yaml" \
@@ -244,6 +249,7 @@ aws cloudformation update-stack \
                 ParameterKey=AthenaOutputBucketExists,ParameterValue=true \
                 ParameterKey=GuardDutyExportBucketExists,ParameterValue=true \
                 ParameterKey=FrontendRedirectDomain,ParameterValue=$FRONTEND_URL \
+                ParameterKey=CallbackDomain,ParameterValue=$CALLBACK_DOMAIN \
     --capabilities CAPABILITY_NAMED_IAM
 
 aws cloudformation wait stack-update-complete --stack-name $BASE_STACK_NAME
