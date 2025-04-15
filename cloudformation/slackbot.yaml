@@ -56,11 +56,9 @@ Resources:
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
-                Resource:
-                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SlackBotTokenSSMPath}"
-                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${CognitoClientIdSSMPath}"
-                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${CognitoDomainSSMPath}"
-                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ApiEndpointParameter}"
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wga/${Environment}/*"
 
         - PolicyName: SlackbotDynamoDBSessionAccess
           PolicyDocument:
@@ -77,11 +75,11 @@ Resources:
   SlackbotLambdaLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
-      LayerName: !Sub 'slackbot-layer-${Environment}'
+      LayerName: !Sub "slackbot-layer-${Environment}"
       Description: Common Python dependencies
       Content:
-        S3Bucket: !Sub 'wga-deployment-${Environment}'
-        S3Key: !Sub 'layers/common-layer-${Environment}.zip'
+        S3Bucket: !Sub "wga-deployment-${Environment}"
+        S3Key: !Sub "layers/common-layer-${Environment}.zip"
       CompatibleRuntimes:
         - python3.12
 

@@ -1,4 +1,3 @@
-# lambda_functions/common/config.py
 import os
 import json
 import boto3
@@ -7,33 +6,10 @@ from botocore.exceptions import ClientError
 # 환경 변수에서 설정 불러오기
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 ENV = os.environ.get('ENV', 'dev')
-
-# DynamoDB 테이블
-SESSIONS_TABLE = os.environ.get('SESSIONS_TABLE', f'Sessions-{ENV}')
-USERS_TABLE = os.environ.get('USERS_TABLE', f'Users-{ENV}')
-ANALYSIS_RESULTS_TABLE = os.environ.get('ANALYSIS_RESULTS_TABLE', f'AnalysisResults-{ENV}')
-USER_BEHAVIOR_PROFILES_TABLE = os.environ.get('USER_BEHAVIOR_PROFILES_TABLE', f'UserBehaviorProfiles-{ENV}')
-ROLE_TEMPLATES_TABLE = os.environ.get('ROLE_TEMPLATES_TABLE', f'RoleTemplates-{ENV}')
-ROLE_HISTORY_TABLE = os.environ.get('ROLE_HISTORY_TABLE', f'RoleHistory-{ENV}')
-ANOMALY_EVENTS_TABLE = os.environ.get('ANOMALY_EVENTS_TABLE', f'AnomalyEvents-{ENV}')
-ACCESS_DECISIONS_TABLE = os.environ.get('ACCESS_DECISIONS_TABLE', f'AccessDecisions-{ENV}')
+DEVELOPER_MODE = os.environ.get('DEVELOPER_MODE', 'false').lower() == 'true'
 
 # S3 버킷
 OUTPUT_BUCKET = os.environ.get('OUTPUT_BUCKET', 'wga-outputbucket')
-
-# AWS Cognito 설정
-USER_POOL_ID = os.environ.get('USER_POOL_ID', '')
-COGNITO_CLIENT_ID = os.environ.get('COGNITO_CLIENT_ID', '')
-COGNITO_DOMAIN = os.environ.get('COGNITO_DOMAIN', '')
-COGNITO_IDENTITY_POOL_ID = os.environ.get('COGNITO_IDENTITY_POOL_ID', '')
-
-DEVELOPER_MODE = os.environ.get('DEVELOPER_MODE', 'false').lower() == 'true'
-
-# Slackbot 설정
-SLACKBOT_TOKEN = os.environ.get('SLACKBOT_TOKEN', '')
-
-# API 설정
-API_ENDPOINT = os.environ.get("API_ENDPOINT", '')
 
 
 # AWS SSM에서 비밀 설정 가져오기
@@ -57,67 +33,77 @@ def load_config():
     config = {
         'aws_region': AWS_REGION,
         'env': ENV,
-        'tables': {
-            'sessions': SESSIONS_TABLE,
-            'users': USERS_TABLE,
-            'analysis_results': ANALYSIS_RESULTS_TABLE,
-            'user_behavior_profiles': USER_BEHAVIOR_PROFILES_TABLE,
-            'role_templates': ROLE_TEMPLATES_TABLE,
-            'role_history': ROLE_HISTORY_TABLE,
-            'anomaly_events': ANOMALY_EVENTS_TABLE,
-            'access_decisions': ACCESS_DECISIONS_TABLE
-        },
+        # 개발자 모드 설정 - 개발 환경에서는 기본적으로 활성화
+        'developer_mode': ENV == 'dev',
         's3': {
             'output_bucket': OUTPUT_BUCKET
         },
         'cognito': {
-            'user_pool_id': USER_POOL_ID,
-            'client_id': COGNITO_CLIENT_ID,
-            'domain': COGNITO_DOMAIN,
-            'identity_pool_id': COGNITO_IDENTITY_POOL_ID
+            'user_pool_id': '',
+            'client_id': '',
+            'domain': '',
+            'identity_pool_id': ''
         },
         'slackbot': {
-            'token': SLACKBOT_TOKEN
-        }, 
-        'api': {
-            'endpoint': API_ENDPOINT
+            'token': ''
         },
-        # 개발자 모드 설정 - 개발 환경에서는 기본적으로 활성화
-        'developer_mode': ENV == 'dev',
+        'api': {
+            'endpoint': ''
+        },
+
     }
-    
+
     # 환경 변수로 개발자 모드 설정을 재정의 가능하도록
     developer_mode_env = os.environ.get('DEVELOPER_MODE', '')
     if developer_mode_env.lower() in ('true', 'yes', '1'):
         config['developer_mode'] = True
     elif developer_mode_env.lower() in ('false', 'no', '0'):
         config['developer_mode'] = False
-    
-    # 개발 환경이 아니라면 SSM에서 추가 비밀 설정 로드
-    if ENV != 'dev':
-        try:
-            # SSM 파라미터 경로
-            ssm_path = f'/wga/{ENV}/'
-            
-            # SSM에서 모든 파라미터 로드
-            ssm = boto3.client('ssm', region_name=AWS_REGION)
-            response = ssm.get_parameters_by_path(
-                Path=ssm_path,
-                WithDecryption=True,
-                Recursive=True
-            )
-            
-            # 설정에 추가
-            for param in response.get('Parameters', []):
-                name = param['Name'].replace(ssm_path, '')
-                value = param['Value']
-                
-                # 파라미터 이름에 따라 적절한 위치에 추가
-                if name.startswith('cognito_'):
-                    config['cognito'][name.replace('cognito_', '')] = value
-            
-        except Exception as e:
-            print(f"Error loading SSM parameters: {e}")
+
+    try:
+        # SSM 파라미터 경로
+        ssm_path = f'/wga/{ENV}/'
+
+        # SSM에서 모든 파라미터 로드
+        ssm = boto3.client('ssm', region_name=AWS_REGION)
+        response = ssm.get_parameters_by_path(
+            Path=ssm_path,
+            WithDecryption=True,
+            Recursive=True
+        )
+
+        # 설정에 추가
+        mapping = {
+            'AmplifyAppId': ('amplify', 'app_id'),
+            'AmplifyDefaultDomain': ('amplify', 'default_domain'),
+            'AmplifyDefaultDomainWithEnv': ('amplify', 'default_domain_with_env'),
+            'ApiEndpoint': ('api', 'endpoint'),
+            'ApiGatewayId': ('api', 'gateway_id'),
+            'ApiGatewayRootResourceId': ('api', 'root_resource_id'),
+            'AthenaOutputBucketName': ('s3', 'athena_output_bucket'),
+            'DeploymentBucketName': ('s3', 'deployment_bucket'),
+            'FrontendRedirectDomain': ('frontend', 'redirect_domain'),
+            'GuardDutyExportBucketName': ('s3', 'guardduty_export_bucket'),
+            'IdentityPoolId': ('cognito', 'identity_pool_id'),
+            'OutputBucketName': ('s3', 'output_bucket'),
+            'SlackbotToken': ('slackbot', 'token'),
+            'UserPoolClientId': ('cognito', 'client_id'),
+            'UserPoolDomain': ('cognito', 'domain'),
+            'UserPoolId': ('cognito', 'user_pool_id')
+        }
+
+        for param in response.get('Parameters', []):
+            name = param['Name'].replace(ssm_path, '')
+            value = param['Value']
+
+            # 파라미터 이름에 따라 적절한 위치에 추가
+            if name in mapping:
+                section, key = mapping[name]
+                config[section][key] = value
+
+    except Exception as e:
+        print(f"Error loading SSM parameters: {e}")
+
     
     return config
 

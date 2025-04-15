@@ -44,6 +44,11 @@ Parameters:
     Default: placeholder.example.com
     Description: Amplify frontend redirect
 
+  CallbackDomain:
+    Type: String
+    Default: placeholder.example.com
+    Description: Slackbot callback domain
+
 Conditions:
   ShouldCreateBucket: !Equals [!Ref BucketExists, "false"]
   ShouldCreateOutputBucket: !Equals [!Ref OutputBucketExists, "false"]
@@ -237,6 +242,7 @@ Resources:
         - COGNITO
       CallbackURLs:
         - !Sub 'https://${Environment}.${FrontendRedirectDomain}/redirect'
+        - !Sub '${CallbackDomain}'
       LogoutURLs:
         - !Sub 'https://${Environment}.${FrontendRedirectDomain}/redirect'
       AllowedOAuthFlows:
@@ -462,6 +468,15 @@ Resources:
       Value: !Ref FrontendRedirectDomain
       Description: Frontend redirect domain
 
+  CallbackDomainParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '/wga/${Environment}/CallbackDomain'
+      Type: String
+      Value: !Ref CallbackDomain
+      Description: Slackbot callback domain
+
 Outputs:
   DeploymentBucketName:
     Description: Name of the S3 bucket for deployment packages
@@ -506,3 +521,7 @@ Outputs:
   FrontendRedirectDomain:
     Description: Placeholder for frontend redirect domain
     Value: !Ref FrontendRedirectDomain
+
+  CallbackDomain:
+    Description: Placeholder for slackbot callback domain
+    Value: !Ref CallbackDomain
