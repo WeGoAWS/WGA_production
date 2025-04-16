@@ -63,11 +63,24 @@ def load_config():
 
         # SSM에서 모든 파라미터 로드
         ssm = boto3.client('ssm', region_name=AWS_REGION)
-        response = ssm.get_parameters_by_path(
-            Path=ssm_path,
-            WithDecryption=True,
-            Recursive=True
-        )
+        parameters = []
+        next_token = None
+
+        while True:
+            kwargs = {
+                'Path': ssm_path,
+                'WithDecryption': True,
+                'Recursive': True
+            }
+            if next_token:
+                kwargs['NextToken'] = next_token
+
+            response = ssm.get_parameters_by_path(**kwargs)
+            parameters.extend(response.get('Parameters', []))
+
+            next_token = response.get('NextToken')
+            if not next_token:
+                break
 
         # 설정에 추가
         mapping = {
@@ -89,7 +102,7 @@ def load_config():
             'UserPoolId': ('cognito', 'user_pool_id')
         }
 
-        for param in response.get('Parameters', []):
+        for param in parameters:
             name = param['Name'].replace(ssm_path, '')
             value = param['Value']
 
