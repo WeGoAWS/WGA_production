@@ -1,7 +1,7 @@
 # lambda_function.py
 from common.utils import invoke_bedrock_nova
 from llm_service import build_llm1_prompt, build_llm2_prompt, parse_body, call_create_table_guardduty, call_create_table_cloudtrail, call_execute_query, send_slack_dm
-from common.config import CONFIG
+from common.config import get_config
 import json
 import requests
 

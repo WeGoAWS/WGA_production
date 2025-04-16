@@ -12,7 +12,7 @@ def lambda_handler(event, context):
     http_method = event.get("httpMethod", "")
     CONFIG = get_config()
     print("path:", path)
-    if path == "/slackbot" and http_method == "POST":
+    if path == "/login" and http_method == "POST":
         body = urllib.parse.parse_qs(event["body"])
         slack_user_id = body.get("user_id", [""])[0]
         send_login_button(slack_user_id)
