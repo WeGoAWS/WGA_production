@@ -78,6 +78,7 @@ Resources:
       Environment:
         Variables:
           ENV: !Ref Environment
+          ATHENA_TABLE_REGISTRY_TABLE: "AthenaTableRegistry"
       Layers:
         - !Ref LlmLambdaLayer
       Tags:
