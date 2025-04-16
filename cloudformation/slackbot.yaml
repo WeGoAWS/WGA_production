@@ -137,7 +137,7 @@ Resources:
     Properties:
       RestApiId: !Ref ApiGatewayId
       ResourceId: !Ref SlackbotCallbackApiResource
-      HttpMethod: POST
+      HttpMethod: GET
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
