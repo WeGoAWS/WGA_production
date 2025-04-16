@@ -169,14 +169,8 @@ export const useChatbotStore = defineStore('chatbot', {
       this.waitingForResponse = true;
 
       try {
-        const res1 = await api.post('/llm1', { text });
-        const { question, query_result } = res1.data;
-
-        const res2 = await api.post('/llm2', {
-          question,
-          result: query_result
-        });
-        const answer = res2.data.answer.output.message.content[0].text;
+        const res = await api.post('/llm1', { text });
+        const answer = res.data.answer;
 
         const botMessage: ChatMessage = {
           id: generateId(),
