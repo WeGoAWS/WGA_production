@@ -129,7 +129,7 @@ def create_success_response(data=None, message=None):
     return format_api_response(200, response_body)
 
 def invoke_bedrock_nova(prompt):
-    bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+    bedrock = boto3.client("bedrock-runtime", region_name=AWS_REGION)
     response = bedrock.invoke_model(
         modelId="amazon.nova-pro-v1:0",
         contentType="application/json",
