@@ -193,6 +193,19 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
+  AthenaTableRegistryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: 'AthenaTableRegistry'
+      AttributeDefinitions:
+        - AttributeName: 'log_type'
+          AttributeType: S
+      KeySchema:
+        - AttributeName: 'log_type'
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
 
   # Cognito User Pool
   UserPool:
