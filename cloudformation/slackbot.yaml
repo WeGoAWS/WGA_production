@@ -99,10 +99,8 @@ Resources:
       Role: !GetAtt SlackbotLambdaExecutionRole.Arn
       Environment:
         Variables:
-          SLACK_BOT_TOKEN_PATH: !Ref SlackBotTokenSSMPath
-          COGNITO_CLIENT_ID_PATH: !Ref CognitoClientIdSSMPath
-          COGNITO_DOMAIN_PATH: !Ref CognitoDomainSSMPath
-          API_ENDPOINT: !Ref ApiEndpointParameter
+          AWS_REGION: !Ref AWS::Region
+          ENV: !Ref Environment
       Tags:
         - Key: Environment
           Value: !Ref Environment

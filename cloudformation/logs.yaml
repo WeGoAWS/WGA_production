@@ -81,6 +81,8 @@ Resources:
         Variables:
           ATHENA_DB: !Sub 'wga_logs_${Environment}'
           S3_QUERY_OUTPUT: !Sub "s3://${AthenaOutputBucketName}/results/"
+          AWS_REGION: !Ref AWS::Region
+          ENV: !Ref Environment
       Code:
         S3Bucket: !Sub 'wga-deployment-${Environment}'
         S3Key: !Sub 'db/athena-utility-lambda-${Environment}.zip'

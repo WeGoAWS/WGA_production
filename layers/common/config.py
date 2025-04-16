@@ -6,11 +6,6 @@ from botocore.exceptions import ClientError
 # 환경 변수에서 설정 불러오기
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 ENV = os.environ.get('ENV', 'dev')
-DEVELOPER_MODE = os.environ.get('DEVELOPER_MODE', 'false').lower() == 'true'
-
-# S3 버킷
-OUTPUT_BUCKET = os.environ.get('OUTPUT_BUCKET', 'wga-outputbucket')
-
 
 # AWS SSM에서 비밀 설정 가져오기
 def get_ssm_parameter(param_name, with_decryption=True):
@@ -33,10 +28,23 @@ def load_config():
     config = {
         'aws_region': AWS_REGION,
         'env': ENV,
-        # 개발자 모드 설정 - 개발 환경에서는 기본적으로 활성화
-        'developer_mode': ENV == 'dev',
+        'amplify': {
+            'app_id': '',
+            'default_domain': '',
+            'default_domain_with_env': ''
+        },
+        'api': {
+            'endpoint': '',
+            'gateway_id': '',
+            'root_resource_id': ''
+        },
         's3': {
-            'output_bucket': OUTPUT_BUCKET
+            'athena_output_bucket': '',
+            'deployment_bucket': '',
+            'guardduty_export_bucket': ''
+        },
+        'frontend': {
+            'redirect_domain': ''
         },
         'cognito': {
             'user_pool_id': '',
@@ -47,18 +55,7 @@ def load_config():
         'slackbot': {
             'token': ''
         },
-        'api': {
-            'endpoint': ''
-        },
-
     }
-
-    # 환경 변수로 개발자 모드 설정을 재정의 가능하도록
-    developer_mode_env = os.environ.get('DEVELOPER_MODE', '')
-    if developer_mode_env.lower() in ('true', 'yes', '1'):
-        config['developer_mode'] = True
-    elif developer_mode_env.lower() in ('false', 'no', '0'):
-        config['developer_mode'] = False
 
     try:
         # SSM 파라미터 경로
