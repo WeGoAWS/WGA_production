@@ -7,7 +7,8 @@ from urllib.parse import urlparse
 
 athena = boto3.client("athena")
 s3 = boto3.client("s3")
-
+dynamodb = boto3.resource("dynamodb")
+table = dynamodb.Table("AthenaTableRegistry")
 ATHENA_DB = os.environ.get("ATHENA_DB")
 S3_OUTPUT = os.environ.get("S3_QUERY_OUTPUT")
 
@@ -162,6 +163,15 @@ def lambda_handler(event, context):
                 ResultConfiguration={"OutputLocation": S3_OUTPUT}
             )["QueryExecutionId"]
             wait_for_query(exec_id)
+            
+            table.put_item(
+                Item={
+                    "log_type": log_type,
+                    "table_name": table_name,
+                    "s3_path": s3_path,
+                    "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                }
+            )
 
             return {
                 "statusCode": 200,

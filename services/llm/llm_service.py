@@ -1,11 +1,25 @@
-# 프롬프트 slack to llm1
 import json
 import urllib.parse
 from slack_sdk import WebClient
 from common.config import get_config
 import requests
+import boto3
+import os
+
+def get_table_registry():
+    dynamodb = boto3.resource("dynamodb")
+    table_name = os.environ.get("ATHENA_TABLE_REGISTRY_TABLE")
+    table = dynamodb.Table(table_name)
+    response = table.scan()
+    return {item["log_type"]: item for item in response.get("Items", [])}
 
 def build_llm1_prompt(user_input):
+    registry = get_table_registry()
+    ct_table = registry["cloudtrail"]["table_name"]
+    ct_location = registry["cloudtrail"]["s3_path"]
+    gd_table = registry["guardduty"]["table_name"]
+    gd_location = registry["guardduty"]["s3_path"]
+
     return f'''
 You are a SQL generation expert for AWS Athena (Presto SQL).
 Generate ONLY SQL code that is valid in Athena with no explanation.
@@ -16,7 +30,7 @@ Convert the following natural language question into an SQL query.
 Context information:
 - Database Table DDL:
     - cloudtrail:
-        CREATE EXTERNAL TABLE `cloudtrail_logs`(
+        CREATE EXTERNAL TABLE `{ct_table}`(
             `eventversion` string COMMENT 'from deserializer', 
             `useridentity` struct<type:string,principalid:string,arn:string,accountid:string,invokedby:string,accesskeyid:string,username:string,sessioncontext:struct<attributes:struct<mfaauthenticated:string,creationdate:string>,sessionissuer:struct<type:string,principalid:string,arn:string,accountid:string,username:string>,ec2roledelivery:string,webidfederationdata:struct<federatedprovider:string,attributes:map<string,string>>>> COMMENT 'from deserializer', 
             `eventtime` string COMMENT 'from deserializer', 
@@ -50,7 +64,7 @@ Context information:
             OUTPUTFORMAT 
             'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
             LOCATION
-            's3://wga-cloudtrail-2/AWSLogs/339712974607/CloudTrail/us-east-1'
+            '{ct_location}'
             TBLPROPERTIES (
             'projection.enabled'='true', 
             'projection.partition_date.format'='yyyy/MM/dd', 
@@ -62,7 +76,7 @@ Context information:
             'transient_lastDdlTime'='1744721089')
     
     - guardduty:
-        CREATE EXTERNAL TABLE `guardduty_logs`(
+        CREATE EXTERNAL TABLE `{gd_table}`(
             `version` string COMMENT 'from deserializer', 
             `id` string COMMENT 'from deserializer', 
             `detail_type` string COMMENT 'from deserializer', 
@@ -83,7 +97,7 @@ Context information:
             OUTPUTFORMAT 
             'org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat'
             LOCATION
-            's3://wga-guardduty-logs/guardduty-logs'
+            '{gd_location}'
             TBLPROPERTIES (
             'projection.enabled'='true', 
             'projection.partition_date.format'='yyyy/MM/dd/HH', 
