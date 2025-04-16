@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useAuthStore } from '@/stores/auth';
 
 const api = axios.create({
-  baseURL: import.meta.env.API_URL,
+  baseURL: import.meta.env.API_DEST,
   headers: {
     'Content-Type': 'application/json',
   },
