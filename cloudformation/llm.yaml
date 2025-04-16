@@ -77,7 +77,6 @@ Resources:
       Role: !GetAtt LlmLambdaExecutionRole.Arn
       Environment:
         Variables:
-          AWS_REGION: !Ref AWS::Region
           ENV: !Ref Environment
       Layers:
         - !Ref LlmLambdaLayer

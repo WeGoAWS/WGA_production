@@ -99,7 +99,6 @@ Resources:
       Role: !GetAtt SlackbotLambdaExecutionRole.Arn
       Environment:
         Variables:
-          AWS_REGION: !Ref AWS::Region
           ENV: !Ref Environment
       Tags:
         - Key: Environment

@@ -4,7 +4,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 # 환경 변수에서 설정 불러오기
-AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+AWS_REGION = boto3.session.Session().region_name
 ENV = os.environ.get('ENV', 'dev')
 
 # AWS SSM에서 비밀 설정 가져오기
