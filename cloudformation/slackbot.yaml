@@ -104,18 +104,18 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  SlackbotApiResource:
+  SlackbotLoginApiResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref ApiGatewayId
       ParentId: !Ref ApiGatewayRootResourceId
-      PathPart: "slackbot"
+      PathPart: "login"
 
-  SlackbotMethod:
+  SlackbotLoginMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref ApiGatewayId
-      ResourceId: !Ref SlackbotApiResource
+      ResourceId: !Ref SlackbotLoginApiResource
       HttpMethod: POST
       AuthorizationType: NONE
       Integration:
@@ -152,7 +152,7 @@ Resources:
       Action: "lambda:InvokeFunction"
       FunctionName: !Ref SlackbotLambdaFunction
       Principal: "apigateway.amazonaws.com"
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/slackbot"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/login"
 
   SlackbotCallbackLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -165,7 +165,7 @@ Resources:
   SlackbotApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
-      - SlackbotMethod
+      - SlackbotLoginMethod
       - SlackbotCallbackMethod
     Properties:
       RestApiId: !Ref ApiGatewayId
