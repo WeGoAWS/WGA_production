@@ -2,7 +2,7 @@
 import json
 import urllib.parse
 from slack_sdk import WebClient
-from common.config import CONFIG
+from common.config import get_config
 import requests
 
 def build_llm1_prompt(user_input):
@@ -144,6 +144,7 @@ def parse_body(event):
     return {}
 
 def call_create_table_cloudtrail():
+    CONFIG = get_config()
     payload = {
         "log_type": "cloudtrail",
         "s3_path": "s3://wga-cloudtrail-2/AWSLogs/339712974607/CloudTrail/us-east-1/",
@@ -152,6 +153,7 @@ def call_create_table_cloudtrail():
     return requests.post(f'{CONFIG['api']['endpoint']}/create-table', json=payload) # create-table API URL을 여기에 입력하세요
 
 def call_create_table_guardduty():
+    CONFIG = get_config()
     payload = {
         "log_type": "guardduty",
         "s3_path": "s3://wga-guardduty-logs/guardduty-logs/",
@@ -161,6 +163,7 @@ def call_create_table_guardduty():
 
 
 def call_execute_query(sql_query):
+    CONFIG = get_config()
     wrapper_payload = {
         "query": sql_query
     }
@@ -168,6 +171,7 @@ def call_execute_query(sql_query):
     return res.json()
 
 def send_slack_dm(user_id, message):
+    CONFIG = get_config()
     client = WebClient(token=CONFIG['slackbot']['token']) # 여기에 Slack Bot Token
 
     

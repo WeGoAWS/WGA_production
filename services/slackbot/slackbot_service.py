@@ -1,9 +1,9 @@
 from common.slackbot_session import get_session
 from slack_sdk import WebClient
-from common.config import CONFIG
+from common.config import get_config
 
 print("==== Lambda 호출됨 ====")
-
+CONFIG = get_config()
 client = WebClient(token=CONFIG["slackbot"]["token"])
 
 def send_login_button(slack_user_id):

@@ -6,6 +6,7 @@ import json
 import requests
 
 def lambda_handler(event, context):
+    CONFIG = get_config()
     path = event.get("path", "")
     http_method = event.get("httpMethod", "")
     body = parse_body(event)

@@ -104,5 +104,10 @@ def load_config():
     
     return config
 
-# 구성 로드
-CONFIG = load_config()
+_config = None
+
+def get_config():
+    global _config
+    if _config is None:
+        _config = load_config()
+    return _config

@@ -1,13 +1,14 @@
 import requests
 import urllib.parse
 import json
-from common.config import CONFIG
+from common.config import get_config
 from common.slackbot_session import save_session
 from jose import jwt
 from slackbot_service import send_login_button
 
 def lambda_handler(event, context):
     body = event.get("body") or ""
+    CONFIG = get_config()
     if "command=" in body:
         body = urllib.parse.parse_qs(event["body"])
         command = body.get("command", [None])[0]
