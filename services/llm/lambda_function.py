@@ -13,49 +13,46 @@ from common.config import get_config
 import json
 import requests
 
+def cors_headers(origin):
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
+        "Access-Control-Allow-Headers": "Authorization,Content-Type",
+        "Access-Control-Allow-Credentials": "true"
+    }
+
+def cors_response(status_code, body, origin):
+    return {
+        "statusCode": status_code,
+        "headers": cors_headers(origin),
+        "body": json.dumps(body) if isinstance(body, dict) else body
+    }
+
 def lambda_handler(event, context):
     CONFIG = get_config()
     path = event.get("path", "")
     http_method = event.get("httpMethod", "")
+    origin = event.get("headers", {}).get("origin", f"https://{CONFIG['amplify']['default_domain_with_env']}")
 
     # OPTIONS 요청 먼저 처리
     if http_method == "OPTIONS":
-        origin = event.get("headers", {}).get("origin", f"https://{CONFIG['amplify']['default_domain_with_env']}")
-        response = {
-            "statusCode": 200,
-            "headers": {
-                "Access-Control-Allow-Origin": origin,
-                "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
-                "Access-Control-Allow-Headers": "Authorization,Content-Type",
-                "Access-Control-Allow-Credentials": "true"
-            },
-            "body": ""
-        }
+        response = cors_response(200, "", origin)
         print("OPTIONS response:", response)
         return response
 
     try:
         body = parse_body(event) or {}
-        path = event.get("path", "")
-        http_method = event.get("httpMethod", "")
-
         print(f"Path: {path}, Method: {http_method}, Body: {body}")
 
         if path == "/health" and http_method == "GET":
-            return {
-                "statusCode": 200,
-                "body": json.dumps({"status": "ok"})
-            }
+            return cors_response(200, {"status": "ok"}, origin)
 
         elif path == "/llm1" and http_method == "POST":
             user_question = body.get("text")
             slack_user_id = body.get("user_id")
 
             if not user_question:
-                return {
-                    "statusCode": 400,
-                    "body": json.dumps({"error": "request body에 'text'가 없음."})
-                }
+                return cors_response(400, {"error": "request body에 'text'가 없음."}, origin)
 
             prompt = build_llm1_prompt(user_question)
             sql_query = invoke_bedrock_nova(prompt)
@@ -80,41 +77,26 @@ def lambda_handler(event, context):
 
             send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{text_answer}")
 
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "status": "쿼리 생성 완료",
-                    "answer": text_answer
-                })
-            }
+            return cors_response(200, {
+                "status": "쿼리 생성 완료",
+                "answer": text_answer
+            }, origin)
 
         elif path == "/llm2" and http_method == "POST":
             user_question = body.get("question")
             query_result = body.get("result")
 
             if not user_question or not query_result:
-                return {
-                    "statusCode": 400,
-                    "body": json.dumps({"error": "request body에 'question' 이나 'result'가 없음."})
-                }
+                return cors_response(400, {"error": "request body에 'question' 이나 'result'가 없음."}, origin)
 
             prompt = build_llm2_prompt(user_question, query_result)
             answer = invoke_bedrock_nova(prompt)
 
-            return {
-                "statusCode": 200,
-                "body": json.dumps({"answer": answer})
-            }
+            return cors_response(200, {"answer": answer}, origin)
 
         else:
-            return {
-                "statusCode": 404,
-                "body": json.dumps({"error": f"Route {http_method} {path} not found."})
-            }
+            return cors_response(404, {"error": f"Route {http_method} {path} not found."}, origin)
 
     except Exception as e:
         print("Unhandled exception:", str(e))
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": "Internal server error", "detail": str(e)})
-        }
+        return cors_response(500, {"error": "Internal server error", "detail": str(e)}, origin)
