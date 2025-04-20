@@ -47,6 +47,13 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action:
+                  - dynamodb:Scan
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:PutItem
+                Resource: '*'
+              - Effect: Allow
+                Action:
                   - ssm:GetParameter
                   - ssm:GetParameters
                   - ssm:GetParametersByPath
