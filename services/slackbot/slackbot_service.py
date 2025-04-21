@@ -15,10 +15,6 @@ def send_login_button(slack_user_id):
         f"&scope=openid+email+profile&state={slack_user_id}"
     )
 
-    print(login_url)
-    # dm_channel_resp = client.conversations_open(users=slack_user_id)
-    # channel_id = dm_channel_resp["channel"]["id"]
-
     client.chat_postMessage(
         channel=slack_user_id,
         blocks=[

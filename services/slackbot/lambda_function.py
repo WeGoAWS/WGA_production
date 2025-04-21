@@ -11,7 +11,6 @@ def lambda_handler(event, context):
     path = event.get("path", "")
     http_method = event.get("httpMethod", "")
     CONFIG = get_config()
-    print("path:", path)
     if path == "/login" and http_method == "POST":
         body = urllib.parse.parse_qs(event["body"])
         slack_user_id = body.get("user_id", [""])[0]
@@ -54,8 +53,6 @@ def lambda_handler(event, context):
 
         tokens = res.json()
         # 여기에 access_token, id_token 저장 or 검증
-        print("슬랙 사용자:", slack_user_id)
-        print("토큰:", tokens)
 
         user_info = jwt.decode(tokens["id_token"], key="", access_token=tokens["access_token"], options={"verify_signature": False, "verify_aud": False})
         email = user_info.get("email")

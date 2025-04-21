@@ -1,10 +1,11 @@
 import json
 import urllib.parse
-from slack_sdk import WebClient
-from common.config import get_config
 import requests
 import boto3
 import os
+from common.config import get_config
+from common.utils import invoke_bedrock_nova, cors_headers, cors_response
+from slack_sdk import WebClient
 
 def get_table_registry():
     dynamodb = boto3.resource("dynamodb")
@@ -203,3 +204,56 @@ def send_slack_dm(user_id, message):
     if not response["ok"]:
         print("❌ Slack 메시지 실패 사유:", response["error"])
     return response
+
+def handle_llm1_request(body, CONFIG, origin):
+    user_question = body.get("text")
+    slack_user_id = body.get("user_id")
+
+    if not user_question:
+        return cors_response(400, {"error": "request body에 'text'가 없음."}, origin)
+
+    prompt = build_llm1_prompt(user_question)
+    sql_query = invoke_bedrock_nova(prompt)
+    raw_text = sql_query["output"]["message"]["content"][0]["text"]
+    cleaned = raw_text.strip().removeprefix("```sql").removesuffix("```").strip()
+
+    call_create_table_cloudtrail()
+    call_create_table_guardduty()
+    cleaned_query_result = call_execute_query(cleaned)
+
+    llm2_response = requests.post(
+        f"{CONFIG['api']['endpoint']}/llm2",
+        json={
+            "question": user_question,
+            "result": cleaned_query_result
+        }
+    )
+
+    try:
+        llm2_answer = llm2_response.json().get("answer", "[답변 생성 실패]")
+        if isinstance(llm2_answer, str):
+            text_answer = llm2_answer
+        else:
+            text_answer = llm2_answer.get("output", {}).get("message", {}).get("content", [{}])[0].get("text", "[답변 없음]")
+    except Exception as parse_error:
+        print("응답 파싱 실패:", str(parse_error))
+        text_answer = "[답변 파싱 실패]"
+
+    send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{text_answer}")
+
+    return cors_response(200, {
+        "status": "쿼리 생성 완료",
+        "answer": text_answer
+    }, origin)
+
+def handle_llm2_request(body, CONFIG, origin):
+    user_question = body.get("question")
+    query_result = body.get("result")
+
+    if not user_question or not query_result:
+        return cors_response(400, {"error": "request body에 'question' 이나 'result'가 없음."}, origin)
+
+    prompt = build_llm2_prompt(user_question, query_result)
+    answer = invoke_bedrock_nova(prompt)
+
+    return cors_response(200, {"answer": answer}, origin)
