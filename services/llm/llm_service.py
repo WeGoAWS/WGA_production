@@ -113,6 +113,11 @@ Model Instructions:
         - Return only the SQL code, no explanations.
         - If filtering by date, use the `"partition_date"` field only.
         - If counting unique users, use `COUNT(DISTINCT userIdentity.userName)`.
+        - If you use a field that is not aggregated (like username), you must include it in the GROUP BY clause.
+        - Avoid using non-aggregated expressions in SELECT unless they are grouped.
+        - If filtering by user name, exclude records where useridentity.username is null or empty string.
+	    - Use IS NOT NULL AND useridentity.username != '' to ensure only valid user names are considered.
+	    - If partition_date is a string like yyyy/MM/dd, use date_parse(partition_date, '%Y/%m/%d') to convert it before filtering by date.
     
 
 User Question:
@@ -137,6 +142,8 @@ Instructions:
 - Use concise, professional language.
 - Answer in Korean
 - Do not ask user for clarification.
+- If the original query includes grouping or aggregation, make sure to reflect the logic accurately.
+- Highlight any anomalies or low counts if the data is sparse.
 '''
 
 def parse_body(event):

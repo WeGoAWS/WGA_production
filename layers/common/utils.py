@@ -128,6 +128,21 @@ def create_success_response(data=None, message=None):
     
     return format_api_response(200, response_body)
 
+def cors_headers(origin):
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
+        "Access-Control-Allow-Headers": "Authorization,Content-Type",
+        "Access-Control-Allow-Credentials": "true"
+    }
+
+def cors_response(status_code, body, origin):
+    return {
+        "statusCode": status_code,
+        "headers": cors_headers(origin),
+        "body": json.dumps(body) if isinstance(body, dict) else body
+    }
+
 def invoke_bedrock_nova(prompt):
     bedrock = boto3.client("bedrock-runtime", region_name=AWS_REGION)
     response = bedrock.invoke_model(

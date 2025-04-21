@@ -1,5 +1,5 @@
 # llm/lambda_function.py
-from common.utils import invoke_bedrock_nova
+from common.utils import invoke_bedrock_nova, cors_headers, cors_response
 from llm_service import (
     build_llm1_prompt,
     build_llm2_prompt,
@@ -11,43 +11,7 @@ from llm_service import (
 from common.config import get_config
 import json
 import requests
-from slack_sdk import WebClient
 
-
-def cors_headers(origin):
-    return {
-        "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
-        "Access-Control-Allow-Headers": "Authorization,Content-Type",
-        "Access-Control-Allow-Credentials": "true"
-    }
-
-def cors_response(status_code, body, origin):
-    return {
-        "statusCode": status_code,
-        "headers": cors_headers(origin),
-        "body": json.dumps(body) if isinstance(body, dict) else body
-    }
-
-def send_slack_dm(user_id, message):
-    try:
-        CONFIG = get_config()
-        client = WebClient(token=CONFIG['slackbot']['token'])
-
-        if not user_id:
-            print("⚠️ user_id 없음. Slack 전송 생략.")
-            return
-
-        response = client.chat_postMessage(
-            channel=user_id,
-            text=message
-        )
-
-        if not response["ok"]:
-            print("❌ Slack 메시지 실패:", response["error"])
-
-    except Exception as e:
-        print("Slack API 예외 발생:", str(e))
 
 def handle_llm1_request(body, CONFIG, origin):
     user_question = body.get("text")
