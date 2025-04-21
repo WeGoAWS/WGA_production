@@ -1,5 +1,7 @@
 # common/slackbot_session.py
 import boto3
+import os
+import requests
 from common.config import get_config
 from slack_sdk import WebClient
 
@@ -40,3 +42,15 @@ def send_slack_dm(user_id, message):
 
     except Exception as e:
         print("Slack API 예외 발생:", str(e))
+
+def send_slack_channel_message(channel: str, message: str):
+    CONFIG = get_config()
+    slack_token = CONFIG['slackbot']['token']
+    headers = {"Authorization": f"Bearer {slack_token}"}
+    data = {
+        "channel": channel,  # 채널 ID (예: Cxxxxxxx)
+        "text": message
+    }
+
+    response = requests.post("https://slack.com/api/chat.postMessage", headers=headers, json=data)
+    response.raise_for_status()
