@@ -305,6 +305,27 @@ if [ -d "services/db" ]; then
     aws s3 cp build/db/athena-utility-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/db/athena-utility-lambda-$ENV.zip"
 fi
 # LLM Lambda 패키징 및 업로드 (존재하는 경우)
+# MCP Lambda Docker 이미지 빌드 및 ECR 푸시 << 여기가 추가됨
+MCP_ECR_REPO_NAME="wga-mcp-$ENV"
+MCP_ECR_IMAGE_TAG="latest"
+
+echo "[MCP] ECR 리포지토리 확인 중: $MCP_ECR_REPO_NAME"
+if ! aws ecr describe-repositories --repository-names "$MCP_ECR_REPO_NAME" > /dev/null 2>&1; then
+    echo "[MCP] ECR 리포지토리 생성 중: $MCP_ECR_REPO_NAME"
+    aws ecr create-repository --repository-name "$MCP_ECR_REPO_NAME"
+fi
+
+echo "[MCP] Docker 로그인..."
+aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
+
+echo "[MCP] Docker 이미지 빌드 중..."
+docker build -t "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" ./mcp
+
+docker tag "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG"
+
+echo "[MCP] Docker 이미지 ECR에 푸시 중..."
+docker push "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG"
+
 if [ -d "services/llm" ]; then
     echo "LLM Lambda 패키징 중..."
     mkdir -p build/llm

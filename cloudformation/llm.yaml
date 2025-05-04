@@ -6,6 +6,10 @@ Parameters:
     Type: String
     Description: The deployment environment
 
+  McpImageUri: # << 추가됨
+    Type: String
+    Description: ECR URI for MCP Lambda Docker image
+
   ApiGatewayId:
     Type: String
     Description: API Gateway ID
@@ -19,6 +23,19 @@ Parameters:
     Description: The domain for frontend redirection
 
 Resources:
+  McpLambdaFunction: 
+    Type: AWS::Lambda::Function  # << 여기 추가됨
+    Properties:
+      FunctionName: !Sub 'wga-mcp-${Environment}'
+      PackageType: Image
+      Code:
+        ImageUri: !Ref McpImageUri
+      Role: !GetAtt LlmLambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ENV: !Ref Environment
   LlmLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
