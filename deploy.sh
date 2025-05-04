@@ -8,6 +8,7 @@ set -e
 ENV=${1:-dev}  # 기본값: dev
 ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
 REGION=$(aws configure get region)
+MCP_IMAGE_URI="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/wga-mcp-$ENV:latest"
 
 echo "========================================"
 echo "통합 배포 시작 - 환경: $ENV"
