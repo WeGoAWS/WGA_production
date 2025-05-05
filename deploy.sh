@@ -252,6 +252,7 @@ aws cloudformation update-stack \
                 ParameterKey=GuardDutyExportBucketExists,ParameterValue=true \
                 ParameterKey=FrontendRedirectDomain,ParameterValue=$FRONTEND_URL \
                 ParameterKey=CallbackDomain,ParameterValue=$CALLBACK_DOMAIN \
+                ParameterKey=McpImageUri,ParameterValue=$MCP_IMAGE_URI \   # <<< 여기에도 추가
     --capabilities CAPABILITY_NAMED_IAM
 
 aws cloudformation wait stack-update-complete --stack-name $BASE_STACK_NAME
@@ -404,6 +405,7 @@ else
             ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
             ParameterKey=SlackBotTokenSSMPathParameter,ParameterValue="$SSM_PATH_PREFIX/SlackbotToken" \
             ParameterKey=AthenaOutputBucketParameter,ParameterValue="$SSM_PATH_PREFIX/AthenaOutputBucketName" \
+            ParameterKey=McpImageUri,ParameterValue=$MCP_IMAGE_URI \   # <<< 이 줄 추가
         --capabilities CAPABILITY_NAMED_IAM
 fi
 
