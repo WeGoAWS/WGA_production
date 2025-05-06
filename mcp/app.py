@@ -19,7 +19,7 @@ async def handle_event(event):
         results = await search_documentation(
             ctx,
             search_phrase=input_text,
-            limit=3,
+            limit=3, # 결과 수 설정
         )
 
         print("[DEBUG] Search results:")
