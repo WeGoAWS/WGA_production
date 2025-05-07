@@ -36,86 +36,9 @@ Generate ONLY SQL code that is valid in Athena with no explanation.
 Task:
 Convert the following natural language question into an SQL query.
 
-Context information:
-- Database Table DDL:
-    - cloudtrail:
-        CREATE EXTERNAL TABLE `{ct_table}`(
-            `eventversion` string COMMENT 'from deserializer', 
-            `useridentity` struct<type:string,principalid:string,arn:string,accountid:string,invokedby:string,accesskeyid:string,username:string,sessioncontext:struct<attributes:struct<mfaauthenticated:string,creationdate:string>,sessionissuer:struct<type:string,principalid:string,arn:string,accountid:string,username:string>,ec2roledelivery:string,webidfederationdata:struct<federatedprovider:string,attributes:map<string,string>>>> COMMENT 'from deserializer', 
-            `eventtime` string COMMENT 'from deserializer', 
-            `eventsource` string COMMENT 'from deserializer', 
-            `eventname` string COMMENT 'from deserializer', 
-            `awsregion` string COMMENT 'from deserializer', 
-            `sourceipaddress` string COMMENT 'from deserializer', 
-            `useragent` string COMMENT 'from deserializer', 
-            `errorcode` string COMMENT 'from deserializer', 
-            `errormessage` string COMMENT 'from deserializer', 
-            `requestparameters` string COMMENT 'from deserializer', 
-            `responseelements` string COMMENT 'from deserializer', 
-            `additionaleventdata` string COMMENT 'from deserializer', 
-            `requestid` string COMMENT 'from deserializer', 
-            `eventid` string COMMENT 'from deserializer', 
-            `resources` array<struct<arn:string,accountid:string,type:string>> COMMENT 'from deserializer', 
-            `eventtype` string COMMENT 'from deserializer', 
-            `apiversion` string COMMENT 'from deserializer', 
-            `readonly` string COMMENT 'from deserializer', 
-            `recipientaccountid` string COMMENT 'from deserializer', 
-            `serviceeventdetails` string COMMENT 'from deserializer', 
-            `sharedeventid` string COMMENT 'from deserializer', 
-            `vpcendpointid` string COMMENT 'from deserializer', 
-            `tlsdetails` struct<tlsversion:string,ciphersuite:string,clientprovidedhostheader:string> COMMENT 'from deserializer')
-            PARTITIONED BY ( 
-            `partition_date` string)
-            ROW FORMAT SERDE 
-            'org.apache.hive.hcatalog.data.JsonSerDe' 
-            STORED AS INPUTFORMAT 
-            'com.amazon.emr.cloudtrail.CloudTrailInputFormat' 
-            OUTPUTFORMAT 
-            'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
-            LOCATION
-            '{ct_location}'
-            TBLPROPERTIES (
-            'projection.enabled'='true', 
-            'projection.partition_date.format'='yyyy/MM/dd', 
-            'projection.partition_date.interval'='1', 
-            'projection.partition_date.interval.unit'='DAYS', 
-            'projection.partition_date.range'='2025/01/01,NOW', 
-            'projection.partition_date.type'='date', 
-            'storage.location.template'='s3://wga-cloudtrail-2/AWSLogs/339712974607/CloudTrail/us-east-1/$partition_date', 
-            'transient_lastDdlTime'='1744721089')
-    
-    - guardduty:
-        CREATE EXTERNAL TABLE `{gd_table}`(
-            `version` string COMMENT 'from deserializer', 
-            `id` string COMMENT 'from deserializer', 
-            `detail_type` string COMMENT 'from deserializer', 
-            `source` string COMMENT 'from deserializer', 
-            `account` string COMMENT 'from deserializer', 
-            `time` string COMMENT 'from deserializer', 
-            `region` string COMMENT 'from deserializer', 
-            `resources` array<string> COMMENT 'from deserializer', 
-            `detail` string COMMENT 'from deserializer')
-            PARTITIONED BY ( 
-            `partition_date` string)
-            ROW FORMAT SERDE 
-            'org.openx.data.jsonserde.JsonSerDe' 
-            WITH SERDEPROPERTIES ( 
-            'ignore.malformed.json'='true') 
-            STORED AS INPUTFORMAT 
-            'org.apache.hadoop.mapred.TextInputFormat' 
-            OUTPUTFORMAT 
-            'org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat'
-            LOCATION
-            '{gd_location}'
-            TBLPROPERTIES (
-            'projection.enabled'='true', 
-            'projection.partition_date.format'='yyyy/MM/dd/HH', 
-            'projection.partition_date.interval'='1', 
-            'projection.partition_date.interval.unit'='HOURS', 
-            'projection.partition_date.range'='2025/01/01/00,NOW', 
-            'projection.partition_date.type'='date', 
-            'storage.location.template'='s3://wga-guardduty-logs/guardduty-logs/$partition_date', 
-            'transient_lastDdlTime'='1744721093')
+Decision step (MUST):
+- If the request is about CloudTrail / GuardDuty / AWS 보안 로그 분석, output ONLY valid Athena SQL.
+- Otherwise (greetings, DevOps 개념 설명, 날씨 등) output EXACTLY: ###IGNORED###
 
 Model Instructions:
     # Output Requirements:
@@ -139,6 +62,9 @@ You are an assistant that provides clear and accurate natural language explanati
 
 Task:
 Generate a human-readable answer based on the original user question and the SQL query result.
+
+# Expections(MUST):
+- If the SQL query result is empty or ###IGNORED###, respond directly : "죄송합니다. 이 시스템은 AWS 보안 로그 관련 질문에만 답변합니다."
 
 Original User Question:
 {user_input}
@@ -213,6 +139,10 @@ def send_slack_dm(user_id, message):
         print("❌ Slack 메시지 실패 사유:", response["error"])
     return response
 
+def is_ignored(text: str) -> bool:
+    """LLM-1 결과가 ###IGNORED### 인지 판정"""
+    return text.strip() == "###IGNORED###"
+
 def handle_llm1_request(body, CONFIG, origin):
     user_question = body.get("text")
     slack_user_id = body.get("user_id")
@@ -243,11 +173,17 @@ def handle_llm1_request(body, CONFIG, origin):
         prompt = build_llm1_prompt(user_question)
         sql_query = invoke_bedrock_nova(prompt)
         raw_text = sql_query["output"]["message"]["content"][0]["text"]
-        cleaned = raw_text.strip().removeprefix("```sql").removesuffix("```").strip()
 
-        call_create_table_cloudtrail()
-        call_create_table_guardduty()
-        cleaned_query_result = call_execute_query(cleaned)
+        if is_ignored(raw_text):
+            # 보안 로그와 무관하다고 LLM-1이 판단
+            cleaned_query_result = "###IGNORED###"
+        else:
+            # 코드 블록 마커 제거
+            cleaned = raw_text.strip().removeprefix("```sql").removesuffix("```").strip()
+
+            call_create_table_cloudtrail()
+            call_create_table_guardduty()
+            cleaned_query_result = call_execute_query(cleaned)
 
         llm2_response = requests.post(
             f"{CONFIG['api']['endpoint']}/llm2",
