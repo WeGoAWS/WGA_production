@@ -49,6 +49,11 @@ Parameters:
     Default: placeholder.example.com/callback
     Description: Slackbot callback domain
 
+  KnowledgeBaseId:
+    Type: String
+    Default: 2OYITWL6TG
+    Description: KnowledgeBaseId
+
 Conditions:
   ShouldCreateBucket: !Equals [!Ref BucketExists, "false"]
   ShouldCreateOutputBucket: !Equals [!Ref OutputBucketExists, "false"]
@@ -490,6 +495,15 @@ Resources:
       Value: !Ref CallbackDomain
       Description: Slackbot callback domain
 
+  KnowledgeBaseIdParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '/wga/${Environment}/KnowledgeBaseId'
+      Type: String
+      Value: !Ref KnowledgeBaseId
+      Description: KnowledgeBaseId
+
 Outputs:
   DeploymentBucketName:
     Description: Name of the S3 bucket for deployment packages
@@ -538,3 +552,7 @@ Outputs:
   CallbackDomain:
     Description: Placeholder for slackbot callback domain
     Value: !Ref CallbackDomain
+
+  KnowledgeBaseId:
+    Description: Placeholder for KnowledgeBaseId
+    Value: !Ref KnowledgeBaseId
