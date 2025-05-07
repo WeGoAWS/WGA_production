@@ -10,5 +10,4 @@ python-dateutil
 jsonschema
 slack_sdk
 mcp
-mcp_lambda
 awslabs.aws-documentation-mcp-server
