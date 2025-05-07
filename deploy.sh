@@ -327,7 +327,7 @@ echo "[MCP] Docker 로그인..."
 aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
 echo "[MCP] Docker 이미지 빌드 중..."
-docker buildx build --no-cache --platform linux/amd64 -t "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" ./mcp
+docker build --no-cache --platform linux/amd64 -t "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" ./mcp
 
 docker tag "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG"
 
