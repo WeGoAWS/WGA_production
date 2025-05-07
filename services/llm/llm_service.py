@@ -14,6 +14,14 @@ def get_table_registry():
     response = table.scan()
     return {item["log_type"]: item for item in response.get("Items", [])}
 
+def call_mcp_service(user_question):
+    CONFIG = get_config()
+    payload = {
+        "question": user_question
+    }
+    response = requests.post(CONFIG['mcp']['function_url'], json=payload)
+    return response.json()
+
 def build_llm1_prompt(user_input):
     registry = get_table_registry()
     ct_table = registry["cloudtrail"]["table_name"]
@@ -212,37 +220,63 @@ def handle_llm1_request(body, CONFIG, origin):
     if not user_question:
         return cors_response(400, {"error": "request body에 'text'가 없음."}, origin)
 
-    prompt = build_llm1_prompt(user_question)
-    sql_query = invoke_bedrock_nova(prompt)
-    raw_text = sql_query["output"]["message"]["content"][0]["text"]
-    cleaned = raw_text.strip().removeprefix("```sql").removesuffix("```").strip()
+    # 1단계: LLM에게 이 질문이 SQL 쿼리가 필요한지 또는 문서 검색이 필요한지 판단하게 함
+    classification_prompt = f"""
+    다음 질문이 AWS CloudTrail 로그나 GuardDuty 로그에서 데이터를 쿼리해야 하는 질문인지,
+    아니면 AWS 공식 문서나 정보를 찾아봐야 하는 질문인지 판단하세요.
+    
+    가능한 응답:
+    - "QUERY": CloudTrail이나 GuardDuty 로그 데이터를 분석해야 하는 질문
+    - "DOCUMENT": AWS 서비스, 개념, 기능 등에 대한 설명이나 정보가 필요한 질문
+    
+    질문: {user_question}
+    
+    응답 (QUERY 또는 DOCUMENT만 작성):
+    """
+    
+    classification_result = invoke_bedrock_nova(classification_prompt)
+    decision = classification_result["output"]["message"]["content"][0]["text"].strip()
+    
+    # 2단계: 분류 결과에 따라 적절한 서비스로 라우팅
+    if "QUERY" in decision:
+        # 기존 로직: SQL 쿼리 생성 및 실행
+        prompt = build_llm1_prompt(user_question)
+        sql_query = invoke_bedrock_nova(prompt)
+        raw_text = sql_query["output"]["message"]["content"][0]["text"]
+        cleaned = raw_text.strip().removeprefix("```sql").removesuffix("```").strip()
 
-    call_create_table_cloudtrail()
-    call_create_table_guardduty()
-    cleaned_query_result = call_execute_query(cleaned)
+        call_create_table_cloudtrail()
+        call_create_table_guardduty()
+        cleaned_query_result = call_execute_query(cleaned)
 
-    llm2_response = requests.post(
-        f"{CONFIG['api']['endpoint']}/llm2",
-        json={
-            "question": user_question,
-            "result": cleaned_query_result
-        }
-    )
+        llm2_response = requests.post(
+            f"{CONFIG['api']['endpoint']}/llm2",
+            json={
+                "question": user_question,
+                "result": cleaned_query_result
+            }
+        )
 
-    try:
-        llm2_answer = llm2_response.json().get("answer", "[답변 생성 실패]")
-        if isinstance(llm2_answer, str):
-            text_answer = llm2_answer
-        else:
-            text_answer = llm2_answer.get("output", {}).get("message", {}).get("content", [{}])[0].get("text", "[답변 없음]")
-    except Exception as parse_error:
-        print("응답 파싱 실패:", str(parse_error))
-        text_answer = "[답변 파싱 실패]"
+        try:
+            llm2_answer = llm2_response.json().get("answer", "[답변 생성 실패]")
+            if isinstance(llm2_answer, str):
+                text_answer = llm2_answer
+            else:
+                text_answer = llm2_answer.get("output", {}).get("message", {}).get("content", [{}])[0].get("text", "[답변 없음]")
+        except Exception as parse_error:
+            print("응답 파싱 실패:", str(parse_error))
+            text_answer = "[답변 파싱 실패]"
 
+    else:  # "DOCUMENT"인 경우
+        # MCP Lambda 호출
+        mcp_response = call_mcp_service(user_question)
+        text_answer = mcp_response.get("answer", "[MCP 응답 없음]")
+
+    # 최종 결과를 Slack으로 전송
     send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{text_answer}")
 
     return cors_response(200, {
-        "status": "쿼리 생성 완료",
+        "status": "질문 처리 완료",
         "answer": text_answer
     }, origin)
 

@@ -6,6 +6,10 @@ Parameters:
     Type: String
     Description: The deployment environment
 
+  McpImageUri: # << 추가됨
+    Type: String
+    Description: ECR URI for MCP Lambda Docker image
+
   ApiGatewayId:
     Type: String
     Description: API Gateway ID
@@ -19,6 +23,52 @@ Parameters:
     Description: The domain for frontend redirection
 
 Resources:
+  McpLambdaFunction: 
+    Type: AWS::Lambda::Function  # << 여기 추가됨
+    Properties:
+      FunctionName: !Sub 'wga-mcp-${Environment}'
+      PackageType: Image
+      Code:
+        ImageUri: !Ref McpImageUri
+      Role: !GetAtt LlmLambdaExecutionRole.Arn
+      Timeout: 120
+      MemorySize: 2048
+      Environment:
+        Variables:
+          ENV: !Ref Environment
+          ATHENA_TABLE_REGISTRY_TABLE: "AthenaTableRegistry"
+          MCP_FUNCTION_URL: !GetAtt McpLambdaFunctionUrl.FunctionUrl
+
+McpLambdaFunctionUrl:
+  Type: AWS::Lambda::Url
+  Properties:
+    AuthType: NONE
+    TargetFunctionArn: !Ref McpLambdaFunction
+    Cors:
+      AllowOrigins:
+        - !Sub 'https://${FrontendRedirectDomain}'
+        - !Sub 'https://${Environment}.${FrontendRedirectDomain}'
+      AllowMethods:
+        - POST
+        - GET
+        - OPTIONS
+      AllowHeaders:
+        - 'Content-Type'
+        - 'Authorization'
+        - 'X-Amz-Date'
+        - 'X-Api-Key'
+        - 'X-Amz-Security-Token'
+      MaxAge: 3600
+
+# Function URL 호출 권한 추가
+McpLambdaPermissionFunctionUrl:
+  Type: AWS::Lambda::Permission
+  Properties:
+    FunctionName: !Ref McpLambdaFunction
+    Action: 'lambda:InvokeFunctionUrl'
+    Principal: '*'
+    FunctionUrlAuthType: NONE
+
   LlmLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
