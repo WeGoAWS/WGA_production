@@ -11,6 +11,10 @@ Parameters:
       - prod
     Description: The deployment environment
 
+  McpImageUri:  # << 이거 추가됨
+    Type: "String"
+    Description: ECR URI for MCP Lambda Docker image
+
   DeveloperMode:
     Type: String
     Default: "true"
@@ -80,6 +84,7 @@ Resources:
         ApiGatewayId: !Ref ApiGatewayIdParameter
         ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
         FrontendRedirectDomain: !Ref FrontendRedirectDomainParameter
+        McpImageUri: !Ref McpImageUri # << 이 줄 추가
       Tags:
         - Key: Environment
           Value: !Ref Environment
