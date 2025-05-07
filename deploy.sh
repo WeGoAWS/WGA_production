@@ -181,6 +181,11 @@ fi
 echo "====== 3. 프론트엔드 인프라 배포 ======"
 echo "프론트엔드 인프라 스택 배포 중: $FRONTEND_STACK_NAME..."
 
+# API Gateway 엔드포인트 URL 설정
+API_GATEWAY_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayId'].OutputValue" --output text)
+API_ENDPOINT="https://${API_GATEWAY_ID}.execute-api.${REGION}.amazonaws.com/${ENV}"
+echo "API 엔드포인트: $API_ENDPOINT"
+
 # 도메인 설정에 대한 정보 표시
 if [ -n "$DOMAIN_NAME" ] && [ -n "$CERTIFICATE_ARN" ]; then
     echo "사용자 정의 도메인: $DOMAIN_NAME (인증서: $CERTIFICATE_ARN)"
@@ -196,6 +201,7 @@ if aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME > /dev/n
             ParameterKey=Environment,ParameterValue=$ENV \
             ParameterKey=DomainName,ParameterValue=$DOMAIN_NAME \
             ParameterKey=CertificateARN,ParameterValue=$CERTIFICATE_ARN \
+            ParameterKey=ApiEndpoint,ParameterValue=$API_ENDPOINT \
         --capabilities CAPABILITY_NAMED_IAM
 
     # 스택 업데이트 완료 대기
@@ -211,6 +217,7 @@ else
             ParameterKey=Environment,ParameterValue=$ENV \
             ParameterKey=DomainName,ParameterValue=$DOMAIN_NAME \
             ParameterKey=CertificateARN,ParameterValue=$CERTIFICATE_ARN \
+            ParameterKey=ApiEndpoint,ParameterValue=$API_ENDPOINT \
         --capabilities CAPABILITY_NAMED_IAM
 
     # 스택 생성 완료 대기

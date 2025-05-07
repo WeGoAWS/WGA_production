@@ -21,9 +21,16 @@ Parameters:
     Default: ""
     Description: ARN of ACM certificate for HTTPS (required if DomainName is provided)
 
+  # 새 파라미터 추가
+  ApiEndpoint:
+    Type: String
+    Default: ""
+    Description: API Gateway endpoint URL for redirecting API requests
+
 Conditions:
   IsProd: !Equals [!Ref Environment, "prod"]
   IsDev: !Equals [!Ref Environment, "dev"]
+  HasApiEndpoint: !Not [!Equals [!Ref ApiEndpoint, ""]]
 
 Resources:
   FrontendBucket:
@@ -82,6 +89,14 @@ Resources:
         - Source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>'
           Target: '/index.html'
           Status: '200'
+        # API 요청을 위한 리다이렉트 규칙 추가
+        - !If
+          - HasApiEndpoint
+          - Source: '/api/<*>'
+            Target: !Ref ApiEndpoint
+            Status: '200'
+            Condition: null
+          - !Ref AWS::NoValue
 
   AmplifyBranch:
     Type: AWS::Amplify::Branch
@@ -99,6 +114,12 @@ Resources:
       EnvironmentVariables:
         - Name: ENV
           Value: !Ref Environment
+        # API 환경 변수 추가
+        - !If
+          - HasApiEndpoint
+          - Name: VITE_API_DEST
+            Value: !Ref ApiEndpoint
+          - !Ref AWS::NoValue
 
   # SSM Parameters
   AmplifyAppIdParameter:
