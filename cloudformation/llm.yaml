@@ -22,6 +22,10 @@ Parameters:
     Type: String
     Description: The domain for frontend redirection
 
+  KnowledgeBaseIdParameter:
+    Type: String
+    Description: Bedrock Knowledge Base ID
+
 Resources:
   McpLambdaFunction: 
     Type: AWS::Lambda::Function  # << 여기 추가됨
@@ -94,6 +98,9 @@ McpLambdaPermissionFunctionUrl:
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
+                  - bedrock:Retrieve
+                  - bedrock:RetrieveAndGenerate
+                  
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -136,6 +143,7 @@ McpLambdaPermissionFunctionUrl:
         Variables:
           ENV: !Ref Environment
           ATHENA_TABLE_REGISTRY_TABLE: "AthenaTableRegistry"
+          KB_ID: !Ref KnowledgeBaseIdParameter
       Layers:
         - !Ref LlmLambdaLayer
       Tags:

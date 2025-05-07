@@ -74,6 +74,11 @@ Parameters:
     Default: "/wga/${Environment}/AthenaOutputBucketName"
     Description: Frontend redirect domain
 
+  KnowledgeBaseIdParameter:
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/KnowledgeBaseId"
+    Description: Knowledge Base ID
+
 Resources:
   LlmStack:
     Type: AWS::CloudFormation::Stack
@@ -85,6 +90,7 @@ Resources:
         ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
         FrontendRedirectDomain: !Ref FrontendRedirectDomainParameter
         McpImageUri: !Ref McpImageUri # << 이 줄 추가
+        KnowledgeBaseIdParameter: !Ref KnowledgeBaseIdParameter
       Tags:
         - Key: Environment
           Value: !Ref Environment

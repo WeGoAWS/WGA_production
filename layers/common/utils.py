@@ -5,6 +5,7 @@ import requests
 import logging
 from botocore.exceptions import ClientError
 from common.config import AWS_REGION
+from common.config import get_config
 
 # 로깅 설정
 logger = logging.getLogger("wga-utils")
@@ -144,25 +145,31 @@ def cors_response(status_code, body, origin):
     }
 
 def invoke_bedrock_nova(prompt):
+    CONFIG = get_config()
     bedrock = boto3.client("bedrock-runtime", region_name=AWS_REGION)
-    response = bedrock.invoke_model(
-        modelId="amazon.nova-pro-v1:0",
-        contentType="application/json",
-        accept="application/json",
-        body=json.dumps({
-            "inferenceConfig": {
-                "max_new_tokens": 1000
+    # Knowledge Base ID 설정
+    kb_id = CONFIG["kb"]["kb_id"]
+    if not kb_id:
+        raise RuntimeError("KB_ID(SM) 가 설정되지 않았습니다.")
+    
+    # Knowledge Base 사용하도록 수정
+    response = bedrock.retrieve_and_generate(
+        input={"text": prompt},
+        retrieveAndGenerateConfiguration={
+            "knowledgeBaseConfiguration": {
+                "knowledgeBaseId": kb_id,
+                "modelArn": "amazon.nova-pro-v1:0"
             },
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "text": prompt
-                        }
-                    ]
-                }
-            ]
-        })
+            "type": "KNOWLEDGE_BASE",
+        }
     )
-    return json.loads(response["body"].read())
+    return {
+        "output": {
+            "message": {
+                "content": [
+                    {"text": response["output"]["text"]}
+                ]
+            }
+        },
+        "citations": response.get("citations", [])
+    }
