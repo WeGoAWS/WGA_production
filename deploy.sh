@@ -327,7 +327,7 @@ echo "[MCP] Docker 로그인..."
 aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
 echo "[MCP] Docker 이미지 빌드 중..."
-docker build -t "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" ./mcp
+docker buildx build --no-cache --platform linux/amd64 -t "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" ./mcp
 
 docker tag "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG"
 
@@ -391,6 +391,7 @@ if aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME > /dev/null 
             ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
             ParameterKey=SlackBotTokenSSMPathParameter,ParameterValue="$SSM_PATH_PREFIX/SlackbotToken" \
             ParameterKey=AthenaOutputBucketParameter,ParameterValue="$SSM_PATH_PREFIX/AthenaOutputBucketName" \
+            ParameterKey=KnowledgeBaseIdParameter,ParameterValue="$SSM_PATH_PREFIX/KnowledgeBaseId" \
             ParameterKey=McpImageUri,ParameterValue=$MCP_IMAGE_URI \
         --capabilities CAPABILITY_NAMED_IAM
 else
@@ -416,6 +417,26 @@ else
             ParameterKey=McpImageUri,ParameterValue=$MCP_IMAGE_URI \
         --capabilities CAPABILITY_NAMED_IAM
 fi
+
+echo "메인 스택 생성 대기 중..."
+while true; do
+    STATUS=$(aws cloudformation describe-stacks \
+        --stack-name $MAIN_STACK_NAME \
+        --query "Stacks[0].StackStatus" \
+        --output text)
+
+    echo "현재 상태: $STATUS"
+
+    if [[ "$STATUS" == "CREATE_COMPLETE" || "$STATUS" == "UPDATE_COMPLETE" ]]; then
+        echo "✅ 스택 생성 완료"
+        break
+    elif [[ "$STATUS" == *"FAILED"* || "$STATUS" == "ROLLBACK_COMPLETE" ]]; then
+        echo "❌ 오류 발생: $STATUS"
+        exit 1
+    else
+        sleep 10
+    fi
+done
 
 echo "메인 스택 배포 완료: $MAIN_STACK_NAME"
 
@@ -502,6 +523,25 @@ echo "Amplify 배포 완료"
 cd ..
 
 #################################################
+McpFunctionUrl=$(aws lambda get-function-url-config \
+  --function-name wga-mcp-$ENV \
+  --query "FunctionUrl" \
+  --output text)
+echo "McpFunctionUrl: $McpFunctionUrl"
+echo "McpFunctionUrl 업데이트를 위해 base 스택 업데이트 중..."
+aws cloudformation update-stack \
+    --stack-name $BASE_STACK_NAME \
+    --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/base.yaml" \
+    --parameters ParameterKey=Environment,ParameterValue=$ENV \
+                ParameterKey=BucketExists,ParameterValue=true \
+                ParameterKey=OutputBucketExists,ParameterValue=true \
+                ParameterKey=AthenaOutputBucketExists,ParameterValue=true \
+                ParameterKey=GuardDutyExportBucketExists,ParameterValue=true \
+                ParameterKey=FrontendRedirectDomain,ParameterValue=$FRONTEND_URL \
+                ParameterKey=CallbackDomain,ParameterValue=$CALLBACK_DOMAIN \
+                ParameterKey=McpFunctionUrl,ParameterValue=$McpFunctionUrl \
+    --capabilities CAPABILITY_NAMED_IAM
+
 # 6. 배포 완료 요약
 echo "====== 6. 배포 완료 요약 ======"
 echo "환경: $ENV"

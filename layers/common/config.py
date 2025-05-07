@@ -108,7 +108,7 @@ def load_config():
             'UserPoolDomain': ('cognito', 'domain'),
             'UserPoolId': ('cognito', 'user_pool_id'),
             'McpFunctionUrl': ('mcp', 'function_url'),
-            'KbId': ('kb', 'kb_id')
+            'KnowledgeBaseId': ('kb', 'kb_id')
         }
 
         for param in parameters:
