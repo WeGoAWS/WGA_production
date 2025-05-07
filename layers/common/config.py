@@ -54,6 +54,10 @@ def load_config():
         'slackbot': {
             'token': ''
         },
+        # MCP 서비스 설정 추가
+        'mcp': {
+            'function_url': os.environ.get('MCP_FUNCTION_URL', '')
+        }
     }
 
     try:
@@ -98,7 +102,8 @@ def load_config():
             'SlackbotToken': ('slackbot', 'token'),
             'UserPoolClientId': ('cognito', 'client_id'),
             'UserPoolDomain': ('cognito', 'domain'),
-            'UserPoolId': ('cognito', 'user_pool_id')
+            'UserPoolId': ('cognito', 'user_pool_id'),
+            'McpFunctionUrl': ('mcp', 'function_url')
         }
 
         for param in parameters:

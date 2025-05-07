@@ -36,7 +36,9 @@ Resources:
       Environment:
         Variables:
           ENV: !Ref Environment
-          
+          ATHENA_TABLE_REGISTRY_TABLE: "AthenaTableRegistry"
+          MCP_FUNCTION_URL: !GetAtt McpLambdaFunctionUrl.FunctionUrl
+
 McpLambdaFunctionUrl:
   Type: AWS::Lambda::Url
   Properties:
