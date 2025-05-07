@@ -11,6 +11,10 @@ Parameters:
       - prod
     Description: The deployment environment
 
+  McpImageUri:  # << 이거 추가됨
+    Type: "String"
+    Description: ECR URI for MCP Lambda Docker image
+
   DeveloperMode:
     Type: String
     Default: "true"
@@ -70,6 +74,11 @@ Parameters:
     Default: "/wga/${Environment}/AthenaOutputBucketName"
     Description: Frontend redirect domain
 
+  KnowledgeBaseIdParameter:
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/KnowledgeBaseId"
+    Description: Knowledge Base ID
+
 Resources:
   LlmStack:
     Type: AWS::CloudFormation::Stack
@@ -80,6 +89,8 @@ Resources:
         ApiGatewayId: !Ref ApiGatewayIdParameter
         ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
         FrontendRedirectDomain: !Ref FrontendRedirectDomainParameter
+        McpImageUri: !Ref McpImageUri # << 이 줄 추가
+        KnowledgeBaseIdParameter: !Ref KnowledgeBaseIdParameter
       Tags:
         - Key: Environment
           Value: !Ref Environment

@@ -6,6 +6,10 @@ Parameters:
     Type: String
     Description: The deployment environment
 
+  McpImageUri: # << 추가됨
+    Type: String
+    Description: ECR URI for MCP Lambda Docker image
+
   ApiGatewayId:
     Type: String
     Description: API Gateway ID
@@ -18,7 +22,57 @@ Parameters:
     Type: String
     Description: The domain for frontend redirection
 
+  KnowledgeBaseIdParameter:
+    Type: String
+    Description: Bedrock Knowledge Base ID
+
 Resources:
+  McpLambdaFunction: 
+    Type: AWS::Lambda::Function  # << 여기 추가됨
+    Properties:
+      FunctionName: !Sub 'wga-mcp-${Environment}'
+      PackageType: Image
+      Code:
+        ImageUri: !Ref McpImageUri
+      Role: !GetAtt LlmLambdaExecutionRole.Arn
+      Timeout: 120
+      MemorySize: 2048
+      Environment:
+        Variables:
+          ENV: !Ref Environment
+          ATHENA_TABLE_REGISTRY_TABLE: "AthenaTableRegistry"
+          MCP_FUNCTION_URL: !GetAtt McpLambdaFunctionUrl.FunctionUrl
+
+McpLambdaFunctionUrl:
+  Type: AWS::Lambda::Url
+  Properties:
+    AuthType: NONE
+    TargetFunctionArn: !Ref McpLambdaFunction
+    Cors:
+      AllowOrigins:
+        - !Sub 'https://${FrontendRedirectDomain}'
+        - !Sub 'https://${Environment}.${FrontendRedirectDomain}'
+      AllowMethods:
+        - POST
+        - GET
+        - OPTIONS
+      AllowHeaders:
+        - 'Content-Type'
+        - 'Authorization'
+        - 'X-Amz-Date'
+        - 'X-Api-Key'
+        - 'X-Amz-Security-Token'
+      MaxAge: 3600
+
+# Function URL 호출 권한 추가
+McpLambdaPermissionFunctionUrl:
+  Type: AWS::Lambda::Permission
+  Properties:
+    FunctionName: !Ref McpLambdaFunction
+    Action: 'lambda:InvokeFunctionUrl'
+    Principal: '*'
+    FunctionUrlAuthType: NONE
+
   LlmLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -44,6 +98,9 @@ Resources:
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
+                  - bedrock:Retrieve
+                  - bedrock:RetrieveAndGenerate
+                  
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -86,6 +143,7 @@ Resources:
         Variables:
           ENV: !Ref Environment
           ATHENA_TABLE_REGISTRY_TABLE: "AthenaTableRegistry"
+          KB_ID: !Ref KnowledgeBaseIdParameter
       Layers:
         - !Ref LlmLambdaLayer
       Tags:
@@ -113,15 +171,15 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
           - StatusCode: 400
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
           - StatusCode: 500
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
       MethodResponses:
         - StatusCode: '200'
           ResponseParameters:
@@ -147,7 +205,7 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
               method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
               method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
       MethodResponses:
@@ -186,15 +244,15 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
           - StatusCode: 400
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
           - StatusCode: 500
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
       MethodResponses:
         - StatusCode: '200'
           ResponseParameters:
@@ -237,15 +295,15 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
           - StatusCode: 400
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
           - StatusCode: 500
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
       MethodResponses:
         - StatusCode: '200'
           ResponseParameters:

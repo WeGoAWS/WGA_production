@@ -8,6 +8,7 @@ set -e
 ENV=${1:-dev}  # 기본값: dev
 ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
 REGION=$(aws configure get region)
+MCP_IMAGE_URI="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/wga-mcp-$ENV:latest"
 
 echo "========================================"
 echo "통합 배포 시작 - 환경: $ENV"
@@ -305,6 +306,27 @@ if [ -d "services/db" ]; then
     aws s3 cp build/db/athena-utility-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/db/athena-utility-lambda-$ENV.zip"
 fi
 # LLM Lambda 패키징 및 업로드 (존재하는 경우)
+# MCP Lambda Docker 이미지 빌드 및 ECR 푸시 << 여기가 추가됨
+MCP_ECR_REPO_NAME="wga-mcp-$ENV"
+MCP_ECR_IMAGE_TAG="latest"
+
+echo "[MCP] ECR 리포지토리 확인 중: $MCP_ECR_REPO_NAME"
+if ! aws ecr describe-repositories --repository-names "$MCP_ECR_REPO_NAME" > /dev/null 2>&1; then
+    echo "[MCP] ECR 리포지토리 생성 중: $MCP_ECR_REPO_NAME"
+    aws ecr create-repository --repository-name "$MCP_ECR_REPO_NAME"
+fi
+
+echo "[MCP] Docker 로그인..."
+aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
+
+echo "[MCP] Docker 이미지 빌드 중..."
+docker build -t "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" ./mcp
+
+docker tag "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG"
+
+echo "[MCP] Docker 이미지 ECR에 푸시 중..."
+docker push "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG"
+
 if [ -d "services/llm" ]; then
     echo "LLM Lambda 패키징 중..."
     mkdir -p build/llm
@@ -362,6 +384,7 @@ if aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME > /dev/null 
             ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
             ParameterKey=SlackBotTokenSSMPathParameter,ParameterValue="$SSM_PATH_PREFIX/SlackbotToken" \
             ParameterKey=AthenaOutputBucketParameter,ParameterValue="$SSM_PATH_PREFIX/AthenaOutputBucketName" \
+            ParameterKey=McpImageUri,ParameterValue=$MCP_IMAGE_URI \
         --capabilities CAPABILITY_NAMED_IAM
 else
     # 스택이 존재하지 않으면 생성
@@ -382,6 +405,8 @@ else
             ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
             ParameterKey=SlackBotTokenSSMPathParameter,ParameterValue="$SSM_PATH_PREFIX/SlackbotToken" \
             ParameterKey=AthenaOutputBucketParameter,ParameterValue="$SSM_PATH_PREFIX/AthenaOutputBucketName" \
+            ParameterKey=KnowledgeBaseIdParameter,ParameterValue="$SSM_PATH_PREFIX/KnowledgeBaseId" \
+            ParameterKey=McpImageUri,ParameterValue=$MCP_IMAGE_URI \
         --capabilities CAPABILITY_NAMED_IAM
 fi
 
