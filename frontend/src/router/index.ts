@@ -7,17 +7,14 @@ import { useAuthStore } from '@/stores/auth';
 import LoginPage from '@/views/LoginPage.vue';
 import CallbackPage from '@/views/CallbackPage.vue';
 import DashboardPage from '@/views/DashboardPage.vue';
-import LogAnalysisPage from '@/views/LogAnalysisPage.vue';
-import PermissionsPage from '@/views/PermissionsPage.vue';
-import ServerAccessPage from '@/views/ServerAccessPage.vue';
-import WeeklyReportPage from '@/views/WeeklyReportPage.vue';
 import ChatbotPage from '@/views/ChatbotPage.vue';
+import StartChatPage from '@/views/StartChatPage.vue'; // 새로 추가
 
 // 라우트 설정
 const routes: Array<RouteRecordRaw> = [
     {
         path: '/',
-        redirect: '/dashboard',
+        redirect: '/start-chat', // 메인 페이지를 StartChatPage로 변경
     },
     {
         path: '/login',
@@ -38,27 +35,9 @@ const routes: Array<RouteRecordRaw> = [
         meta: { requiresAuth: true },
     },
     {
-        path: '/log-analysis',
-        name: 'LogAnalysis',
-        component: LogAnalysisPage,
-        meta: { requiresAuth: true },
-    },
-    {
-        path: '/permissions',
-        name: 'Permissions',
-        component: PermissionsPage,
-        meta: { requiresAuth: true },
-    },
-    {
-        path: '/server-access',
-        name: 'ServerAccess',
-        component: ServerAccessPage,
-        meta: { requiresAuth: true },
-    },
-    {
-        path: '/weekly-report',
-        name: 'WeeklyReport',
-        component: WeeklyReportPage,
+        path: '/start-chat',
+        name: 'StartChat',
+        component: StartChatPage,
         meta: { requiresAuth: true },
     },
     {
@@ -70,7 +49,7 @@ const routes: Array<RouteRecordRaw> = [
     // 페이지를 찾을 수 없을 때
     {
         path: '/:pathMatch(.*)*',
-        redirect: '/dashboard',
+        redirect: '/start-chat', // 없는 경로도 StartChatPage로 변경
     },
 ];
 
@@ -89,8 +68,8 @@ router.beforeEach((to, from, next) => {
         // 인증이 필요한 페이지인데 인증이 안 되어 있을 때
         next('/login');
     } else if (to.path === '/login' && authStore.isAuthenticated) {
-        // 이미 로그인되어 있으면 대시보드로 리다이렉트
-        next('/dashboard');
+        // 이미 로그인되어 있으면 StartChatPage로 리다이렉트
+        next('/start-chat'); // 로그인 후에는 StartChatPage로 이동
     } else {
         // 그 외의 경우 정상 진행
         next();

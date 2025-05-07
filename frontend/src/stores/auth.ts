@@ -125,7 +125,7 @@ export const useAuthStore = defineStore('auth', {
                 this.isAuthenticated = true;
 
                 // 백엔드로 토큰 검증 요청
-                await this.verifyTokenWithBackend();
+                // await this.verifyTokenWithBackend();
 
                 return true;
             } catch (error: any) {
@@ -159,32 +159,32 @@ export const useAuthStore = defineStore('auth', {
         },
 
         // 백엔드로 토큰 전송 및 검증
-        async verifyTokenWithBackend() {
-            try {
-                const apiUrl = import.meta.env.API_URL || 'http://localhost:8000';
-
-                // 백엔드에 토큰 검증 요청
-                const response = await axios.post(
-                    `${apiUrl}/auth/verify-token`,
-                    {
-                        id_token: this.tokens.idToken,
-                        access_token: this.tokens.accessToken,
-                        refresh_token: this.tokens.refreshToken,
-                        provider: 'cognito',
-                    },
-                    {
-                        withCredentials: true,
-                    },
-                );
-
-                console.log('Token verification response:', response.data);
-                return response.data && response.data.status === 'success';
-            } catch (error: any) {
-                console.error('Backend token verification error:', error);
-                // 백엔드 검증 실패는 인증 상태에 영향을 주지 않음 (선택적)
-                return false;
-            }
-        },
+        // async verifyTokenWithBackend() {
+        //     try {
+        //         const apiUrl = import.meta.env.API_URL || 'http://localhost:8000';
+        //
+        //         // 백엔드에 토큰 검증 요청
+        //         const response = await axios.post(
+        //             `${apiUrl}/auth/verify-token`,
+        //             {
+        //                 id_token: this.tokens.idToken,
+        //                 access_token: this.tokens.accessToken,
+        //                 refresh_token: this.tokens.refreshToken,
+        //                 provider: 'cognito',
+        //             },
+        //             {
+        //                 withCredentials: true,
+        //             },
+        //         );
+        //
+        //         console.log('Token verification response:', response.data);
+        //         return response.data && response.data.status === 'success';
+        //     } catch (error: any) {
+        //         console.error('Backend token verification error:', error);
+        //         // 백엔드 검증 실패는 인증 상태에 영향을 주지 않음 (선택적)
+        //         return false;
+        //     }
+        // },
         // 로그아웃
         async logout() {
             try {

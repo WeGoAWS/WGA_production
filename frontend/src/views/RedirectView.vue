@@ -22,7 +22,6 @@
     import { useRoute, useRouter } from 'vue-router';
     import { useAuthStore } from '@/stores/auth';
     import AuthCheck from '@/components/AuthCheck.vue';
-    import axios from 'axios';
 
     export default defineComponent({
         name: 'RedirectView',
@@ -48,9 +47,9 @@
                     }
 
                     // 인증 상태 확인
-                    const isAuthenticated = await authStore.verifyTokenWithBackend();
+                    // const isAuthenticated = await authStore.verifyTokenWithBackend();
 
-                    if (isAuthenticated) {
+                    if (true) {
                         // 세션 스토리지에 저장된 리다이렉트 경로가 있는지 확인
                         const redirectPath = sessionStorage.getItem('auth_redirect_path');
                         if (redirectPath) {
@@ -59,8 +58,8 @@
                             // 사용한 경로 정보 삭제
                             sessionStorage.removeItem('auth_redirect_path');
                         } else {
-                            // 기본 리다이렉트 (대시보드)
-                            router.push('/dashboard');
+                            // 기본 리다이렉트 (StartChatPage로 변경)
+                            router.push('/start-chat');
                         }
                     } else {
                         throw new Error(
