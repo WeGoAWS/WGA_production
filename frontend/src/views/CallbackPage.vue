@@ -49,9 +49,9 @@
                     const success = await authStore.exchangeCodeForTokens(code);
 
                     if (success) {
-                        console.log('Token exchange successful, redirecting to dashboard');
-                        // 인증 성공 시 대시보드로 리다이렉트
-                        router.push('/dashboard');
+                        console.log('Token exchange successful, redirecting to start-chat');
+                        // 인증 성공 시 StartChatPage로 리다이렉트 (여기를 수정)
+                        router.push('/start-chat');
                     } else {
                         throw new Error('토큰 교환 과정에서 오류가 발생했습니다.');
                     }
