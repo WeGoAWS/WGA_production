@@ -54,6 +54,11 @@ Parameters:
     Default: 2OYITWL6TG
     Description: KnowledgeBaseId
 
+  McpFunctionUrl:
+    Type: String
+    Default: placeholder.example.com
+    Description: McpFunctionUrl
+
 Conditions:
   ShouldCreateBucket: !Equals [!Ref BucketExists, "false"]
   ShouldCreateOutputBucket: !Equals [!Ref OutputBucketExists, "false"]
@@ -504,6 +509,15 @@ Resources:
       Value: !Ref KnowledgeBaseId
       Description: KnowledgeBaseId
 
+  McpFunctionUrlParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '/wga/${Environment}/McpFunctionUrl'
+      Type: String
+      Value: !Ref McpFunctionUrl
+      Description: McpFunctionUrl
+
 Outputs:
   DeploymentBucketName:
     Description: Name of the S3 bucket for deployment packages
@@ -554,5 +568,9 @@ Outputs:
     Value: !Ref CallbackDomain
 
   KnowledgeBaseId:
-    Description: Placeholder for KnowledgeBaseId
+    Description: KnowledgeBaseId
     Value: !Ref KnowledgeBaseId
+
+  McpFunctionUrl:
+    Description: Placeholder for McpFunctionUrl
+    Value: !Ref McpFunctionUrl
