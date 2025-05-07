@@ -89,13 +89,11 @@ Resources:
         - Source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>'
           Target: '/index.html'
           Status: '200'
-        # API 요청을 위한 리다이렉트 규칙 추가
         - !If
           - HasApiEndpoint
           - Source: '/api/<*>'
-            Target: !Ref ApiEndpoint
+            Target: !Sub '${ApiEndpoint}/<*>'
             Status: '200'
-            Condition: null
           - !Ref AWS::NoValue
 
   AmplifyBranch:
