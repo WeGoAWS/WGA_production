@@ -51,6 +51,14 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
                   - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*:*"
+        - PolicyName: ECRRepositoryPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:CreateRepository
+                Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*"
 
   DockerBuildProject:
     Type: AWS::CodeBuild::Project
@@ -60,7 +68,7 @@ Resources:
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_MEDIUM
-        Image: aws/codebuild/standard:5.0
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
         PrivilegedMode: true
         EnvironmentVariables:
           - Name: ENV
@@ -74,29 +82,39 @@ Resources:
       Source:
         Type: S3
         Location: !Sub "${DockerBuildBucketName}/docker-build-${Environment}.zip"
-        BuildSpec: |
+        BuildSpec: |-
           version: 0.2
+          
           phases:
-            install:
-              commands:
-                - echo "[MCP] 환경확인: ENV=$ENV, REGION=$REGION, ACCOUNT_ID=$ACCOUNT_ID"
             pre_build:
               commands:
-                - echo "[MCP] ECR 리포지토리 확인 중: wga-mcp-$ENV"
-                - if ! aws ecr describe-repositories --repository-names "wga-mcp-$ENV" > /dev/null 2>&1; then echo "[MCP] ECR 리포지토리 생성 중: wga-mcp-$ENV"; aws ecr create-repository --repository-name "wga-mcp-$ENV"; fi
-                - echo "[MCP] Docker 로그인..."
-                - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
+                - echo Logging in to Amazon ECR...
+                - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
+                - echo Check if repository exists...
+                - aws ecr describe-repositories --repository-names "wga-mcp-$ENV" || aws ecr create-repository --repository-name "wga-mcp-$ENV"
+                - REPOSITORY_URI=$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/wga-mcp-$ENV
+                
             build:
               commands:
-                - echo "[MCP] Docker 이미지 빌드 중..."
-                - docker build --no-cache --platform linux/amd64 -t "wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG" .
-                - docker tag "wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG" "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG"
+                - echo Build started on `date`
+                - echo Building the Docker image...
+                - docker build -t $REPOSITORY_URI:$MCP_ECR_IMAGE_TAG .
+                
             post_build:
               commands:
-                - echo "[MCP] Docker 이미지 ECR에 푸시 중..."
-                - docker push "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG"
+                - echo Build completed on `date`
+                - echo Pushing the Docker image...
+                - docker push $REPOSITORY_URI:$MCP_ECR_IMAGE_TAG
+                - echo Image push complete
+          
           artifacts:
-            files: []
+            files:
+              - imageDefinitions.json
+              - appspec.yml
+            discard-paths: yes
       Artifacts:
         Type: NO_ARTIFACTS
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
       TimeoutInMinutes: 60
