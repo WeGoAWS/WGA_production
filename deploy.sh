@@ -405,7 +405,7 @@ fi
 # MCP docker build
 echo "MCP 배포 시작"
 aws codebuild start-build \
-  --project-name wga-docker-build-dev
+  --project-name wga-docker-build-$ENV
 
 # 기본 스택에서 출력값 가져오기
 echo "기본 스택에서 출력값 가져오는 중..."
