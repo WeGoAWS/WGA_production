@@ -17,7 +17,9 @@ def get_table_registry():
 def call_mcp_service(user_question):
     CONFIG = get_config()
     payload = {
-        "question": user_question
+        "input": {
+            "text": user_question
+        },
     }
     response = requests.post(CONFIG['mcp']['function_url'], json=payload)
     return response.json()
@@ -206,10 +208,10 @@ def handle_llm1_request(body, CONFIG, origin):
     else:  # "DOCUMENT"인 경우
         # MCP Lambda 호출
         mcp_response = call_mcp_service(user_question)
-        text_answer = mcp_response.get("answer", "[MCP 응답 없음]")
+        text_answer = mcp_response.get("result", "[MCP 응답 없음]")
 
     # 최종 결과를 Slack으로 전송
-    send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{text_answer}")
+    #send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{text_answer}")
 
     return cors_response(200, {
         "status": "질문 처리 완료",
