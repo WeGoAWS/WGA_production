@@ -106,12 +106,6 @@ Resources:
                 - echo Pushing the Docker image...
                 - docker push $REPOSITORY_URI:$MCP_ECR_IMAGE_TAG
                 - echo Image push complete
-          
-          artifacts:
-            files:
-              - imageDefinitions.json
-              - appspec.yml
-            discard-paths: yes
       Artifacts:
         Type: NO_ARTIFACTS
       LogsConfig:
