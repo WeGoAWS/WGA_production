@@ -106,10 +106,12 @@ Resources:
         - IsProd
         - PRODUCTION
         - !If
-            - IsDev
+          - IsDev
+          - DEVELOPMENT
+          - !If
             - IsTest
-            - DEVELOPMENT
             - BETA
+            - DEVELOPMENT
       EnableAutoBuild: true
       EnvironmentVariables:
         - Name: ENV
