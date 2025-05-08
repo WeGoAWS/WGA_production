@@ -72,7 +72,12 @@ Parameters:
   AthenaOutputBucketParameter:
     Type: "AWS::SSM::Parameter::Value<String>"
     Default: "/wga/${Environment}/AthenaOutputBucketName"
-    Description: Frontend redirect domain
+    Description: Athena Output Bucket Parameter
+
+  DockerBuildBucketParameter:
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Default: "/wga/${Environment}/DockerBuildBucketName"
+    Description: Docker Build Bucket Parameter
 
   KnowledgeBaseIdParameter:
     Type: "AWS::SSM::Parameter::Value<String>"
@@ -121,6 +126,17 @@ Resources:
         SlackBotTokenSSMPath: !Ref SlackBotTokenSSMPathParameter
         CognitoClientIdSSMPath: !Ref UserPoolClientId
         CognitoDomainSSMPath: !Ref UserPoolDomain
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  MCPStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/mcp.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        DockerBuildBucketName: !Ref DockerBuildBucketParameter
       Tags:
         - Key: Environment
           Value: !Ref Environment

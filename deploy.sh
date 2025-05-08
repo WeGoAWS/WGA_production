@@ -23,6 +23,7 @@ FRONTEND_BUCKET="wga-frontend-$ENV"
 OUTPUT_BUCKET_NAME="wga-outputbucket-$ENV"
 ATHENA_OUTPUT_BUCKET_NAME="wga-athenaoutputbucket-$ENV"
 GUARDDUTY_EXPORT_BUCKET_NAME="wga-guarddutyexportbucket-$ENV"
+DOCKER_BUILD_BUCKET_NAME="wga-dockerbuildbucket-$ENV"
 
 # 스택 이름 설정
 BASE_STACK_NAME="wga-base-$ENV"
@@ -65,6 +66,7 @@ aws s3 cp cloudformation/main.yaml "s3://$CLOUDFORMATION_BUCKET/main.yaml"
 aws s3 cp cloudformation/frontend.yaml "s3://$CLOUDFORMATION_BUCKET/frontend.yaml"
 aws s3 cp cloudformation/logs.yaml "s3://$CLOUDFORMATION_BUCKET/logs.yaml"
 aws s3 cp cloudformation/slackbot.yaml "s3://$CLOUDFORMATION_BUCKET/slackbot.yaml"
+aws s3 cp cloudformation/mcp.yaml "s3://$CLOUDFORMATION_BUCKET/mcp.yaml"
 
 echo "CloudFormation 템플릿 업로드 완료"
 
@@ -117,6 +119,17 @@ else
     GUARDDUTY_EXPORT_BUCKET_EXISTS="false"
 fi
 
+# DockerBuildBucket 존재 여부 확인
+if aws s3 ls "s3://$DOCKER_BUILD_BUCKET_NAME" > /dev/null 2>&1; then
+    echo "출력 버킷($DOCKER_BUILD_BUCKET_NAME)이 이미 존재합니다. 이 버킷을 재사용합니다."
+    DOCKER_BUILD_BUCKET_EXISTS="true"
+    echo "$DOCKER_BUILD_BUCKET_NAME 버킷 내용을 정리합니다..."
+    aws s3 rm "s3://$DOCKER_BUILD_BUCKET_NAME" --recursive
+else
+    echo "출력 버킷($DOCKER_BUILD_BUCKET_NAME)이 존재하지 않습니다. 새로 생성합니다."
+    DOCKER_BUILD_BUCKET_EXISTS="false"
+fi
+
 # 프론트엔드 버킷 존재 여부 확인
 if aws s3 ls "s3://$FRONTEND_BUCKET" > /dev/null 2>&1; then
     echo "출력 버킷($FRONTEND_BUCKET)이 이미 존재합니다. 이 버킷을 재사용합니다."
@@ -138,6 +151,7 @@ if aws cloudformation describe-stacks --stack-name "$BASE_STACK_NAME" > /dev/nul
                     ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
                     ParameterKey=AthenaOutputBucketExists,ParameterValue=$ATHENA_OUTPUT_BUCKET_EXISTS \
                     ParameterKey=GuardDutyExportBucketExists,ParameterValue=$GUARDDUTY_EXPORT_BUCKET_EXISTS \
+                    ParameterKey=DockerBuildBucketExists,ParameterValue=$DOCKER_BUILD_BUCKET_EXISTS \
                     ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
                     ParameterKey=CallbackDomain,ParameterValue=placeholder.example.com \
         --capabilities CAPABILITY_NAMED_IAM
@@ -156,6 +170,7 @@ else
                     ParameterKey=OutputBucketExists,ParameterValue=$OUTPUT_BUCKET_EXISTS \
                     ParameterKey=AthenaOutputBucketExists,ParameterValue=$ATHENA_OUTPUT_BUCKET_EXISTS \
                     ParameterKey=GuardDutyExportBucketExists,ParameterValue=$GUARDDUTY_EXPORT_BUCKET_EXISTS \
+                    ParameterKey=DockerBuildBucketExists,ParameterValue=$DOCKER_BUILD_BUCKET_EXISTS \
                     ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
                     ParameterKey=CallbackDomain,ParameterValue=placeholder.example.com \
         --capabilities CAPABILITY_NAMED_IAM
@@ -257,6 +272,7 @@ aws cloudformation update-stack \
                 ParameterKey=OutputBucketExists,ParameterValue=true \
                 ParameterKey=AthenaOutputBucketExists,ParameterValue=true \
                 ParameterKey=GuardDutyExportBucketExists,ParameterValue=true \
+                ParameterKey=DockerBuildBucketExists,ParameterValue=true \
                 ParameterKey=FrontendRedirectDomain,ParameterValue=$FRONTEND_URL \
                 ParameterKey=CallbackDomain,ParameterValue=$CALLBACK_DOMAIN \
     --capabilities CAPABILITY_NAMED_IAM
@@ -312,27 +328,6 @@ if [ -d "services/db" ]; then
     echo "Athena Utility Lambda 업로드 중..."
     aws s3 cp build/db/athena-utility-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/db/athena-utility-lambda-$ENV.zip"
 fi
-# LLM Lambda 패키징 및 업로드 (존재하는 경우)
-# MCP Lambda Docker 이미지 빌드 및 ECR 푸시 << 여기가 추가됨
-MCP_ECR_REPO_NAME="wga-mcp-$ENV"
-MCP_ECR_IMAGE_TAG="latest"
-
-echo "[MCP] ECR 리포지토리 확인 중: $MCP_ECR_REPO_NAME"
-if ! aws ecr describe-repositories --repository-names "$MCP_ECR_REPO_NAME" > /dev/null 2>&1; then
-    echo "[MCP] ECR 리포지토리 생성 중: $MCP_ECR_REPO_NAME"
-    aws ecr create-repository --repository-name "$MCP_ECR_REPO_NAME"
-fi
-
-echo "[MCP] Docker 로그인..."
-aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
-
-echo "[MCP] Docker 이미지 빌드 중..."
-docker build --no-cache --platform linux/amd64 -t "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" ./mcp
-
-docker tag "$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG" "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG"
-
-echo "[MCP] Docker 이미지 ECR에 푸시 중..."
-docker push "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/$MCP_ECR_REPO_NAME:$MCP_ECR_IMAGE_TAG"
 
 if [ -d "services/llm" ]; then
     echo "LLM Lambda 패키징 중..."
@@ -346,6 +341,7 @@ if [ -d "services/llm" ]; then
     echo "LLM 업로드 중..."
     aws s3 cp build/llm/llm-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/llm/llm-lambda-$ENV.zip"
 fi
+
 # Slackbot Lambda 패키징 및 업로드 (존재하는 경우)
 if [ -d "services/slackbot" ]; then
     echo "Slackbot Lambda 패키징 중..."
@@ -358,6 +354,20 @@ if [ -d "services/slackbot" ]; then
 
     echo "Slackbot 업로드 중..."
     aws s3 cp build/slackbot/slackbot-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/slackbot/slackbot-lambda-$ENV.zip"
+fi
+
+# MCP 패키징 및 업로드 (존재하는 경우)
+if [ -d "mcp" ]; then
+    echo "MCP 패키징 중..."
+    mkdir -p build/mcp
+    cp -r mcp/* build/mcp/
+    cd build/mcp
+    echo " 압축 중..."
+    zip -r docker-build-$ENV.zip *
+    cd ../..
+
+    echo "MCP 업로드 중..."
+    aws s3 cp build/mcp/docker-build-$ENV.zip "s3://$DOCKER_BUILD_BUCKET_NAME/docker-build-$ENV.zip"
 fi
 
 # 기본 스택에서 출력값 가져오기
@@ -439,6 +449,11 @@ while true; do
 done
 
 echo "메인 스택 배포 완료: $MAIN_STACK_NAME"
+
+# MCP docker build
+echo "MCP 배포 시작"
+aws codebuild start-build \
+  --project-name wga-docker-build-dev
 
 # API Gateway URL 확인 (CloudFormation Output 대신 SSM 기반으로 구성)
 API_GATEWAY_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/ApiGatewayId" --query "Parameter.Value" --output text)

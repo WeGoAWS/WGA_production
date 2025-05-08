@@ -39,6 +39,13 @@ Parameters:
       - "true"
       - "false"
 
+  DockerBuildBucketExists:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+
   FrontendRedirectDomain:
     Type: String
     Default: placeholder.example.com
@@ -64,6 +71,7 @@ Conditions:
   ShouldCreateOutputBucket: !Equals [!Ref OutputBucketExists, "false"]
   ShouldCreateAthenaOutputBucket: !Equals [!Ref AthenaOutputBucketExists, "false"]
   ShouldCreateGuardDutyExportBucket: !Equals [!Ref GuardDutyExportBucketExists, "false"]
+  ShouldCreateDockerBuildBucket: !Equals [!Ref DockerBuildBucketExists, "false"]
   IsProd: !Equals [!Ref Environment, "prod"]
   IsTest: !Equals [!Ref Environment, "test"]
   IsDev: !Equals [!Ref Environment, "dev"]
@@ -85,6 +93,7 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref Environment
+
   AthenaOutputBucket:
     Type: AWS::S3::Bucket
     Condition: ShouldCreateAthenaOutputBucket
@@ -119,6 +128,7 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref Environment
+
   OutputBucket:
     Type: AWS::S3::Bucket
     Condition: ShouldCreateOutputBucket
@@ -189,6 +199,41 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  DockerBuildBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldCreateDockerBuildBucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub 'wga-dockerbuildbucket-${Environment}'
+      VersioningConfiguration:
+        !If
+        - ShouldCreateDockerBuildBucket
+        - Status: Enabled
+        - !Ref "AWS::NoValue"
+      BucketEncryption:
+        !If
+        - ShouldCreateDockerBuildBucket
+        - ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        - !Ref "AWS::NoValue"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
   # DynamoDB
   SlackbotSessionTable:
     Type: AWS::DynamoDB::Table
@@ -203,6 +248,7 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
+
   AthenaTableRegistryTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -430,6 +476,15 @@ Resources:
       Value: !If [ShouldCreateGuardDutyExportBucket, !Ref GuardDutyExportBucket, !Sub 'wga-guarddutyexportbucket-${Environment}']
       Description: S3 bucket for GuardDuty Export
 
+  DockerBuildBucketParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '/wga/${Environment}/DockerBuildBucketName'
+      Type: String
+      Value: !If [ ShouldCreateDockerBuildBucket, !Ref DockerBuildBucket, !Sub 'wga-dockerbuildbucket-${Environment}' ]
+      Description: S3 bucket for Docker Build
+
   UserPoolIdParameter:
     Type: AWS::SSM::Parameter
     DeletionPolicy: Delete
@@ -536,6 +591,10 @@ Outputs:
   GuardDutyExportBucketName:
     Description: Name of the S3 bucket for guardduty export files
     Value: !If [ShouldCreateGuardDutyExportBucket, !Ref GuardDutyExportBucket, !Sub 'wga-guarddutyexportbucket-${Environment}']
+
+  DockerBuildBucketName:
+    Description: Name of the S3 bucket for docker build files
+    Value: !If [ ShouldCreateDockerBuildBucket, !Ref DockerBuildBucket, !Sub 'wga-guarddutyexportbucket-${Environment}' ]
 
   UserPoolId:
     Description: ID of the Cognito User Pool
