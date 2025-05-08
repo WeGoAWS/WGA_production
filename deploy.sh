@@ -402,23 +402,38 @@ else
     aws cloudformation wait stack-create-complete --stack-name $MCP_STACK_NAME
 fi
 
-# 빌드 시작
-BUILD_ID=$(aws codebuild start-build --project-name wga-docker-build-$ENV --query 'build.id' --output text)
+# MCP docker build 시작
+echo "MCP 배포 시작"
+BUILD_ID=$(aws codebuild start-build \
+  --project-name wga-docker-build-$ENV \
+  --query 'build.id' \
+  --output text)
+
 echo "빌드 ID: $BUILD_ID"
 
 # 빌드 완료 대기
 echo "MCP 빌드 완료 대기 중..."
-aws codebuild wait build-complete --id $BUILD_ID
-BUILD_STATUS=$(aws codebuild batch-get-builds --ids $BUILD_ID --query 'builds[0].buildStatus' --output text)
+while true; do
+  BUILD_STATUS=$(aws codebuild batch-get-builds --ids $BUILD_ID --query 'builds[0].buildStatus' --output text)
+  echo "현재 빌드 상태: $BUILD_STATUS"
 
-if [ "$BUILD_STATUS" == "SUCCEEDED" ]; then
-  echo "✅ MCP 빌드 성공!"
-else
-  echo "❌ MCP 빌드 실패: $BUILD_STATUS"
-  exit 1
-fi
+  if [ "$BUILD_STATUS" == "SUCCEEDED" ]; then
+    echo "✅ MCP 빌드 성공!"
+    break
+  elif [ "$BUILD_STATUS" == "FAILED" ] || [ "$BUILD_STATUS" == "FAULT" ] || [ "$BUILD_STATUS" == "STOPPED" ] || [ "$BUILD_STATUS" == "TIMED_OUT" ]; then
+    echo "❌ MCP 빌드 실패: $BUILD_STATUS"
+    exit 1
+  fi
 
-# 빌드 완료 후 메인 스택 배포 진행
+  echo "계속 대기 중... (30초마다 상태 확인)"
+  sleep 30
+done
+
+# 빌드 완료 후 ECR 이미지 URI 가져오기
+ECR_REPOSITORY="wga-mcp-$ENV"
+ECR_IMAGE_TAG="latest"
+MCP_IMAGE_URI="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$ECR_REPOSITORY:$ECR_IMAGE_TAG"
+echo "MCP 이미지 URI: $MCP_IMAGE_URI"
 
 # 기본 스택에서 출력값 가져오기
 echo "기본 스택에서 출력값 가져오는 중..."
