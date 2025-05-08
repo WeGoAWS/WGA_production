@@ -88,6 +88,6 @@ Resources:
               commands:
                 - echo "[MCP] Docker 이미지 ECR에 푸시 중..."
                 - docker push "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG"
-          artifacts:
-            files: []
+      Artifacts:
+        Type: NO_ARTIFACTS
       TimeoutInMinutes: 60
