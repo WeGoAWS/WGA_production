@@ -21,7 +21,7 @@ Resources:
     Properties:
       RepositoryName: !Sub "wga-mcp-${Environment}"
       ImageScanningConfiguration:
-        scanOnPush: true
+        ScanOnPush: true
 
   CodeBuildRole:
     Type: AWS::IAM::Role

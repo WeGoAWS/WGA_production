@@ -29,17 +29,16 @@ DOCKER_BUILD_BUCKET_NAME="wga-dockerbuildbucket-$ENV"
 BASE_STACK_NAME="wga-base-$ENV"
 MAIN_STACK_NAME="wga-$ENV"
 FRONTEND_STACK_NAME="wga-frontend-$ENV"
+MCP_STACK_NAME="wga-mcp-$ENV"
 
 # 도메인 설정 (필요한 경우 수정)
 DOMAIN_NAME=""  # 사용자 정의 도메인
 CERTIFICATE_ARN=""  # 사용자 정의 도메인에 필요한 ACM 인증서 ARN
-if [ "$ENV" = "dev" ]; then
+if [ "$ENV" = "dev" ] || [ "$ENV" = "test" ]; then
   DEVELOPER_MODE=true
 else
   DEVELOPER_MODE=false
 fi
-
-
 
 # SSM 파라미터 경로 기본 prefix 설정
 SSM_PATH_PREFIX="/wga/$ENV"
@@ -370,6 +369,41 @@ if [ -d "mcp" ]; then
     aws s3 cp build/mcp/docker-build-$ENV.zip "s3://$DOCKER_BUILD_BUCKET_NAME/docker-build-$ENV.zip"
 fi
 
+# MCP 스택 배포 부분 수정
+if aws cloudformation describe-stacks --stack-name $MCP_STACK_NAME > /dev/null 2>&1; then
+    # 스택이 존재하면 업데이트
+    echo "기존 스택 업데이트 중: $MCP_STACK_NAME"
+    aws cloudformation update-stack \
+        --stack-name $MCP_STACK_NAME \
+        --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/mcp.yaml" \
+        --parameters \
+            ParameterKey=Environment,ParameterValue=$ENV \
+            ParameterKey=DockerBuildBucketName,ParameterValue="$SSM_PATH_PREFIX/DockerBuildBucketName" \
+        --capabilities CAPABILITY_NAMED_IAM
+
+    # 스택 업데이트 완료 대기
+    echo "MCP 스택 업데이트 완료 대기 중: $MCP_STACK_NAME"
+    aws cloudformation wait stack-update-complete --stack-name $MCP_STACK_NAME
+else
+    # 스택이 존재하지 않으면 생성
+    echo "새 스택 생성 중: $MCP_STACK_NAME"
+    aws cloudformation create-stack \
+        --stack-name $MCP_STACK_NAME \
+        --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/mcp.yaml" \
+        --parameters \
+            ParameterKey=Environment,ParameterValue=$ENV \
+            ParameterKey=DockerBuildBucketName,ParameterValue="$SSM_PATH_PREFIX/DockerBuildBucketName" \
+        --capabilities CAPABILITY_NAMED_IAM
+    # 스택 생성 완료 대기
+    echo "MCP 스택 생성 완료 대기 중: $MCP_STACK_NAME"
+    aws cloudformation wait stack-create-complete --stack-name $MCP_STACK_NAME
+fi
+
+# MCP docker build
+echo "MCP 배포 시작"
+aws codebuild start-build \
+  --project-name wga-docker-build-dev
+
 # 기본 스택에서 출력값 가져오기
 echo "기본 스택에서 출력값 가져오는 중..."
 API_GATEWAY_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayId'].OutputValue" --output text)
@@ -401,7 +435,6 @@ if aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME > /dev/null 
             ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
             ParameterKey=SlackBotTokenSSMPathParameter,ParameterValue="$SSM_PATH_PREFIX/SlackbotToken" \
             ParameterKey=AthenaOutputBucketParameter,ParameterValue="$SSM_PATH_PREFIX/AthenaOutputBucketName" \
-            ParameterKey=DockerBuildBucketParameter,ParameterValue="$SSM_PATH_PREFIX/DockerBuildBucketName" \
             ParameterKey=KnowledgeBaseIdParameter,ParameterValue="$SSM_PATH_PREFIX/KnowledgeBaseId" \
             ParameterKey=McpImageUri,ParameterValue=$MCP_IMAGE_URI \
         --capabilities CAPABILITY_NAMED_IAM
@@ -424,7 +457,6 @@ else
             ParameterKey=FrontendRedirectDomainParameter,ParameterValue="$SSM_PATH_PREFIX/FrontendRedirectDomain" \
             ParameterKey=SlackBotTokenSSMPathParameter,ParameterValue="$SSM_PATH_PREFIX/SlackbotToken" \
             ParameterKey=AthenaOutputBucketParameter,ParameterValue="$SSM_PATH_PREFIX/AthenaOutputBucketName" \
-            ParameterKey=DockerBuildBucketParameter,ParameterValue="$SSM_PATH_PREFIX/DockerBuildBucketName" \
             ParameterKey=KnowledgeBaseIdParameter,ParameterValue="$SSM_PATH_PREFIX/KnowledgeBaseId" \
             ParameterKey=McpImageUri,ParameterValue=$MCP_IMAGE_URI \
         --capabilities CAPABILITY_NAMED_IAM
@@ -451,11 +483,6 @@ while true; do
 done
 
 echo "메인 스택 배포 완료: $MAIN_STACK_NAME"
-
-# MCP docker build
-echo "MCP 배포 시작"
-aws codebuild start-build \
-  --project-name wga-docker-build-dev
 
 # API Gateway URL 확인 (CloudFormation Output 대신 SSM 기반으로 구성)
 API_GATEWAY_ID=$(aws ssm get-parameter --name "$SSM_PATH_PREFIX/ApiGatewayId" --query "Parameter.Value" --output text)
