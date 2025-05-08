@@ -594,7 +594,7 @@ Outputs:
 
   DockerBuildBucketName:
     Description: Name of the S3 bucket for docker build files
-    Value: !If [ ShouldCreateDockerBuildBucket, !Ref DockerBuildBucket, !Sub 'wga-guarddutyexportbucket-${Environment}' ]
+    Value: !If [ ShouldCreateDockerBuildBucket, !Ref DockerBuildBucket, !Sub 'wga-dockerbuildbucket-${Environment}' ]
 
   UserPoolId:
     Description: ID of the Cognito User Pool
