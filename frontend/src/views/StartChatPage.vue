@@ -3,7 +3,7 @@
     <AppLayout>
         <div class="start-chat-container">
             <div class="start-chat-header">
-                <h1>AWS Agent</h1>
+                <h1 @click="getHealth">AWS Agent</h1>
                 <p class="start-chat-description">클라우드 운영 정보 질의응답 서비스</p>
             </div>
 
@@ -147,6 +147,7 @@
     import { useRouter } from 'vue-router';
     import AppLayout from '@/layouts/AppLayout.vue';
     import { useChatbotStore } from '@/stores/chatbot';
+    import axios from 'axios';
 
     export default defineComponent({
         name: 'StartChatPage',
@@ -178,10 +179,22 @@
                 startNewChat();
             };
 
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+            const getHealth = () => {
+                axios.get(`${apiUrl}/health`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    withCredentials: true,
+                });
+            };
+
             return {
                 messageText,
                 startNewChat,
                 askExampleQuestion,
+                getHealth,
             };
         },
     });
@@ -364,7 +377,7 @@
             border-radius: 12px;
         }
     }
-    
+
     .send-button {
         padding: 0 1.5rem;
         background-color: #007bff;
