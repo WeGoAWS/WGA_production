@@ -146,7 +146,7 @@ def cors_response(status_code, body, origin):
 
 def invoke_bedrock_nova(prompt):
     CONFIG = get_config()
-    bedrock = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+    bedrock = boto3.client("bedrock-agent-runtime", region_name=AWS_REGION)
     # Knowledge Base ID 설정
     kb_id = CONFIG["kb"]["kb_id"]
     if not kb_id:
