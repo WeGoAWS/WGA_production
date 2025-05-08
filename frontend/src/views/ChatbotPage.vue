@@ -1,4 +1,3 @@
-<!-- src/views/ChatbotPage.vue 수정 -->
 <template>
     <AppLayout>
         <div class="chatbot-container">
@@ -63,7 +62,7 @@
                             <div
                                 v-else
                                 class="message-content"
-                                v-html="message.displayText || message.text"
+                                v-html="formatMessageContent(message.displayText || message.text)"
                             ></div>
                             <div class="message-time">
                                 {{ formatMessageTime(message.timestamp) }}
@@ -253,6 +252,22 @@
                 }
             };
 
+            // 메시지 내용 서식 지정 (URL을 클릭 가능한 링크로 변환)
+            const formatMessageContent = (content: string): string => {
+                if (!content) return '';
+
+                // URL 패턴 정규식
+                const urlPattern = /(https?:\/\/[^\s]+)/g;
+
+                // 줄바꿈을 HTML <br>로 변환하고 URL을 링크로 변환
+                return content
+                    .replace(/\n/g, '<br>')
+                    .replace(
+                        urlPattern,
+                        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
+                    );
+            };
+
             // 날짜 포맷팅 (YYYY년 MM월 DD일)
             const formatDate = (dateString: string): string => {
                 try {
@@ -290,6 +305,7 @@
                 sendMessage,
                 askExampleQuestion,
                 clearChat,
+                formatMessageContent,
                 formatDate,
                 formatMessageTime,
             };
@@ -717,5 +733,19 @@
     .sending-text {
         font-size: 0.85rem;
         white-space: nowrap;
+    }
+
+    /* 링크 스타일 */
+    :deep(.message-content a) {
+        color: #007bff;
+        text-decoration: underline;
+    }
+
+    :deep(.bot-message .message-content a) {
+        color: #0056b3;
+    }
+
+    :deep(.user-message .message-content a) {
+        color: #ffffff;
     }
 </style>
