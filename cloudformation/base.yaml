@@ -266,8 +266,10 @@ Resources:
       CallbackURLs:
         - !Sub 'https://${Environment}.${FrontendRedirectDomain}/redirect'
         - !Sub 'https://${CallbackDomain}'
+        - !Sub 'http://localhost:5173/redirect'
       LogoutURLs:
         - !Sub 'https://${Environment}.${FrontendRedirectDomain}/redirect'
+        - !Sub 'http://localhost:5173/redirect'
       AllowedOAuthFlows:
         - code
       AllowedOAuthScopes:
