@@ -51,7 +51,7 @@ Parameters:
 
   KnowledgeBaseId:
     Type: String
-    Default: 2OYITWL6TG
+    Default: IIB9VIAMLD
     Description: KnowledgeBaseId
 
   McpFunctionUrl:
