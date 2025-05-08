@@ -40,7 +40,7 @@ Resources:
       Environment:
         Variables:
           ENV: !Ref Environment
-          ATHENA_TABLE_REGISTRY_TABLE: "AthenaTableRegistry"
+          ATHENA_TABLE_REGISTRY_TABLE: !Sub 'AthenaTableRegistry-${Environment}'
 
   # Function URL 호출 권한 추가
   McpLambdaPermissionFunctionUrl:
@@ -126,7 +126,7 @@ Resources:
       Environment:
         Variables:
           ENV: !Ref Environment
-          ATHENA_TABLE_REGISTRY_TABLE: "AthenaTableRegistry"
+          ATHENA_TABLE_REGISTRY_TABLE: !Sub 'AthenaTableRegistry-${Environment}'
       Layers:
         - !Ref LlmLambdaLayer
       Tags:

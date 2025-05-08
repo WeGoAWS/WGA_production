@@ -238,7 +238,7 @@ Resources:
   SlackbotSessionTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: 'SlackbotSessions'
+      TableName: !Sub 'SlackbotSessions-${Environment}'
       AttributeDefinitions:
         - AttributeName: 'slack_user_id'
           AttributeType: S
@@ -252,7 +252,7 @@ Resources:
   AthenaTableRegistryTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: 'AthenaTableRegistry'
+      TableName: !Sub 'AthenaTableRegistry-${Environment}'
       AttributeDefinitions:
         - AttributeName: 'log_type'
           AttributeType: S

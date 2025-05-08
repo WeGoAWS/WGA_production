@@ -30,6 +30,7 @@ Parameters:
 Conditions:
   IsProd: !Equals [!Ref Environment, "prod"]
   IsDev: !Equals [!Ref Environment, "dev"]
+  IsTest: !Equals [!Ref Environment, "test"]
   HasApiEndpoint: !Not [!Equals [!Ref ApiEndpoint, ""]]
 
 Resources:
@@ -106,6 +107,7 @@ Resources:
         - PRODUCTION
         - !If
             - IsDev
+            - IsTest
             - DEVELOPMENT
             - BETA
       EnableAutoBuild: true
