@@ -369,6 +369,9 @@ if [ -d "mcp" ]; then
     aws s3 cp build/mcp/docker-build-$ENV.zip "s3://$DOCKER_BUILD_BUCKET_NAME/docker-build-$ENV.zip"
 fi
 
+DOCKER_BUILD_BUCKET=$(aws ssm get-parameter --name "${SSM_PATH_PREFIX}/DockerBuildBucketName" --query "Parameter.Value" --output text --region ${REGION})
+echo "도커 빌드 버킷: $DOCKER_BUILD_BUCKET"
+
 # MCP 스택 배포 부분 수정
 if aws cloudformation describe-stacks --stack-name $MCP_STACK_NAME > /dev/null 2>&1; then
     # 스택이 존재하면 업데이트
@@ -378,7 +381,7 @@ if aws cloudformation describe-stacks --stack-name $MCP_STACK_NAME > /dev/null 2
         --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/mcp.yaml" \
         --parameters \
             ParameterKey=Environment,ParameterValue=$ENV \
-            ParameterKey=DockerBuildBucketName,ParameterValue="$SSM_PATH_PREFIX/DockerBuildBucketName" \
+            ParameterKey=DockerBuildBucketName,ParameterValue="$DOCKER_BUILD_BUCKET" \
         --capabilities CAPABILITY_NAMED_IAM
 
     # 스택 업데이트 완료 대기
@@ -392,7 +395,7 @@ else
         --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/mcp.yaml" \
         --parameters \
             ParameterKey=Environment,ParameterValue=$ENV \
-            ParameterKey=DockerBuildBucketName,ParameterValue="$SSM_PATH_PREFIX/DockerBuildBucketName" \
+            ParameterKey=DockerBuildBucketName,ParameterValue="$DOCKER_BUILD_BUCKET" \
         --capabilities CAPABILITY_NAMED_IAM
     # 스택 생성 완료 대기
     echo "MCP 스택 생성 완료 대기 중: $MCP_STACK_NAME"
