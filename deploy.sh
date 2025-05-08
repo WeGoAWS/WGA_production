@@ -402,10 +402,23 @@ else
     aws cloudformation wait stack-create-complete --stack-name $MCP_STACK_NAME
 fi
 
-# MCP docker build
-echo "MCP 배포 시작"
-aws codebuild start-build \
-  --project-name wga-docker-build-$ENV
+# 빌드 시작
+BUILD_ID=$(aws codebuild start-build --project-name wga-docker-build-$ENV --query 'build.id' --output text)
+echo "빌드 ID: $BUILD_ID"
+
+# 빌드 완료 대기
+echo "MCP 빌드 완료 대기 중..."
+aws codebuild wait build-complete --id $BUILD_ID
+BUILD_STATUS=$(aws codebuild batch-get-builds --ids $BUILD_ID --query 'builds[0].buildStatus' --output text)
+
+if [ "$BUILD_STATUS" == "SUCCEEDED" ]; then
+  echo "✅ MCP 빌드 성공!"
+else
+  echo "❌ MCP 빌드 실패: $BUILD_STATUS"
+  exit 1
+fi
+
+# 빌드 완료 후 메인 스택 배포 진행
 
 # 기본 스택에서 출력값 가져오기
 echo "기본 스택에서 출력값 가져오는 중..."
