@@ -76,7 +76,6 @@ Resources:
         Location: !Sub "${DockerBuildBucketName}/docker-build-${Environment}.zip"
         BuildSpec: |
           version: 0.2
-
           phases:
             install:
               commands:
@@ -84,25 +83,20 @@ Resources:
             pre_build:
               commands:
                 - echo "[MCP] ECR 리포지토리 확인 중: wga-mcp-$ENV"
-                - |
-                  if ! aws ecr describe-repositories --repository-names "wga-mcp-$ENV" > /dev/null 2>&1; then
-                    echo "[MCP] ECR 리포지토리 생성 중: wga-mcp-$ENV";
-                    aws ecr create-repository --repository-name "wga-mcp-$ENV";
-                  fi
+                - if ! aws ecr describe-repositories --repository-names "wga-mcp-$ENV" > /dev/null 2>&1; then echo "[MCP] ECR 리포지토리 생성 중: wga-mcp-$ENV"; aws ecr create-repository --repository-name "wga-mcp-$ENV"; fi
                 - echo "[MCP] Docker 로그인..."
-                - aws ecr get-login-password --region $REGION \
-                    | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
+                - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
             build:
               commands:
                 - echo "[MCP] Docker 이미지 빌드 중..."
-                - docker build --no-cache --platform linux/amd64 \
-                    -t "wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG" .
-                - docker tag "wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG" \
-                    "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG"
+                - docker build --no-cache --platform linux/amd64 -t "wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG" .
+                - docker tag "wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG" "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG"
             post_build:
               commands:
                 - echo "[MCP] Docker 이미지 ECR에 푸시 중..."
                 - docker push "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/wga-mcp-$ENV:$MCP_ECR_IMAGE_TAG"
+          artifacts:
+            files: []
       Artifacts:
         Type: NO_ARTIFACTS
       TimeoutInMinutes: 60
