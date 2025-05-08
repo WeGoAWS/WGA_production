@@ -612,6 +612,7 @@ aws cloudformation update-stack \
                 ParameterKey=OutputBucketExists,ParameterValue=true \
                 ParameterKey=AthenaOutputBucketExists,ParameterValue=true \
                 ParameterKey=GuardDutyExportBucketExists,ParameterValue=true \
+                ParameterKey=DockerBuildBucketExists,ParameterValue=true \
                 ParameterKey=FrontendRedirectDomain,ParameterValue=$FRONTEND_URL \
                 ParameterKey=CallbackDomain,ParameterValue=$CALLBACK_DOMAIN \
                 ParameterKey=McpFunctionUrl,ParameterValue=$McpFunctionUrl \
