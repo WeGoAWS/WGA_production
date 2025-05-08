@@ -154,15 +154,15 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
           - StatusCode: 400
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
           - StatusCode: 500
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
       MethodResponses:
         - StatusCode: '200'
           ResponseParameters:
@@ -188,7 +188,7 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
               method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
               method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
       MethodResponses:
@@ -227,15 +227,15 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
           - StatusCode: 400
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
           - StatusCode: 500
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
       MethodResponses:
         - StatusCode: '200'
           ResponseParameters:
@@ -278,15 +278,15 @@ Resources:
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
           - StatusCode: 400
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
           - StatusCode: 500
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
       MethodResponses:
         - StatusCode: '200'
           ResponseParameters:
