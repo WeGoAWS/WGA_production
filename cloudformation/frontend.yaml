@@ -87,15 +87,12 @@ Resources:
             paths:
               - node_modules/**
       CustomRules:
+        - Source: '/api/*'
+          Target: '${ApiEndpoint}/*'
+          Status: '200'
         - Source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>'
           Target: '/index.html'
           Status: '200'
-        - !If
-          - HasApiEndpoint
-          - Source: '/api/<*>'
-            Target: !Sub '${ApiEndpoint}/<*>'
-            Status: '200'
-          - !Ref AWS::NoValue
 
   AmplifyBranch:
     Type: AWS::Amplify::Branch
