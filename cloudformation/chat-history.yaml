@@ -1,0 +1,509 @@
+# cloudformation/chat-history.yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'WGA - Chat History CloudFormation Template'
+
+Parameters:
+  Environment:
+    Type: String
+    Description: The deployment environment
+
+  ApiGatewayId:
+    Type: String
+    Description: API Gateway ID
+
+  ApiGatewayRootResourceId:
+    Type: String
+    Description: API Gateway Root Resource ID
+
+  FrontendRedirectDomain:
+    Type: String
+    Description: The domain for frontend redirection
+
+Resources:
+  ChatHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'wga-chat-history-${Environment}'
+      AttributeDefinitions:
+        - AttributeName: 'sessionId'
+          AttributeType: S
+        - AttributeName: 'userId'
+          AttributeType: S
+      KeySchema:
+        - AttributeName: 'sessionId'
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: 'UserIdIndex'
+          KeySchema:
+            - AttributeName: 'userId'
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  ChatHistoryLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'wga-chat-history-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaBasicExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: 
+                  - !GetAtt ChatHistoryTable.Arn
+                  - !Sub "${ChatHistoryTable.Arn}/index/*"
+
+  ChatHistoryLambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'chat-history-layer-${Environment}'
+      Description: Common Python dependencies
+      Content:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'layers/common-layer-${Environment}.zip'
+      CompatibleRuntimes:
+        - python3.12
+
+  ChatHistoryLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'wga-chat-history-${Environment}'
+      Runtime: python3.12
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'chat-history/chat-history-lambda-${Environment}.zip'
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt ChatHistoryLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          ENV: !Ref Environment
+          CHAT_HISTORY_TABLE: !Ref ChatHistoryTable
+      Layers:
+        - !Ref ChatHistoryLambdaLayer
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # API Gateway Resources for Chat History
+  ChatHistoryApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ApiGatewayRootResourceId
+      PathPart: 'sessions'
+
+  # CREATE SESSION API Endpoint
+  CreateSessionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatHistoryApiResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+          - StatusCode: 400
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+          - StatusCode: 500
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Sessions OPTIONS Method
+  SessionsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatHistoryApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST,GET'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  # GET SESSIONS API Endpoint
+  GetSessionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatHistoryApiResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+          - StatusCode: 400
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+          - StatusCode: 500
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Session Resource (for session-specific operations)
+  SessionApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ChatHistoryApiResource
+      PathPart: '{sessionId}'
+
+  # GET SESSION Method
+  GetSessionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref SessionApiResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+          - StatusCode: 400
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+          - StatusCode: 500
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Session Options Method
+  SessionOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref SessionApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,PUT,DELETE'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  # UPDATE SESSION Method
+  UpdateSessionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref SessionApiResource
+      HttpMethod: PUT
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'PUT,OPTIONS'"
+          - StatusCode: 400
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+          - StatusCode: 500
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # DELETE SESSION Method
+  DeleteSessionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref SessionApiResource
+      HttpMethod: DELETE
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,OPTIONS'"
+          - StatusCode: 400
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+          - StatusCode: 500
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Messages Resource
+  MessagesApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref SessionApiResource
+      PathPart: 'messages'
+
+  # ADD MESSAGE Method
+  AddMessageMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref MessagesApiResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+          - StatusCode: 400
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+          - StatusCode: 500
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Messages Options Method
+  MessagesOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref MessagesApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Authorization,Content-Type'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST,GET'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  # GET MESSAGES Method
+  GetMessagesMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref MessagesApiResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+          - StatusCode: 400
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+          - StatusCode: 500
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Lambda Permission for API Gateway
+  ChatHistoryLambdaPermissionSessions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref ChatHistoryLambdaFunction
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/*/*'
+
+  # API Deployment
+  ChatHistoryApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - CreateSessionMethod
+      - GetSessionsMethod
+      - GetSessionMethod
+      - UpdateSessionMethod
+      - DeleteSessionMethod
+      - AddMessageMethod
+      - GetMessagesMethod
+      - SessionsOptionsMethod
+      - SessionOptionsMethod
+      - MessagesOptionsMethod
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      StageName: !Ref Environment
+
+Outputs:
+  ChatHistoryTableName:
+    Description: "DynamoDB Table Name for Chat History"
+    Value: !Ref ChatHistoryTable
+  
+  ChatHistoryLambdaFunctionArn:
+    Description: "Lambda Function ARN for Chat History"
+    Value: !GetAtt ChatHistoryLambdaFunction.Arn
