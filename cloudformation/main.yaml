@@ -1,3 +1,4 @@
+# cloudformation/main.yaml (업데이트)
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "WGA - Main CloudFormation Template"
 
@@ -11,7 +12,7 @@ Parameters:
       - prod
     Description: The deployment environment
 
-  McpImageUri:  # << 이거 추가됨
+  McpImageUri:
     Type: "String"
     Description: ECR URI for MCP Lambda Docker image
 
@@ -89,7 +90,7 @@ Resources:
         ApiGatewayId: !Ref ApiGatewayIdParameter
         ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
         FrontendRedirectDomain: !Ref FrontendRedirectDomainParameter
-        McpImageUri: !Ref McpImageUri # << 이 줄 추가
+        McpImageUri: !Ref McpImageUri
         KnowledgeBaseIdParameter: !Ref KnowledgeBaseIdParameter
       Tags:
         - Key: Environment
@@ -121,6 +122,20 @@ Resources:
         SlackBotTokenSSMPath: !Ref SlackBotTokenSSMPathParameter
         CognitoClientIdSSMPath: !Ref UserPoolClientId
         CognitoDomainSSMPath: !Ref UserPoolDomain
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # 새로 추가된 ChatHistory 스택
+  ChatHistoryStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/wga-cloudformation-${AWS::AccountId}/chat-history.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ApiGatewayId: !Ref ApiGatewayIdParameter
+        ApiGatewayRootResourceId: !Ref ApiGatewayRootResourceIdParameter
+        FrontendRedirectDomain: !Ref FrontendRedirectDomainParameter
       Tags:
         - Key: Environment
           Value: !Ref Environment
