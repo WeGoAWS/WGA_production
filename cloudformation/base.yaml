@@ -409,7 +409,7 @@ Resources:
     Type: AWS::ApiGateway::GatewayResponse
     Properties:
       ResponseParameters:
-        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain},http://localhost:5173'"
         gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
         gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
@@ -421,7 +421,7 @@ Resources:
     Type: AWS::ApiGateway::GatewayResponse
     Properties:
       ResponseParameters:
-        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain},http://localhost:5173'"
         gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
         gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"

@@ -87,9 +87,6 @@ Resources:
             paths:
               - node_modules/**
       CustomRules:
-        - Source: '/api/*'
-          Target: '${ApiEndpoint}/*'
-          Status: '200'
         - Source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>'
           Target: '/index.html'
           Status: '200'
