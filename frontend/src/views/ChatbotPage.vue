@@ -33,7 +33,7 @@
 
             <div class="chatbot-main">
                 <div class="chat-header">
-                    <h1>AWS Agent</h1>
+                    <h1 @click="handleGoMain">AWS Agent</h1>
                     <p class="chat-description">운영 정보/메뉴얼 질의</p>
                 </div>
 
@@ -166,6 +166,7 @@
     import { defineComponent, nextTick, onMounted, ref, watch } from 'vue';
     import AppLayout from '@/layouts/AppLayout.vue';
     import { useChatbotStore } from '@/stores/chatbot';
+    import router from '@/router';
 
     export default defineComponent({
         name: 'ChatbotPage',
@@ -295,6 +296,10 @@
                 }
             };
 
+            const handleGoMain = () => {
+                router.push('/start-chat');
+            };
+
             return {
                 store,
                 messageText,
@@ -308,6 +313,7 @@
                 formatMessageContent,
                 formatDate,
                 formatMessageTime,
+                handleGoMain,
             };
         },
     });
@@ -447,6 +453,7 @@
 
     .chat-header h1 {
         margin-bottom: 5px;
+        cursor: pointer;
     }
 
     .chat-description {
