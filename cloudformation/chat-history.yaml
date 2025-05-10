@@ -1,0 +1,395 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'WGA - Chat History Service CloudFormation Template'
+
+Parameters:
+  Environment:
+    Type: String
+    Description: The deployment environment
+
+  ApiGatewayId:
+    Type: String
+    Description: API Gateway ID
+
+  ApiGatewayRootResourceId:
+    Type: String
+    Description: API Gateway Root Resource ID
+
+  FrontendRedirectDomain:
+    Type: String
+    Description: The domain for frontend redirection
+
+Resources:
+  # Lambda 실행 역할
+  ChatHistoryLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'wga-chat-history-execution-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ChatHistoryDynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/WGA-ChatSessions-${Environment}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/WGA-ChatSessions-${Environment}/index/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/WGA-ChatMessages-${Environment}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/WGA-ChatMessages-${Environment}/index/*'
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource:
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wga/${Environment}/*'
+
+  # Common Layer
+  ChatHistoryLambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'chat-history-layer-${Environment}'
+      Description: Common Python dependencies
+      Content:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'layers/common-layer-${Environment}.zip'
+      CompatibleRuntimes:
+        - python3.12
+
+  # Lambda 함수
+  ChatHistoryLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'wga-chat-history-${Environment}'
+      Runtime: python3.12
+      Handler: lambda_function.lambda_handler
+      Code:
+        S3Bucket: !Sub 'wga-deployment-${Environment}'
+        S3Key: !Sub 'chat-history/chat-history-lambda-${Environment}.zip'
+      Timeout: 30
+      MemorySize: 512
+      Role: !GetAtt ChatHistoryLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          ENV: !Ref Environment
+          CHAT_SESSIONS_TABLE: !Sub 'WGA-ChatSessions-${Environment}'
+          CHAT_MESSAGES_TABLE: !Sub 'WGA-ChatMessages-${Environment}'
+          DEFAULT_TTL_DAYS: '90'
+      Layers:
+        - !Ref ChatHistoryLambdaLayer
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # API Gateway 리소스
+  ChatHistoryBaseResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ApiGatewayRootResourceId
+      PathPart: 'chat'
+
+  # 세션 리소스
+  ChatSessionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ChatHistoryBaseResource
+      PathPart: 'sessions'
+
+  # 세션 ID 리소스
+  ChatSessionByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ChatSessionsResource
+      PathPart: '{sessionId}'
+
+  # 메시지 리소스
+  ChatMessagesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ChatSessionByIdResource
+      PathPart: 'messages'
+
+  # 메시지 ID 리소스
+  ChatMessageByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref ChatMessagesResource
+      PathPart: '{messageId}'
+
+  # API 메서드 - GET /chat/sessions
+  GetSessionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatSessionsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+
+  # API 메서드 - PUT /chat/sessions/{sessionId}
+  UpdateSessionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatSessionByIdResource
+      HttpMethod: PUT
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+
+  # API 메서드 - DELETE /chat/sessions/{sessionId}
+  DeleteSessionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatSessionByIdResource
+      HttpMethod: DELETE
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+
+  # API 메서드 - GET /chat/sessions/{sessionId}/messages
+  GetMessagesMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatMessagesResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+
+  # API 메서드 - POST /chat/sessions/{sessionId}/messages
+  AddMessageMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatMessagesResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '201'
+
+  # API 메서드 - DELETE /chat/sessions/{sessionId}/messages/{messageId}
+  DeleteMessageMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatMessageByIdResource
+      HttpMethod: DELETE
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '200'
+
+  # CORS 설정 - OPTIONS 메서드 추가
+  ChatSessionsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatSessionsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+            ResponseTemplates:
+              application/json: '{}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  ChatSessionByIdOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatSessionByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,PUT,DELETE,OPTIONS'"
+            ResponseTemplates:
+              application/json: '{}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  ChatMessagesOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatMessagesResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+            ResponseTemplates:
+              application/json: '{}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  ChatMessageByIdOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatMessageByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: !Sub "'https://${Environment}.${FrontendRedirectDomain}'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,OPTIONS'"
+            ResponseTemplates:
+              application/json: '{}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  # Lambda 함수에 API Gateway에서 호출 권한 부여
+  ChatHistoryLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ChatHistoryLambdaFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/*/*'
+
+  # API 배포
+  ChatHistoryApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - GetSessionsMethod
+      - CreateSessionMethod
+      - GetSessionMethod
+      - UpdateSessionMethod
+      - DeleteSessionMethod
+      - GetMessagesMethod
+      - AddMessageMethod
+      - DeleteMessageMethod
+      - ChatSessionsOptionsMethod
+      - ChatSessionByIdOptionsMethod
+      - ChatMessagesOptionsMethod
+      - ChatMessageByIdOptionsMethod
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      StageName: !Ref Environment
+
+Outputs:
+  ChatHistoryLambdaArn:
+    Description: ARN of the Chat History Lambda Function
+    Value: !GetAtt ChatHistoryLambdaFunction.Arn
+  ChatHistoryApiUrl:
+    Description: URL of the Chat History API
+    Value: !Sub 'https://${ApiGatewayId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/chat'
+    MethodResponses:
+        - StatusCode: '200'
+
+  # API 메서드 - POST /chat/sessions
+  CreateSessionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatSessionsResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+      MethodResponses:
+        - StatusCode: '201'
+
+  # API 메서드 - GET /chat/sessions/{sessionId}
+  GetSessionMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref ChatSessionByIdResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
