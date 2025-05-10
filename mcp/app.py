@@ -12,14 +12,20 @@ LAMBDA_RUNTIME_API = os.environ["AWS_LAMBDA_RUNTIME_API"]
 async def handle_event(event):
     print("[DEBUG] Received event:", event)
 
+    # 1) event["body"]에 JSON 문자열로 payload가 들어오므로 파싱
+    payload = json.loads(event.get("body", "{}"))
+    print("[DEBUG] Parsed payload:", payload)
+
     ctx = Context()
-    input_text = event.get("input", {}).get("text", "")
+    # 2) payload에서 실제 질의 텍스트 추출
+    input_text = payload.get("input", {}).get("text", "")
+    print("[DEBUG] Query text:", input_text)
 
     try:
         results = await search_documentation(
             ctx,
             search_phrase=input_text,
-            limit=3, # 결과 수 설정
+            limit=3,  # 결과 수 설정
         )
 
         print("[DEBUG] Search results:")
@@ -40,7 +46,10 @@ async def main():
         while True:
             try:
                 print("[DEBUG] Waiting for next Lambda event")
-                res = await client.get(f"http://{LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/next", timeout=None)
+                res = await client.get(
+                    f"http://{LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/next",
+                    timeout=None
+                )
                 request_id = res.headers["Lambda-Runtime-Aws-Request-Id"]
                 event = res.json()
                 print("[DEBUG] Received request ID:", request_id)
@@ -48,11 +57,17 @@ async def main():
 
                 try:
                     result = await handle_event(event)
-                    response_url = f"http://{LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/{request_id}/response"
+                    response_url = (
+                        f"http://{LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/"
+                        f"{request_id}/response"
+                    )
                     await client.post(response_url, json=result)
                     print("[DEBUG] Successfully responded to", request_id)
                 except Exception as e:
-                    error_url = f"http://{LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/{request_id}/error"
+                    error_url = (
+                        f"http://{LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/"
+                        f"{request_id}/error"
+                    )
                     error_payload = {
                         "errorMessage": str(e),
                         "trace": traceback.format_exc()
