@@ -2,11 +2,11 @@
 import boto3
 import os
 import requests
-from common.config import get_config
+from common.config import get_config, ENV
 from slack_sdk import WebClient
 
 dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table("SlackbotSessions")
+table = dynamodb.Table(f"SlackbotSessions-{ENV}")
 
 def save_session(slack_user_id: str, access_token: str, id_token: str, email: str) -> None:
     table.put_item(Item={
