@@ -635,7 +635,21 @@ if [ "$SKIP_FRONTEND" != "true" ]; then
 else
     echo "프론트엔드 배포 상태: 스킵됨"
 fi
+# CloudTrail 항목 추가
+aws dynamodb put-item --table-name AthenaTableRegistry-dev --item '{
+  "log_type": {"S": "cloudtrail"},
+  "table_name": {"S": "cloudtrail_logs"},
+  "s3_path": {"S": "s3://wga-cloudtrail-2/AWSLogs/339712974607/CloudTrail/us-east-1/"},
+  "updated_at": {"S": "2025-05-08T00:00:00Z"}
+}'
 
+# GuardDuty 항목 추가
+aws dynamodb put-item --table-name AthenaTableRegistry-dev --item '{
+  "log_type": {"S": "guardduty"},
+  "table_name": {"S": "guardduty_logs"},
+  "s3_path": {"S": "s3://wga-guardduty-logs/guardduty-logs/"},
+  "updated_at": {"S": "2025-05-08T00:00:00Z"}
+}'
 # SSM 파라미터 요약 출력
 echo "====== SSM 파라미터 요약 ======"
 aws ssm get-parameters-by-path \

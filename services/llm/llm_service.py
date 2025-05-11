@@ -26,17 +26,36 @@ def call_mcp_service(user_question):
 
 def build_llm1_prompt(user_input):
     registry = get_table_registry()
-    ct_table = registry["cloudtrail"]["table_name"]
-    ct_location = registry["cloudtrail"]["s3_path"]
-    gd_table = registry["guardduty"]["table_name"]
-    gd_location = registry["guardduty"]["s3_path"]
+    # 레지스트리에 정보가 있는지 확인
+    if "cloudtrail" in registry and "guardduty" in registry:
+        ct_table = registry["cloudtrail"]["table_name"]
+        ct_location = registry["cloudtrail"]["s3_path"]
+        gd_table = registry["guardduty"]["table_name"]
+        gd_location = registry["guardduty"]["s3_path"]
+        
+        # 테이블 정보를 프롬프트에 명시적으로 포함
+        tables_info = f"""
+Available tables:
+1. {ct_table} - CloudTrail logs at {ct_location}
+2. {gd_table} - GuardDuty logs at {gd_location}
+        """
+    else:
+        # 테이블 정보가 없는 경우에 대한 기본값
+        print("WARNING: Table registry information missing")
+        tables_info = """
+Available tables:
+1. cloudtrail_logs - CloudTrail logs 
+2. guardduty_logs - GuardDuty logs
+        """
 
     return f'''
 You are a SQL generation expert for AWS Athena (Presto SQL).
 Generate ONLY SQL code that is valid in Athena with no explanation.
 
+{tables_info}
+
 Task:
-Convert the following natural language question into an SQL query.
+Convert the following natural language question into an SQL query using the available tables.
 
 Decision step (MUST):
 - If the request is about CloudTrail / GuardDuty / AWS 보안 로그 분석, output ONLY valid Athena SQL.
@@ -151,7 +170,13 @@ def handle_llm1_request(body, CONFIG, origin):
     if not user_question:
         return cors_response(400, {"error": "request body에 'text'가 없음."}, origin)
 
-    # 1단계: LLM에게 이 질문이 SQL 쿼리가 필요한지 또는 문서 검색이 필요한지 판단하게 함
+    print(f"처리 중인 질문: {user_question}")
+    
+    # 테이블 레지스트리 정보 확인
+    registry = get_table_registry()
+    print(f"테이블 레지스트리: {registry}")
+    
+    # 분류 프롬프트
     classification_prompt = f"""
     다음 질문이 AWS CloudTrail 로그나 GuardDuty 로그에서 데이터를 쿼리해야 하는 질문인지,
     아니면 AWS 공식 문서나 정보를 찾아봐야 하는 질문인지 판단하세요.
@@ -167,6 +192,7 @@ def handle_llm1_request(body, CONFIG, origin):
     
     classification_result = invoke_bedrock_nova(classification_prompt)
     decision = classification_result["output"]["message"]["content"][0]["text"].strip()
+    print(f"분류 결과: {decision}")
     
     # 2단계: 분류 결과에 따라 적절한 서비스로 라우팅
     if "QUERY" in decision:
@@ -228,3 +254,4 @@ def handle_llm2_request(body, CONFIG, origin):
     answer = invoke_bedrock_nova(prompt)
 
     return cors_response(200, {"answer": answer}, origin)
+
