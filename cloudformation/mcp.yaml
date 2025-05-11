@@ -26,7 +26,7 @@ Resources:
   CodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "wga-codebuild-role-${Environment}"
+      RoleName: !Sub "${AWS::StackName}-codebuild-role-${Environment}"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -39,7 +39,7 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
       # CloudWatch Logs 권한 추가
       Policies:
-        - PolicyName: CodeBuildCloudWatchLogsAccess
+        - PolicyName: !Sub "${AWS::StackName}-CodeBuildCloudWatchLogsAccess"
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -51,7 +51,7 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
                   - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*:*"
-        - PolicyName: ECRRepositoryPolicy
+        - PolicyName: !Sub "${AWS::StackName}-ECRRepositoryPolicy"
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
