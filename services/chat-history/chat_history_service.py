@@ -19,7 +19,10 @@ def handle_chat_history_request(path, http_method, body, event, origin):
 
     # /sessions 엔드포인트 처리
     if path.endswith('/sessions'):
-        if http_method == 'POST':
+        if http_method == "OPTIONS":
+            response = cors_response(200, "", origin)
+            return response
+        elif http_method == 'POST':
             # 새 세션 생성
             result = create_session(body)
             return cors_response(200, result, origin)
@@ -50,8 +53,11 @@ def handle_chat_history_request(path, http_method, body, event, origin):
 
     # 세션 ID가 유효한 경우 요청 처리
     if path.endswith(f'/sessions/{session_id}'):
+        if http_method == "OPTIONS":
+            response = cors_response(200, "", origin)
+            return response
         # 특정 세션 관련 요청
-        if http_method == 'GET':
+        elif http_method == 'GET':
             # 세션 조회
             session = get_session(session_id)
             if not session:
@@ -80,7 +86,10 @@ def handle_chat_history_request(path, http_method, body, event, origin):
 
     # /sessions/{sessionId}/messages 패턴 확인
     elif path.endswith(f'/sessions/{session_id}/messages'):
-        if http_method == 'GET':
+        if http_method == "OPTIONS":
+            response = cors_response(200, "", origin)
+            return response
+        elif http_method == 'GET':
             # 메시지 목록 조회
             messages = get_messages(session_id)
             if messages is None:
