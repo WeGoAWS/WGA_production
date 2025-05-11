@@ -525,7 +525,7 @@
         align-self: flex-end;
         background-color: #0b93f6;
         color: white;
-        border-bottom-right-radius: 5px;
+        border-bottom-left-radius: 5px;
         animation-name: sendMessage;
     }
 

@@ -206,7 +206,7 @@
     .user-message .message-content {
         background-color: #e3f2fd;
         color: #0d47a1;
-        border-bottom-right-radius: 4px;
+        border-bottom-left-radius: 4px;
     }
 
     .bot-message .message-content {
@@ -223,7 +223,7 @@
         border-radius: 18px;
         border-bottom-left-radius: 4px;
         gap: 4px;
-        height: 24px;
+        height: 44px;
     }
 
     .dot {
