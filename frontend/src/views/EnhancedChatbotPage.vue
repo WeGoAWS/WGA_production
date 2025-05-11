@@ -19,8 +19,14 @@
                     <button @click="dismissError" class="dismiss-error">×</button>
                 </div>
 
+                <!-- 로딩 표시 -->
+                <div v-if="initialLoading" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <p class="loading-text">메시지를 불러오는 중...</p>
+                </div>
+
                 <!-- 채팅 메시지 표시 영역 -->
-                <div class="chat-messages" ref="messagesContainer">
+                <div v-else class="chat-messages" ref="messagesContainer">
                     <template v-if="store.currentSession && store.currentMessages.length > 0">
                         <ChatMessage
                             v-for="message in store.currentMessages"
@@ -84,7 +90,10 @@
 
                 <!-- 채팅 입력 영역 -->
                 <div class="input-container">
-                    <ChatInput :disabled="store.waitingForResponse" @send="sendMessage" />
+                    <ChatInput
+                        :disabled="store.waitingForResponse || initialLoading"
+                        @send="sendMessage"
+                    />
                 </div>
 
                 <!-- 채팅 관련 추가 액션 버튼들 -->
@@ -117,29 +126,47 @@
         components: {
             AppLayout,
             ChatHistory,
-            ChatMessage: ChatMessage,
-            ChatInput: ChatInput,
+            ChatMessage,
+            ChatInput,
         },
 
         setup() {
             const router = useRouter();
             const store = useChatHistoryStore();
             const messagesContainer = ref<HTMLElement | null>(null);
+            const initialLoading = ref(true);
 
-            // 컴포넌트 마운트 시 세션 로드
+            // 컴포넌트 마운트 시 초기화 로직
             onMounted(async () => {
-                // 채팅 세션 로드
-                if (store.sessions.length === 0) {
-                    await store.fetchSessions();
-                }
+                try {
+                    // 채팅 세션 로드
+                    if (store.sessions.length === 0) {
+                        await store.fetchSessions();
+                    }
 
-                // 대화 페이지로 오면서 저장된 질문이 있는지 확인
-                const pendingQuestion = sessionStorage.getItem('pendingQuestion');
-                if (pendingQuestion) {
-                    // 질문을 찾았으면 전송하고 세션스토리지에서 제거
-                    await store.sendMessage(pendingQuestion);
-                    sessionStorage.removeItem('pendingQuestion');
-                    scrollToBottom();
+                    // 세션이 없거나 첫 방문인 경우 새 세션 생성
+                    if (!store.hasSessions || !store.currentSession) {
+                        await store.createNewSession('새 대화');
+                    }
+
+                    // 세션 스토리지에 저장된 질문이 있는지 확인
+                    const pendingQuestion = sessionStorage.getItem('pendingQuestion');
+                    if (pendingQuestion) {
+                        // 질문을 찾았으면 즉시 전송하고 세션스토리지에서 제거
+                        await sendMessage(pendingQuestion);
+                        sessionStorage.removeItem('pendingQuestion');
+                    }
+                } catch (error) {
+                    console.error('초기화 오류:', error);
+                    store.error = '대화 세션을 초기화하는 중 오류가 발생했습니다.';
+                } finally {
+                    // 로딩 완료
+                    initialLoading.value = false;
+
+                    // 메시지 목록 스크롤
+                    nextTick(() => {
+                        scrollToBottom();
+                    });
                 }
             });
 
@@ -162,8 +189,19 @@
 
             // 메시지 전송 처리
             const sendMessage = async (text: string) => {
-                if (!text.trim() || store.waitingForResponse) return;
+                if (!text.trim() || store.waitingForResponse || initialLoading.value) return;
 
+                // 현재 세션이 없으면 새 세션 생성
+                if (!store.currentSession) {
+                    try {
+                        await store.createNewSession('새 대화');
+                    } catch (error) {
+                        console.error('새 세션 생성 오류:', error);
+                        return;
+                    }
+                }
+
+                // 메시지 전송
                 await store.sendMessage(text);
                 scrollToBottom();
             };
@@ -193,6 +231,7 @@
             return {
                 store,
                 messagesContainer,
+                initialLoading,
                 sendMessage,
                 askExampleQuestion,
                 clearChat,
@@ -273,6 +312,37 @@
         cursor: pointer;
         color: #721c24;
         padding: 0 5px;
+    }
+
+    /* 로딩 인디케이터 */
+    .loading-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+    }
+
+    .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(0, 123, 255, 0.1);
+        border-left-color: #007bff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 16px;
+    }
+
+    .loading-text {
+        color: #6c757d;
+        font-size: 1rem;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
     }
 
     .chat-messages {

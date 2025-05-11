@@ -58,7 +58,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
             this.error = null;
 
             try {
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
                 const userId = localStorage.getItem('userId') || generateId();
 
                 // 로컬 스토리지에 사용자 ID 저장 (영구적인 식별을 위해)
@@ -95,7 +95,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
             this.error = null;
 
             try {
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
                 const userId = localStorage.getItem('userId') || generateId();
 
                 if (!localStorage.getItem('userId')) {
@@ -140,7 +140,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
             this.error = null;
 
             try {
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
                 // 세션 정보 가져오기
                 const sessionResponse = await axios.get(`${apiUrl}/sessions/${sessionId}`, {
@@ -196,7 +196,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
             this.waitingForResponse = true;
 
             try {
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
                 const sessionId = this.currentSession!.sessionId;
 
                 // 사용자 메시지 추가
@@ -348,7 +348,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
         async generateBotResponse(userMessage: string): Promise<string> {
             try {
                 // API URL 설정
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
                 console.log('API 요청 전송:', userMessage);
 
@@ -403,7 +403,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
         // 세션 제목 업데이트
         async updateSessionTitle(sessionId: string, title: string) {
             try {
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
                 // API 호출하여 세션 제목 업데이트
                 const response = await axios.put(
@@ -439,7 +439,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
         // 채팅 세션 삭제
         async deleteSession(sessionId: string) {
             try {
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
                 // API 호출하여 세션 삭제
                 await axios.delete(`${apiUrl}/sessions/${sessionId}`, {

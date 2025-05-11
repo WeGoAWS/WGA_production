@@ -23,7 +23,7 @@ app.directive('markdown', markdownDirective);
 axios.defaults.withCredentials = true;
 
 // API 기본 URL 설정 (환경 변수에서 가져옴)
-const apiUrl = import.meta.env.VITE_API_URL || '/api';
+const apiUrl = import.meta.env.VITE_API_DEST || '/api';
 axios.defaults.baseURL = apiUrl;
 
 // 인터셉터 설정

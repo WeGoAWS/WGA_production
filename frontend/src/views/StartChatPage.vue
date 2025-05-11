@@ -1,4 +1,4 @@
-<!-- src/views/StartChatPage.vue의 수정사항 -->
+<!-- src/views/StartChatPage.vue -->
 <template>
     <AppLayout>
         <div class="start-chat-container">
@@ -14,31 +14,38 @@
                     placeholder="AWS 클라우드 운영에 관한 질문을 입력하세요..."
                     @keydown.enter.prevent="startNewChat"
                 ></textarea>
-                <button @click="startNewChat" class="send-button" :disabled="!messageText.trim()">
-                    <span>질문하기</span>
-                    <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        style="margin-left: 8px"
-                    >
-                        <path
-                            d="M22 2L11 13"
-                            stroke="white"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        />
-                        <path
-                            d="M22 2L15 22L11 13L2 9L22 2Z"
-                            stroke="white"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        />
-                    </svg>
+                <button
+                    @click="startNewChat"
+                    class="send-button"
+                    :disabled="!messageText.trim() || isProcessing"
+                >
+                    <span v-if="isProcessing">처리 중...</span>
+                    <template v-else>
+                        <span>질문하기</span>
+                        <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                            style="margin-left: 8px"
+                        >
+                            <path
+                                d="M22 2L11 13"
+                                stroke="white"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                            <path
+                                d="M22 2L15 22L11 13L2 9L22 2Z"
+                                stroke="white"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                        </svg>
+                    </template>
                 </button>
             </div>
 
@@ -54,6 +61,7 @@
                                 )
                             "
                             class="example-question"
+                            :disabled="isProcessing"
                         >
                             지난 24시간 동안 CPU 사용률이 가장 높았던 EC2 인스턴스는 무엇인가요?
                         </button>
@@ -64,6 +72,7 @@
                                 )
                             "
                             class="example-question"
+                            :disabled="isProcessing"
                         >
                             이번 달 메모리 사용량이 가장 많은 Lambda 함수 Top 5를 알려주세요.
                         </button>
@@ -78,6 +87,7 @@
                                 )
                             "
                             class="example-question"
+                            :disabled="isProcessing"
                         >
                             최근 7일간 발생한 보안 이벤트를 심각도 순으로 정리해주세요.
                         </button>
@@ -86,6 +96,7 @@
                                 askExampleQuestion('어제 루트 계정으로 로그인한 기록이 있나요?')
                             "
                             class="example-question"
+                            :disabled="isProcessing"
                         >
                             어제 루트 계정으로 로그인한 기록이 있나요?
                         </button>
@@ -100,6 +111,7 @@
                                 )
                             "
                             class="example-question"
+                            :disabled="isProcessing"
                         >
                             지난 달 대비 이번 달 비용이 가장 많이 증가한 서비스 3가지를 알려주세요.
                         </button>
@@ -110,6 +122,7 @@
                                 )
                             "
                             class="example-question"
+                            :disabled="isProcessing"
                         >
                             비용 최적화를 위해 삭제 가능한 미사용 리소스가 있나요?
                         </button>
@@ -124,6 +137,7 @@
                                 )
                             "
                             class="example-question"
+                            :disabled="isProcessing"
                         >
                             지난 30일간 IAM 권한이 변경된 사용자 목록을 보여주세요.
                         </button>
@@ -132,6 +146,7 @@
                                 askExampleQuestion('최소 권한 원칙에 위배되는 IAM 정책이 있나요?')
                             "
                             class="example-question"
+                            :disabled="isProcessing"
                         >
                             최소 권한 원칙에 위배되는 IAM 정책이 있나요?
                         </button>
@@ -139,9 +154,13 @@
                 </div>
             </div>
 
-            <!-- 새로운 향상된 챗봇 페이지로 이동하는 버튼 추가 -->
+            <!-- 향상된 챗봇 페이지로 이동하는 버튼 -->
             <div class="enhanced-chat-button-container">
-                <button @click="goToEnhancedChat" class="enhanced-chat-button">
+                <button
+                    @click="goToEnhancedChat"
+                    class="enhanced-chat-button"
+                    :disabled="isProcessing"
+                >
                     <span class="enhanced-chat-icon">🚀</span>
                     향상된 대화 기능 사용하기
                 </button>
@@ -157,8 +176,7 @@
     import { defineComponent, ref } from 'vue';
     import { useRouter } from 'vue-router';
     import AppLayout from '@/layouts/AppLayout.vue';
-    import { useChatbotStore } from '@/stores/chatbot';
-    import { useChatHistoryStore } from '@/stores/chatHistoryStore'; // 새로운 스토어 추가
+    import { useChatHistoryStore } from '@/stores/chatHistoryStore';
     import axios from 'axios';
 
     export default defineComponent({
@@ -169,42 +187,64 @@
 
         setup() {
             const router = useRouter();
-            const store = useChatbotStore();
-            const chatHistoryStore = useChatHistoryStore(); // 새로운 스토어 인스턴스 추가
+            const chatHistoryStore = useChatHistoryStore();
             const messageText = ref('');
+            const isProcessing = ref(false);
 
+            // 새로운 채팅 세션을 생성하고 질문과 함께 채팅 페이지로 이동
             const startNewChat = async () => {
-                if (!messageText.value.trim()) return;
+                if (!messageText.value.trim() || isProcessing.value) return;
 
-                // 이미 있는 원래 코드: 기존 챗봇 스토어 세션 생성
-                store.createNewSession();
+                isProcessing.value = true;
 
-                // 세션 스토리지에 질문 저장
-                sessionStorage.setItem('pendingQuestion', messageText.value);
+                try {
+                    // 1. 세션 스토리지에 질문 저장
+                    sessionStorage.setItem('pendingQuestion', messageText.value);
 
-                // 챗봇 페이지로 이동
-                router.push('/chatbot');
+                    // 2. 채팅 세션 준비
+                    if (chatHistoryStore.sessions.length === 0) {
+                        await chatHistoryStore.fetchSessions();
+                    }
+
+                    // 3. 새 세션 생성 또는 첫 번째 세션 선택
+                    if (!chatHistoryStore.hasSessions) {
+                        await chatHistoryStore.createNewSession('새 대화');
+                    }
+
+                    // 4. 채팅 페이지로 즉시 이동
+                    router.push('/chat');
+                } catch (error) {
+                    console.error('새 대화 시작 오류:', error);
+
+                    // 오류가 있어도 이동
+                    router.push('/chat');
+                } finally {
+                    // 처리 완료
+                    isProcessing.value = false;
+                }
             };
 
-            const askExampleQuestion = (question: string) => {
+            // 예시 질문 선택 시 호출
+            const askExampleQuestion = async (question: string) => {
+                if (isProcessing.value) return;
+
                 messageText.value = question;
-                startNewChat();
+                await startNewChat();
             };
 
-            // 향상된 채팅 페이지로 이동하는 함수 추가
+            // 향상된 챗봇 페이지로 이동
             const goToEnhancedChat = () => {
-                // 질문이 있는 경우 세션 스토리지에 저장 (채팅 페이지에서 자동 전송)
+                if (isProcessing.value) return;
+
                 if (messageText.value.trim()) {
                     sessionStorage.setItem('pendingQuestion', messageText.value);
                 }
-
-                // 향상된 채팅 페이지로 이동
                 router.push('/chat');
             };
 
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
+            // 헬스 체크 엔드포인트 호출
             const getHealth = () => {
+                const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
                 axios.get(`${apiUrl}/health`, {
                     headers: {
                         'Content-Type': 'application/json',
@@ -215,9 +255,10 @@
 
             return {
                 messageText,
+                isProcessing,
                 startNewChat,
                 askExampleQuestion,
-                goToEnhancedChat, // 함수 노출
+                goToEnhancedChat,
                 getHealth,
             };
         },
@@ -298,6 +339,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        min-width: 140px;
     }
 
     .send-button:hover:not(:disabled) {
@@ -369,19 +411,24 @@
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
     }
 
-    .example-question:hover {
+    .example-question:hover:not(:disabled) {
         background-color: #f0f7ff;
         border-color: #b3d9ff;
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
     }
 
-    .example-question:active {
+    .example-question:active:not(:disabled) {
         transform: translateY(0);
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 
-    /* 새로운 향상된 채팅 버튼 스타일 */
+    .example-question:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* 향상된 채팅 버튼 스타일 */
     .enhanced-chat-button-container {
         margin-top: 1.5rem;
         text-align: center;
@@ -404,10 +451,15 @@
         gap: 10px;
     }
 
-    .enhanced-chat-button:hover {
+    .enhanced-chat-button:hover:not(:disabled) {
         background-color: #f08c00;
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(255, 153, 0, 0.4);
+    }
+
+    .enhanced-chat-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
     }
 
     .enhanced-chat-icon {
