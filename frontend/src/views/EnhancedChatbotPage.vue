@@ -38,7 +38,7 @@
                     <!-- 채팅이 없을 때 표시할 시작 화면 -->
                     <div v-else class="empty-chat">
                         <div class="empty-chat-content">
-                            <img src="@/assets/aws-logo.svg" alt="AWS Logo" class="aws-logo" />
+                            <!--                            <img src="@/assets/aws-logo.svg" alt="AWS Logo" class="aws-logo" />-->
                             <h2>AWS Cloud Agent</h2>
                             <p>
                                 AWS 클라우드 운영에 관한 질문을 입력하거나 아래 예시를 클릭하세요.
