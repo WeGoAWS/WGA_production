@@ -84,6 +84,9 @@ Resources:
                   - bedrock:InvokeModel
                   - bedrock:Retrieve
                   - bedrock:RetrieveAndGenerate
+                  - bedrock:CreateKnowledgeBase
+                  - bedrock:GetKnowledgeBase
+                  - bedrock:ListKnowledgeBases
                   
                 Resource: '*'
               - Effect: Allow
