@@ -274,7 +274,7 @@ export const useChatbotStore = defineStore('chatbot', {
         async generateBotResponse(userMessage: string): Promise<string> {
             try {
                 // API URL 설정 - 환경변수나 설정에서 가져오는 것이 좋습니다
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
                 console.log('API 요청 전송:', userMessage);
 
