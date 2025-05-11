@@ -3,18 +3,22 @@ import type { RouteRecordRaw } from 'vue-router';
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 
-// 뷰 컴포넌트 가져오기
+// 기존 뷰 컴포넌트 가져오기
 import LoginPage from '@/views/LoginPage.vue';
 import CallbackPage from '@/views/CallbackPage.vue';
 import DashboardPage from '@/views/DashboardPage.vue';
+// 기존 ChatbotPage
 import ChatbotPage from '@/views/ChatbotPage.vue';
 import StartChatPage from '@/views/StartChatPage.vue';
+
+// 새로운 EnhancedChatbotPage 가져오기
+import EnhancedChatbotPage from '@/views/EnhancedChatbotPage.vue';
 
 // 라우트 설정
 const routes: Array<RouteRecordRaw> = [
     {
         path: '/',
-        redirect: '/start-chat',
+        redirect: '/start-chat', // 메인 페이지를 StartChatPage로 변경
     },
     {
         path: '/login',
@@ -40,16 +44,24 @@ const routes: Array<RouteRecordRaw> = [
         component: StartChatPage,
         meta: { requiresAuth: true },
     },
+    // 기존 챗봇 페이지 (레거시 지원용)
     {
         path: '/chatbot',
         name: 'Chatbot',
         component: ChatbotPage,
         meta: { requiresAuth: true },
     },
+    // 새로운 향상된 챗봇 페이지 (새 경로로 추가)
+    {
+        path: '/chat',
+        name: 'EnhancedChat',
+        component: EnhancedChatbotPage,
+        meta: { requiresAuth: true },
+    },
     // 페이지를 찾을 수 없을 때
     {
         path: '/:pathMatch(.*)*',
-        redirect: '/start-chat',
+        redirect: '/start-chat', // 없는 경로도 StartChatPage로 변경
     },
 ];
 
@@ -59,46 +71,18 @@ const router = createRouter({
     routes,
 });
 
-// 인증 초기화 상태를 추적하는 변수
-let isAuthInitialized = false;
-
 // 네비게이션 가드 설정
-router.beforeEach(async (to, from, next) => {
+router.beforeEach((to, from, next) => {
     const authStore = useAuthStore();
-
-    // 앱 실행 시 딱 한 번만 인증 초기화 실행
-    if (!isAuthInitialized) {
-        await authStore.initializeAuth();
-        isAuthInitialized = true;
-    }
-
     const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
 
-    // 로딩 중에는 잠시 대기 (초기화 중 깜빡임 방지)
-    if (authStore.loading) {
-        // 인증 상태 로딩이 완료될 때까지 잠시 대기
-        // 실제 구현에서는 로딩 컴포넌트나 스플래시 스크린 표시 등을 고려할 수 있음
-        await new Promise((resolve) => {
-            const checkLoading = () => {
-                if (!authStore.loading) {
-                    resolve(true);
-                } else {
-                    setTimeout(checkLoading, 100);
-                }
-            };
-            checkLoading();
-        });
-    }
-
-    // 인증이 필요한 페이지 접근 시 로그인 체크
     if (requiresAuth && !authStore.isAuthenticated) {
-        // 인증이 필요한 페이지에 접근하려고 했다는 정보 저장
-        localStorage.setItem('auth_redirect_path', to.fullPath);
-
-        // 로그인 페이지로 리다이렉트
+        // 인증이 필요한 페이지인데 인증이 안 되어 있을 때
+        // 현재 접근하려는 경로를 저장 (로그인 후 리다이렉트용)
+        sessionStorage.setItem('auth_redirect_path', to.fullPath);
         next('/login');
     } else if (to.path === '/login' && authStore.isAuthenticated) {
-        // 이미 로그인되어 있는데 로그인 페이지로 가려고 하면 대시보드로 리다이렉트
+        // 이미 로그인되어 있으면 StartChatPage로 리다이렉트
         next('/start-chat');
     } else {
         // 그 외의 경우 정상 진행

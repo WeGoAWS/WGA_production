@@ -1,9 +1,9 @@
-<!-- src/views/StartChatPage.vue -->
+<!-- src/views/StartChatPage.vue의 수정사항 -->
 <template>
     <AppLayout>
         <div class="start-chat-container">
             <div class="start-chat-header">
-                <h1 @click="getHealth">AWS Agent</h1>
+                <h1 @click="getHealth">AWS Cloud Agent</h1>
                 <p class="start-chat-description">클라우드 운영 정보 질의응답 서비스</p>
             </div>
 
@@ -138,6 +138,17 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 새로운 향상된 챗봇 페이지로 이동하는 버튼 추가 -->
+            <div class="enhanced-chat-button-container">
+                <button @click="goToEnhancedChat" class="enhanced-chat-button">
+                    <span class="enhanced-chat-icon">🚀</span>
+                    향상된 대화 기능 사용하기
+                </button>
+                <p class="enhanced-chat-description">
+                    대화 기록 저장, 세션 관리, 타이핑 이펙트 등 향상된 기능을 사용해보세요!
+                </p>
+            </div>
         </div>
     </AppLayout>
 </template>
@@ -147,6 +158,7 @@
     import { useRouter } from 'vue-router';
     import AppLayout from '@/layouts/AppLayout.vue';
     import { useChatbotStore } from '@/stores/chatbot';
+    import { useChatHistoryStore } from '@/stores/chatHistoryStore'; // 새로운 스토어 추가
     import axios from 'axios';
 
     export default defineComponent({
@@ -158,25 +170,36 @@
         setup() {
             const router = useRouter();
             const store = useChatbotStore();
+            const chatHistoryStore = useChatHistoryStore(); // 새로운 스토어 인스턴스 추가
             const messageText = ref('');
 
             const startNewChat = async () => {
                 if (!messageText.value.trim()) return;
 
-                // 새 채팅 세션 생성
+                // 이미 있는 원래 코드: 기존 챗봇 스토어 세션 생성
                 store.createNewSession();
 
-                // 메시지 저장 - 세션 생성 후에 메시지를 채팅 스토어에 저장만 하고
-                // 실제 전송은 여기서 하지 않음
+                // 세션 스토리지에 질문 저장
                 sessionStorage.setItem('pendingQuestion', messageText.value);
 
-                // 채팅 페이지로 이동
+                // 챗봇 페이지로 이동
                 router.push('/chatbot');
             };
 
             const askExampleQuestion = (question: string) => {
                 messageText.value = question;
                 startNewChat();
+            };
+
+            // 향상된 채팅 페이지로 이동하는 함수 추가
+            const goToEnhancedChat = () => {
+                // 질문이 있는 경우 세션 스토리지에 저장 (채팅 페이지에서 자동 전송)
+                if (messageText.value.trim()) {
+                    sessionStorage.setItem('pendingQuestion', messageText.value);
+                }
+
+                // 향상된 채팅 페이지로 이동
+                router.push('/chat');
             };
 
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -194,6 +217,7 @@
                 messageText,
                 startNewChat,
                 askExampleQuestion,
+                goToEnhancedChat, // 함수 노출
                 getHealth,
             };
         },
@@ -291,6 +315,7 @@
 
     .example-questions-container {
         width: 100%;
+        margin-bottom: 3rem;
     }
 
     .example-questions-container h2 {
@@ -356,6 +381,45 @@
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 
+    /* 새로운 향상된 채팅 버튼 스타일 */
+    .enhanced-chat-button-container {
+        margin-top: 1.5rem;
+        text-align: center;
+    }
+
+    .enhanced-chat-button {
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: white;
+        background-color: #ff9900;
+        border: none;
+        border-radius: 50px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(255, 153, 0, 0.3);
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .enhanced-chat-button:hover {
+        background-color: #f08c00;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(255, 153, 0, 0.4);
+    }
+
+    .enhanced-chat-icon {
+        font-size: 1.3rem;
+    }
+
+    .enhanced-chat-description {
+        margin-top: 1rem;
+        color: #666;
+        font-size: 0.9rem;
+    }
+
     @media (max-width: 768px) {
         .example-questions {
             grid-template-columns: 1fr;
@@ -377,20 +441,5 @@
             padding: 0.8rem;
             border-radius: 12px;
         }
-    }
-
-    .send-button {
-        padding: 0 1.5rem;
-        background-color: #007bff;
-        color: white;
-        border: none;
-        border-radius: 0 12px 12px 0;
-        cursor: pointer;
-        font-size: 1rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
     }
 </style>
