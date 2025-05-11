@@ -87,7 +87,21 @@ Resources:
             paths:
               - node_modules/**
       CustomRules:
-        - Source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>'
+        # 특정 API 경로들을 명시적으로 백엔드로 리다이렉트
+        - Source: '/llm1'
+          Target: '${ApiEndpoint}/llm1'
+          Status: '200'
+        - Source: '/health'
+          Target: '${ApiEndpoint}/health'
+          Status: '200'
+
+        # 정적 파일은 그대로 처리
+        - Source: '/<**>.{js,css,ico,svg,jpg,png,gif,json,woff,woff2,ttf,eot}'
+          Target: '/<**>.{js,css,ico,svg,jpg,png,gif,json,woff,woff2,ttf,eot}'
+          Status: '200'
+
+        # SPA 라우팅은 index.html로 전달
+        - Source: '/*'
           Target: '/index.html'
           Status: '200'
 

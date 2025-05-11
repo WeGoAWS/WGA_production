@@ -131,7 +131,7 @@ def create_success_response(data=None, message=None):
 
 def cors_headers(origin):
     return {
-        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
         "Access-Control-Allow-Headers": "Authorization,Content-Type",
         "Access-Control-Allow-Credentials": "true"
