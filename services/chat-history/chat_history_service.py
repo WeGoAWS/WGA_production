@@ -13,6 +13,8 @@ CHAT_HISTORY_TABLE = CONFIG['db']['chat_history_table']
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(CHAT_HISTORY_TABLE)
 
+# KST 타임존 정의
+KST = datetime.timezone(datetime.timedelta(hours=9))
 
 def handle_chat_history_request(path, http_method, body, event, origin):
     """채팅 기록 관련 요청 처리"""
@@ -121,7 +123,7 @@ def create_session(data):
     title = data.get('title', '새 대화')
 
     session_id = str(uuid.uuid4())
-    timestamp = datetime.datetime.now().isoformat()
+    timestamp = datetime.datetime.now(KST).isoformat()
 
     # DynamoDB에 세션 정보 저장
     session_item = {
@@ -195,7 +197,7 @@ def update_session(session_id, title):
         return None
 
     # 세션 정보 업데이트
-    timestamp = datetime.datetime.now().isoformat()
+    timestamp = datetime.datetime.now(KST).isoformat()
 
     update_expression = "SET title = :title, updatedAt = :updatedAt"
     expression_values = {
@@ -249,7 +251,7 @@ def add_message(session_id, sender, text):
 
     # 새 메시지 생성
     message_id = str(uuid.uuid4())
-    timestamp = datetime.datetime.now().isoformat()
+    timestamp = datetime.datetime.now(KST).isoformat()
 
     message = {
         'id': message_id,
