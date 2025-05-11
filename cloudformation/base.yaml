@@ -58,7 +58,7 @@ Parameters:
 
   KnowledgeBaseId:
     Type: String
-    Default: IIB9VIAMLD
+    Default: 9LLPTTVGDT
     Description: KnowledgeBaseId
 
   McpFunctionUrl:
@@ -263,31 +263,31 @@ Resources:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
 
-    ChatHistoryTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: !Sub 'wga-chat-history-${Environment}'
-        AttributeDefinitions:
-          - AttributeName: 'sessionId'
-            AttributeType: S
-          - AttributeName: 'userId'
-            AttributeType: S
-        KeySchema:
-          - AttributeName: 'sessionId'
-            KeyType: HASH
-        GlobalSecondaryIndexes:
-          - IndexName: 'UserIdIndex'
-            KeySchema:
-              - AttributeName: 'userId'
-                KeyType: HASH
-            Projection:
-              ProjectionType: ALL
-            ProvisionedThroughput:
-              ReadCapacityUnits: 5
-              WriteCapacityUnits: 5
-        ProvisionedThroughput:
-          ReadCapacityUnits: 5
-          WriteCapacityUnits: 5
+  ChatHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'wga-chat-history-${Environment}'
+      AttributeDefinitions:
+        - AttributeName: 'sessionId'
+          AttributeType: S
+        - AttributeName: 'userId'
+          AttributeType: S
+      KeySchema:
+        - AttributeName: 'sessionId'
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: 'UserIdIndex'
+          KeySchema:
+            - AttributeName: 'userId'
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
 
   # Cognito User Pool
   UserPool:
