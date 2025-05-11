@@ -137,7 +137,7 @@
 <style scoped>
     .chat-input-container {
         display: flex;
-        align-items: flex-end;
+        align-items: center;
         background-color: #fff;
         border: 1px solid #e0e0e0;
         border-radius: 24px;
