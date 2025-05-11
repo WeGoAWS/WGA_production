@@ -54,14 +54,15 @@ def load_config():
         'slackbot': {
             'token': ''
         },
-        # MCP 서비스 설정 추가
         'mcp': {
             'function_url': os.environ.get('MCP_FUNCTION_URL', '')
         },
-        # Knowledge base 설정 추가
         'kb': {
             'kb_id': ''
         },
+        'db': {
+            'chat_history_table': os.environ.get('CHAT_HISTORY_TABLE', f'wga-chat-history-{ENV}')
+        }
     }
 
     try:
@@ -108,7 +109,8 @@ def load_config():
             'UserPoolDomain': ('cognito', 'domain'),
             'UserPoolId': ('cognito', 'user_pool_id'),
             'McpFunctionUrl': ('mcp', 'function_url'),
-            'KnowledgeBaseId': ('kb', 'kb_id')
+            'KnowledgeBaseId': ('kb', 'kb_id'),
+            'ChatHistoryTable': ('db', 'chat_history_table')  # 새로 추가된 SSM 파라미터
         }
 
         for param in parameters:
@@ -123,7 +125,6 @@ def load_config():
     except Exception as e:
         print(f"Error loading SSM parameters: {e}")
 
-    
     return config
 
 _config = None

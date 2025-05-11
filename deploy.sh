@@ -66,6 +66,7 @@ aws s3 cp cloudformation/frontend.yaml "s3://$CLOUDFORMATION_BUCKET/frontend.yam
 aws s3 cp cloudformation/logs.yaml "s3://$CLOUDFORMATION_BUCKET/logs.yaml"
 aws s3 cp cloudformation/slackbot.yaml "s3://$CLOUDFORMATION_BUCKET/slackbot.yaml"
 aws s3 cp cloudformation/mcp.yaml "s3://$CLOUDFORMATION_BUCKET/mcp.yaml"
+aws s3 cp cloudformation/chat-history.yaml "s3://$CLOUDFORMATION_BUCKET/chat-history.yaml"
 
 echo "CloudFormation 템플릿 업로드 완료"
 
@@ -353,6 +354,20 @@ if [ -d "services/slackbot" ]; then
 
     echo "Slackbot 업로드 중..."
     aws s3 cp build/slackbot/slackbot-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/slackbot/slackbot-lambda-$ENV.zip"
+fi
+
+# Chat History Lambda 패키징 및 업로드
+if [ -d "services/chat-history" ]; then
+    echo "Chat History Lambda 패키징 중..."
+    mkdir -p build/chat-history
+    cp -r services/chat-history/* build/chat-history/
+    cd build/chat-history
+    echo "Chat History Lambda 압축 중..."
+    zip -r chat-history-lambda-$ENV.zip *
+    cd ../..
+
+    echo "Chat History Lambda 업로드 중..."
+    aws s3 cp build/chat-history/chat-history-lambda-$ENV.zip "s3://$DEPLOYMENT_BUCKET/chat-history/chat-history-lambda-$ENV.zip"
 fi
 
 # MCP 패키징 및 업로드 (존재하는 경우)
