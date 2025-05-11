@@ -102,6 +102,10 @@ Resources:
                   - ssm:GetParameters
                   - ssm:GetParametersByPath
                 Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wga/${Environment}/*"
+              - Effect: Allow
+                Action:
+                  - aoss:APIAccessAll
+                Resource: !Sub "arn:aws:aoss:${AWS::Region}:${AWS::AccountId}:collection/8lsdd3ol0w4hkoadxzbf"
 
   LlmLambdaLayer:
     Type: AWS::Lambda::LayerVersion
