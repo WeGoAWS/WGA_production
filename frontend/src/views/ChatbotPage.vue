@@ -525,7 +525,7 @@
         align-self: flex-end;
         background-color: #0b93f6;
         color: white;
-        border-bottom-left-radius: 5px;
+        border-top-left-radius: 5px;
         animation-name: sendMessage;
     }
 
@@ -533,7 +533,7 @@
         align-self: flex-start;
         background-color: #e5e5ea;
         color: black;
-        border-bottom-left-radius: 5px;
+        border-top-left-radius: 5px;
         animation-name: receiveMessage;
     }
 

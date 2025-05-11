@@ -1,4 +1,4 @@
-// src/stores/chatHistoryStore.ts
+// src/stores/chatHistoryStore.ts 수정
 import { defineStore } from 'pinia';
 import axios from 'axios';
 
@@ -81,9 +81,12 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                 if (this.sessions.length > 0) {
                     await this.selectSession(this.sessions[0].sessionId);
                 }
+
+                return this.sessions;
             } catch (err: any) {
                 console.error('채팅 세션 목록 가져오기 오류:', err);
                 this.error = err.message || '채팅 세션 목록을 불러오는 중 오류가 발생했습니다.';
+                throw err;
             } finally {
                 this.loading = false;
             }
@@ -194,13 +197,14 @@ export const useChatHistoryStore = defineStore('chatHistory', {
             }
 
             this.waitingForResponse = true;
+            let userMessageResponse = null;
 
             try {
                 const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
                 const sessionId = this.currentSession!.sessionId;
 
                 // 사용자 메시지 추가
-                const userMessageResponse = await axios.post(
+                userMessageResponse = await axios.post(
                     `${apiUrl}/sessions/${sessionId}/messages`,
                     {
                         sender: 'user',
@@ -394,7 +398,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
 
                 console.log('유효한 응답 데이터가 없음');
                 return '죄송합니다. 유효한 응답 데이터를 받지 못했습니다.';
-            } catch (error) {
+            } catch (error: any) {
                 console.error('봇 응답 API 호출 오류:', error);
                 return '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.';
             }
@@ -454,11 +458,12 @@ export const useChatHistoryStore = defineStore('chatHistory', {
 
                 // 현재 선택된 세션이 삭제된 경우
                 if (this.currentSession && this.currentSession.sessionId === sessionId) {
-                    this.currentSession = this.sessions.length > 0 ? this.sessions[0] : null;
-
-                    // 새로운 현재 세션이 설정된 경우 해당 세션의 메시지 로드
-                    if (this.currentSession) {
-                        await this.selectSession(this.currentSession.sessionId);
+                    // 다른 세션이 있으면 첫 번째 세션 선택
+                    if (this.sessions.length > 0) {
+                        await this.selectSession(this.sessions[0].sessionId);
+                    } else {
+                        // 세션이 없으면 null로 설정
+                        this.currentSession = null;
                     }
                 }
 
@@ -475,8 +480,21 @@ export const useChatHistoryStore = defineStore('chatHistory', {
             if (!this.currentSession) return;
 
             try {
-                // 백엔드에서는 메시지 삭제 API가 없으므로, 프론트엔드에서만 처리
-                // 실제 구현 시에는 백엔드에 메시지 삭제 API 추가 필요
+                const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
+                const sessionId = this.currentSession.sessionId;
+
+                // 세션의 모든 메시지 삭제 API 호출
+                // 백엔드에 해당 API가 없으면 프론트엔드에서만 처리
+                try {
+                    await axios.delete(`${apiUrl}/sessions/${sessionId}/messages`, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        withCredentials: true,
+                    });
+                } catch (error) {
+                    console.log('메시지 삭제 API가 없거나 오류 발생, 프론트엔드에서만 처리합니다');
+                }
 
                 // 현재 세션의 메시지만 초기화
                 if (this.currentSession.messages) {
