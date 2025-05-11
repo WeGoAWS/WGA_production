@@ -21,11 +21,9 @@
     import { defineComponent, onMounted, ref } from 'vue';
     import { useRoute, useRouter } from 'vue-router';
     import { useAuthStore } from '@/stores/auth';
-    import AuthCheck from '@/components/AuthCheck.vue';
 
     export default defineComponent({
         name: 'RedirectView',
-        components: { AuthCheck },
 
         setup() {
             const router = useRouter();
@@ -47,24 +45,23 @@
                     }
 
                     // 인증 상태 확인
-                    // const isAuthenticated = await authStore.verifyTokenWithBackend();
+                    const isAuthenticated = await authStore.validateToken();
 
-                    if (true) {
+                    if (isAuthenticated) {
                         // 세션 스토리지에 저장된 리다이렉트 경로가 있는지 확인
-                        const redirectPath = sessionStorage.getItem('auth_redirect_path');
+                        const redirectPath = localStorage.getItem('auth_redirect_path');
                         if (redirectPath) {
                             // 원래 요청한 페이지로 리다이렉트
                             router.push(redirectPath);
                             // 사용한 경로 정보 삭제
-                            sessionStorage.removeItem('auth_redirect_path');
+                            localStorage.removeItem('auth_redirect_path');
                         } else {
-                            // 기본 리다이렉트 (StartChatPage로 변경)
+                            // 기본 리다이렉트
                             router.push('/start-chat');
                         }
                     } else {
-                        throw new Error(
-                            '백엔드에서 인증되지 않았습니다. 백엔드 로그를 확인하세요.',
-                        );
+                        // 인증되지 않은 경우 로그인 페이지로 리다이렉트
+                        router.push('/login');
                     }
                 } catch (err: any) {
                     console.error('Redirect handling error:', err);

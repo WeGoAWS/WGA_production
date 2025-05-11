@@ -49,9 +49,17 @@
                     const success = await authStore.exchangeCodeForTokens(code);
 
                     if (success) {
-                        console.log('Token exchange successful, redirecting to start-chat');
-                        // 인증 성공 시 StartChatPage로 리다이렉트 (여기를 수정)
-                        router.push('/start-chat');
+                        console.log('Token exchange successful, redirecting...');
+
+                        // 리다이렉트할 경로 가져오기 (없으면 기본값으로 /start-chat 사용)
+                        const redirectPath =
+                            localStorage.getItem('auth_redirect_path') || '/start-chat';
+
+                        // 리다이렉트 정보 사용 후 삭제
+                        localStorage.removeItem('auth_redirect_path');
+
+                        // 해당 경로로 리다이렉트
+                        router.push(redirectPath);
                     } else {
                         throw new Error('토큰 교환 과정에서 오류가 발생했습니다.');
                     }

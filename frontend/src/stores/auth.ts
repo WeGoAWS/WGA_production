@@ -14,6 +14,10 @@ interface AuthState {
     error: string | null;
 }
 
+// 로컬 스토리지 키 정의
+const AUTH_TOKENS_KEY = 'wga_auth_tokens';
+const AUTH_USER_KEY = 'wga_auth_user';
+
 export const useAuthStore = defineStore('auth', {
     state: (): AuthState => ({
         isAuthenticated: false,
@@ -35,6 +39,106 @@ export const useAuthStore = defineStore('auth', {
     },
 
     actions: {
+        // 스토어 초기화 - 앱 시작 시 호출
+        async initializeAuth() {
+            this.loading = true;
+            try {
+                const savedTokens = localStorage.getItem(AUTH_TOKENS_KEY);
+                const savedUser = localStorage.getItem(AUTH_USER_KEY);
+
+                if (savedTokens && savedUser) {
+                    this.tokens = JSON.parse(savedTokens);
+                    this.user = JSON.parse(savedUser);
+
+                    // 토큰 유효성 검증
+                    if (this.tokens.accessToken) {
+                        const isValid = await this.validateToken();
+                        this.isAuthenticated = isValid;
+
+                        // 토큰이 만료되었지만 리프레시 토큰이 있는 경우
+                        if (!isValid && this.tokens.refreshToken) {
+                            await this.refreshTokens();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('인증 초기화 오류:', error);
+                this.clearAuth();
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // 토큰 유효성 검증 함수
+        async validateToken() {
+            try {
+                // 간단한 토큰 유효성 검사 (만료 시간 확인)
+                if (!this.tokens.idToken) return false;
+
+                const payload = this.parseJwt(this.tokens.idToken);
+                if (!payload || !payload.exp) return false;
+
+                // 토큰 만료 시간 확인 (현재 시간과 비교)
+                const now = Math.floor(Date.now() / 1000);
+                return payload.exp > now;
+            } catch (error) {
+                console.error('토큰 검증 오류:', error);
+                return false;
+            }
+        },
+
+        // 리프레시 토큰을 사용하여 새 토큰 획득
+        async refreshTokens() {
+            try {
+                if (!this.tokens.refreshToken) {
+                    throw new Error('리프레시 토큰이 없습니다');
+                }
+
+                const cognitoDomain = import.meta.env.COGNITO_DOMAIN;
+                const clientId = import.meta.env.COGNITO_CLIENT_ID;
+                const clientSecret = import.meta.env.COGNITO_CLIENT_SECRET || '';
+
+                const tokenEndpoint = `https://${cognitoDomain}.auth.us-east-1.amazoncognito.com/oauth2/token`;
+
+                const params = new URLSearchParams();
+                params.append('grant_type', 'refresh_token');
+                params.append('client_id', clientId);
+                params.append('refresh_token', this.tokens.refreshToken);
+
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                };
+
+                if (clientSecret) {
+                    const auth = btoa(`${clientId}:${clientSecret}`);
+                    headers['Authorization'] = `Basic ${auth}`;
+                }
+
+                const response = await axios.post(tokenEndpoint, params, { headers });
+
+                // 새 토큰 저장
+                this.tokens.idToken = response.data.id_token;
+                this.tokens.accessToken = response.data.access_token;
+                // 리프레시 토큰은 새로 받지 않을 수 있음
+                if (response.data.refresh_token) {
+                    this.tokens.refreshToken = response.data.refresh_token;
+                }
+
+                // 사용자 정보 업데이트
+                this.user = this.parseJwt(response.data.id_token);
+                this.isAuthenticated = true;
+
+                // 로컬 스토리지 업데이트
+                this.saveAuthToStorage();
+
+                return true;
+            } catch (error) {
+                console.error('토큰 갱신 오류:', error);
+                this.clearAuth();
+                return false;
+            }
+        },
+
         // AWS Cognito로 직접 OAuth 로그인 시작
         initiateLogin() {
             this.loading = true;
@@ -60,6 +164,9 @@ export const useAuthStore = defineStore('auth', {
                 const authUrl = `https://${cognitoDomain}.auth.us-east-1.amazoncognito.com/login?response_type=${responseType}&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
 
                 console.log('Auth URL:', authUrl);
+
+                // 리다이렉트 전 현재 경로 저장 (로그인 후 돌아오기 위함)
+                localStorage.setItem('auth_redirect_path', window.location.pathname);
 
                 // Cognito 로그인 페이지로 리다이렉트
                 window.location.href = authUrl;
@@ -124,8 +231,8 @@ export const useAuthStore = defineStore('auth', {
                 this.user = this.parseJwt(response.data.id_token);
                 this.isAuthenticated = true;
 
-                // 백엔드로 토큰 검증 요청
-                // await this.verifyTokenWithBackend();
+                // 로컬 스토리지에 인증 정보 저장
+                this.saveAuthToStorage();
 
                 return true;
             } catch (error: any) {
@@ -134,6 +241,17 @@ export const useAuthStore = defineStore('auth', {
                 return false;
             } finally {
                 this.loading = false;
+            }
+        },
+
+        // 로컬 스토리지에 인증 정보 저장
+        saveAuthToStorage() {
+            try {
+                localStorage.setItem(AUTH_TOKENS_KEY, JSON.stringify(this.tokens));
+                localStorage.setItem(AUTH_USER_KEY, JSON.stringify(this.user));
+                console.log('인증 정보가 로컬 스토리지에 저장되었습니다.');
+            } catch (error) {
+                console.error('인증 정보 저장 오류:', error);
             }
         },
 
@@ -158,47 +276,14 @@ export const useAuthStore = defineStore('auth', {
             }
         },
 
-        // 백엔드로 토큰 전송 및 검증
-        // async verifyTokenWithBackend() {
-        //     try {
-        //         const apiUrl = import.meta.env.API_URL || 'http://localhost:8000';
-        //
-        //         // 백엔드에 토큰 검증 요청
-        //         const response = await axios.post(
-        //             `${apiUrl}/auth/verify-token`,
-        //             {
-        //                 id_token: this.tokens.idToken,
-        //                 access_token: this.tokens.accessToken,
-        //                 refresh_token: this.tokens.refreshToken,
-        //                 provider: 'cognito',
-        //             },
-        //             {
-        //                 withCredentials: true,
-        //             },
-        //         );
-        //
-        //         console.log('Token verification response:', response.data);
-        //         return response.data && response.data.status === 'success';
-        //     } catch (error: any) {
-        //         console.error('Backend token verification error:', error);
-        //         // 백엔드 검증 실패는 인증 상태에 영향을 주지 않음 (선택적)
-        //         return false;
-        //     }
-        // },
         // 로그아웃
         async logout() {
             try {
                 const clientId = import.meta.env.COGNITO_CLIENT_ID;
                 const redirectUri = import.meta.env.COGNITO_REDIRECT_URI;
 
-                // 상태 초기화
-                this.user = null;
-                this.tokens = {
-                    idToken: null,
-                    accessToken: null,
-                    refreshToken: null,
-                };
-                this.isAuthenticated = false;
+                // 로그아웃 전에 로컬 스토리지 비우기
+                this.clearAuth();
 
                 // Cognito 로그아웃 URL 구성
                 const cognitoDomain = import.meta.env.COGNITO_DOMAIN;
@@ -222,6 +307,22 @@ export const useAuthStore = defineStore('auth', {
                 // 오류 발생해도 리다이렉트 시도
                 window.location.href = import.meta.env.COGNITO_REDIRECT_URI;
             }
+        },
+
+        // 인증 정보 초기화
+        clearAuth() {
+            // 상태 초기화
+            this.user = null;
+            this.tokens = {
+                idToken: null,
+                accessToken: null,
+                refreshToken: null,
+            };
+            this.isAuthenticated = false;
+
+            // 로컬 스토리지 정리
+            localStorage.removeItem(AUTH_TOKENS_KEY);
+            localStorage.removeItem(AUTH_USER_KEY);
         },
     },
 });
