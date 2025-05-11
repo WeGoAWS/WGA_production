@@ -7,12 +7,14 @@ from common.config import get_config
 from common.utils import invoke_bedrock_nova, cors_headers, cors_response
 from slack_sdk import WebClient
 
+
 def get_table_registry():
     dynamodb = boto3.resource("dynamodb")
     table_name = os.environ.get("ATHENA_TABLE_REGISTRY_TABLE")
     table = dynamodb.Table(table_name)
     response = table.scan()
     return {item["log_type"]: item for item in response.get("Items", [])}
+
 
 def call_mcp_service(user_question):
     CONFIG = get_config()
@@ -24,6 +26,7 @@ def call_mcp_service(user_question):
     response = requests.post(CONFIG['mcp']['function_url'], json=payload)
     return response.json()
 
+
 def build_llm1_prompt(user_input):
     registry = get_table_registry()
     # 레지스트리에 정보가 있는지 확인
@@ -32,7 +35,7 @@ def build_llm1_prompt(user_input):
         ct_location = registry["cloudtrail"]["s3_path"]
         gd_table = registry["guardduty"]["table_name"]
         gd_location = registry["guardduty"]["s3_path"]
-        
+
         # 테이블 정보를 프롬프트에 명시적으로 포함
         tables_info = f"""
 Available tables:
@@ -71,11 +74,12 @@ Model Instructions:
         - If filtering by user name, exclude records where useridentity.username is null or empty string.
 	    - Use IS NOT NULL AND useridentity.username != '' to ensure only valid user names are considered.
 	    - If partition_date is a string like yyyy/MM/dd, use date_parse(partition_date, '%Y/%m/%d') to convert it before filtering by date.
-    
+
 
 User Question:
 {user_input}
 '''
+
 
 def build_llm2_prompt(user_input, query_result):
     return f'''
@@ -102,10 +106,11 @@ Instructions:
 - Highlight any anomalies or low counts if the data is sparse.
 '''
 
+
 def parse_body(event):
     content_type = event.get("headers", {}).get("Content-Type", "") or \
                    event.get("headers", {}).get("content-type", "")
-    
+
     raw_body = event.get("body") or ""
 
     if "application/json" in content_type:
@@ -114,11 +119,12 @@ def parse_body(event):
         except json.JSONDecodeError:
             print("❗ 잘못된 JSON body:", raw_body)
             return {}
-    
+
     elif "application/x-www-form-urlencoded" in content_type:
         return {k: v[0] for k, v in urllib.parse.parse_qs(raw_body).items()}
-    
+
     return {}
+
 
 def call_create_table_cloudtrail():
     CONFIG = get_config()
@@ -127,7 +133,8 @@ def call_create_table_cloudtrail():
         "s3_path": "s3://wga-cloudtrail-2/AWSLogs/339712974607/CloudTrail/us-east-1/",
         "table_name": "cloudtrail_logs"
     }
-    return requests.post(f'{CONFIG['api']['endpoint']}/create-table', json=payload) 
+    return requests.post(f'{CONFIG['api']['endpoint']}/create-table', json=payload)
+
 
 def call_create_table_guardduty():
     CONFIG = get_config()
@@ -136,21 +143,23 @@ def call_create_table_guardduty():
         "s3_path": "s3://wga-guardduty-logs/guardduty-logs/",
         "table_name": "guardduty_logs"
     }
-    return requests.post(f'{CONFIG['api']['endpoint']}/create-table', json=payload) 
+    return requests.post(f'{CONFIG['api']['endpoint']}/create-table', json=payload)
+
 
 def call_execute_query(sql_query):
     CONFIG = get_config()
     wrapper_payload = {
         "query": sql_query
     }
-    res =  requests.post(f'{CONFIG['api']['endpoint']}/execute-query', json=wrapper_payload) # Athena 쿼리 실행 API URL을 여기에 입력하세요
+    res = requests.post(f'{CONFIG['api']['endpoint']}/execute-query',
+                        json=wrapper_payload)  # Athena 쿼리 실행 API URL을 여기에 입력하세요
     return res.json()
+
 
 def send_slack_dm(user_id, message):
     CONFIG = get_config()
-    client = WebClient(token=CONFIG['slackbot']['token']) # 여기에 Slack Bot Token
+    client = WebClient(token=CONFIG['slackbot']['token'])  # 여기에 Slack Bot Token
 
-    
     response = client.chat_postMessage(
         channel=user_id,  # 여기서 user_id 그대로 DM 채널로 사용 가능
         text=message
@@ -159,9 +168,11 @@ def send_slack_dm(user_id, message):
         print("❌ Slack 메시지 실패 사유:", response["error"])
     return response
 
+
 def is_ignored(text: str) -> bool:
     """LLM-1 결과가 ###IGNORED### 인지 판정"""
     return text.strip() == "###IGNORED###"
+
 
 def handle_llm1_request(body, CONFIG, origin):
     user_question = body.get("text")
@@ -171,29 +182,30 @@ def handle_llm1_request(body, CONFIG, origin):
         return cors_response(400, {"error": "request body에 'text'가 없음."}, origin)
 
     print(f"처리 중인 질문: {user_question}")
-    
+
     # 테이블 레지스트리 정보 확인
     registry = get_table_registry()
     print(f"테이블 레지스트리: {registry}")
-    
+
     # 분류 프롬프트
     classification_prompt = f"""
     다음 질문이 AWS CloudTrail 로그나 GuardDuty 로그에서 데이터를 쿼리해야 하는 질문인지,
-    아니면 AWS 공식 문서나 정보를 찾아봐야 하는 질문인지 판단하세요.
-    
+    AWS 공식 문서나 정보를 찾아봐야 하는 질문인지, 아니면 앞에서 설명한 내용과 무관한 질문인지 판단하시오.
+
     가능한 응답:
     - "QUERY": CloudTrail이나 GuardDuty 로그 데이터를 분석해야 하는 질문
     - "DOCUMENT": AWS 서비스, 개념, 기능 등에 대한 설명이나 정보가 필요한 질문
-    
+    - "USELESS": QUERY와 DOCUMENT에 해당하지 않는, 무관한 질문
+
     질문: {user_question}
-    
-    응답 (QUERY 또는 DOCUMENT만 작성):
+
+    응답 (QUERY, DOCUMENT, 또는 USELESS만 작성):
     """
-    
+
     classification_result = invoke_bedrock_nova(classification_prompt)
     decision = classification_result["output"]["message"]["content"][0]["text"].strip()
     print(f"분류 결과: {decision}")
-    
+
     # 2단계: 분류 결과에 따라 적절한 서비스로 라우팅
     if "QUERY" in decision:
         # 기존 로직: SQL 쿼리 생성 및 실행
@@ -225,23 +237,27 @@ def handle_llm1_request(body, CONFIG, origin):
             if isinstance(llm2_answer, str):
                 text_answer = llm2_answer
             else:
-                text_answer = llm2_answer.get("output", {}).get("message", {}).get("content", [{}])[0].get("text", "[답변 없음]")
+                text_answer = llm2_answer.get("output", {}).get("message", {}).get("content", [{}])[0].get("text",
+                                                                                                           "[답변 없음]")
         except Exception as parse_error:
             print("응답 파싱 실패:", str(parse_error))
             text_answer = "[답변 파싱 실패]"
 
-    else:  # "DOCUMENT"인 경우
+    elif "DOCUMENT" in decision:  # "DOCUMENT"인 경우
         # MCP Lambda 호출
         mcp_response = call_mcp_service(user_question)
         text_answer = mcp_response.get("result", "[MCP 응답 없음]")
 
+    else:
+        text_answer = "죄송합니다. 이 시스템은 AWS 운영정보 혹은 메뉴얼 관련 질문에만 답변합니다."
     # 최종 결과를 Slack으로 전송
-    #send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{text_answer}")
+    # send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{text_answer}")
 
     return cors_response(200, {
         "status": "질문 처리 완료",
         "answer": text_answer
     }, origin)
+
 
 def handle_llm2_request(body, CONFIG, origin):
     user_question = body.get("question")
