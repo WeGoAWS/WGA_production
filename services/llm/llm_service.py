@@ -38,9 +38,9 @@ Translate only the explanation sentences into Korean.
 - Do NOT translate URLs or titles.
 - Format the result cleanly so that each citation appears as:
 
-[한국어 번역된 설명]
-[원래 제목]
-[원래 URL]
+한국어 번역된 설명
+원래 제목
+원래 URL
 
 Translate the text below accordingly.
 Only Generate Translate.
@@ -207,13 +207,45 @@ def handle_llm1_request(body, CONFIG, origin):
     look up AWS official documents or information, or are irrelevant to what was previously described.
 
     Possible response:
-    - "QUERY": Questions to analyze "CloudTrail" or "GuardDuty" log data
-    - "DOCUMENT": Questions that require an explanation or information about "AWS services", "concepts", "functions", etc
-    - "USELESS": irrelevant questions not applicable to "QUERY" and "DOCUMENT"
+    - "QUERY":  
+    Questions that request data analysis based on "CloudTrail" or "GuardDuty" logs.  
+    These questions typically require SQL generation to query structured logs.  
+    Example patterns:
+        • Who accessed S3 yesterday?  
+        • Show login failures in the last 24 hours  
+        • What user deleted EC2 instances recently?  
+    MUST involve:  
+        - eventName, sourceIPAddress, userIdentity, region, or timestamp  
+        - keywords like: find, show, list, get, analyze, from logs  
 
+    - "DOCUMENT":  
+    Questions that ask for explanations, descriptions, or definitions of AWS-related services, fields, concepts, or syntax.  
+    These questions do not require data querying, but rather reference AWS documentation.  
+    Example patterns:  
+        • What does GuardDuty severity mean?  
+        • How does partitioning work in Athena?  
+        • Explain sourceIPAddress in CloudTrail  
+    May include:  
+        - questions starting with what / how / why / explain  
+        - terminology clarification (e.g., difference between LIMIT and OFFSET)
+
+    - "Boundary":
+    Questions that are borderline between "QUERY" and "DOCUMENT".
+    These questions may require both data querying and documentation reference. 
+
+    - "USELESS":  
+    Questions that are irrelevant to AWS log analysis or documentation.  
+    This includes greetings, personal opinions, jokes, or off-topic inquiries.  
+    Example patterns:  
+        • Hello  
+        • Who made you?  
+        • Tell me a joke  
+        • I love AWS
+
+        
     Questions: {user_question}
 
-    Result(QUERY, DOCUMENT, or USELESS only):
+    Result(QUERY, DOCUMENT, BOUNDARY, or USELESS only):
     """
 
     classification_result = invoke_bedrock_nova(classification_prompt)
@@ -258,8 +290,52 @@ def handle_llm1_request(body, CONFIG, origin):
         mcp_response = call_mcp_service(user_question)
         text_answer = mcp_response.get("result", "[MCP 응답 없음]")
         text_answer = trans_eng_to_kor(text_answer)
-        
 
+    elif "BOUNDARY" in decision:
+        # 기존 로직: SQL 쿼리 생성 및 실행
+        prompt = build_llm1_prompt(user_question)
+        sql_query = invoke_bedrock_nova(prompt)
+        raw_text = sql_query["output"]["message"]["content"][0]["text"]
+
+        # 코드 블록 마커 제거
+        cleaned = raw_text.strip().removeprefix("```sql").removesuffix("```").strip()
+
+        call_create_table_cloudtrail()
+        call_create_table_guardduty()
+        cleaned_query_result = call_execute_query(cleaned)
+
+        llm2_response = requests.post(
+            f"{CONFIG['api']['endpoint']}/llm2",
+            json={
+                "question": user_question,
+                "result": cleaned_query_result
+            }
+        )
+
+        try:
+            llm2_answer = llm2_response.json().get("answer", "[답변 생성 실패]")
+            if isinstance(llm2_answer, str):
+                text_answer_q = llm2_answer
+            else:
+                text_answer_q = llm2_answer.get("output", {}).get("message", {}).get("content", [{}])[0].get("text",
+                                                                                                           "[답변 없음]")
+        except Exception as parse_error:
+            print("응답 파싱 실패:", str(parse_error))
+            text_answer_q = "[답변 파싱 실패]"
+
+        # MCP Lambda 호출
+        mcp_response = call_mcp_service(user_question)
+        text_answer_d = mcp_response.get("result", "[MCP 응답 없음]")
+        text_answer_d = trans_eng_to_kor(text_answer_d)
+
+        text_answer = f"""
+        [1] 📊 로그 분석 결과:
+        {text_answer_q}
+
+        [2] 📘 공식 문서 기반 설명:
+        {text_answer_d}
+        """
+        
     else:
         text_answer = "죄송합니다. 이 시스템은 AWS 운영정보 혹은 메뉴얼 관련 질문에만 답변합니다."
     # 최종 결과를 Slack으로 전송
@@ -273,7 +349,7 @@ def handle_llm1_request(body, CONFIG, origin):
     
     return cors_response(200, {
         "status": "질문 처리 완료",
-        "answer": text_answer + f"\n소요시간: {elapsed_str}"
+        "answer": text_answer + f"\n\n소요시간: {elapsed_str}"
     }, origin)
 
 
