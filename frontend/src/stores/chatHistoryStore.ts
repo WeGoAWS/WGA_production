@@ -1,33 +1,9 @@
+// 채팅을 위한 store의 상태 관리 파일을 업데이트
 // src/stores/chatHistoryStore.ts 수정
+
 import { defineStore } from 'pinia';
 import axios from 'axios';
-
-interface ChatMessage {
-    id: string;
-    sender: 'user' | 'bot';
-    text: string;
-    displayText?: string; // 타이핑 애니메이션을 위한 표시 텍스트
-    timestamp: string;
-    isTyping?: boolean; // 타이핑 중인지 여부
-    animationState?: 'appear' | 'typing' | 'complete'; // 애니메이션 상태
-}
-
-interface ChatSession {
-    sessionId: string;
-    userId: string;
-    title: string;
-    createdAt: string;
-    updatedAt: string;
-    messages?: ChatMessage[];
-}
-
-interface ChatHistoryState {
-    loading: boolean;
-    error: string | null;
-    sessions: ChatSession[];
-    currentSession: ChatSession | null;
-    waitingForResponse: boolean;
-}
+import type { ChatHistoryState, ChatMessageType, ChatSession } from '@/types/chat';
 
 // 유니크 ID 생성 함수
 const generateId = () => {
@@ -120,8 +96,10 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                     },
                 );
 
-                const newSession = response.data;
-                newSession.messages = []; // 메시지 배열 초기화
+                const newSession: ChatSession = {
+                    ...response.data,
+                    messages: [], // 메시지 배열 초기화
+                };
 
                 // 새 세션을 목록 맨 앞에 추가
                 this.sessions.unshift(newSession);
@@ -165,8 +143,10 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                 );
 
                 // 세션 정보와 메시지 합치기
-                const session = sessionResponse.data;
-                session.messages = messagesResponse.data.messages || [];
+                const session: ChatSession = {
+                    ...sessionResponse.data,
+                    messages: messagesResponse.data.messages || [],
+                };
 
                 // 현재 세션 설정
                 this.currentSession = session;
@@ -234,7 +214,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                 }
 
                 // 로딩 중 표시 (타이핑 중 표시)
-                const loadingMessage: ChatMessage = {
+                const loadingMessage: ChatMessageType = {
                     id: generateId(),
                     sender: 'bot',
                     text: '...',
@@ -248,9 +228,11 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                 const botResponseText = await this.generateBotResponse(text);
 
                 // 로딩 메시지 제거
-                this.currentSession!.messages = this.currentSession!.messages.filter(
-                    (msg) => msg.id !== loadingMessage.id,
-                );
+                if (this.currentSession && Array.isArray(this.currentSession.messages)) {
+                    this.currentSession.messages = this.currentSession.messages.filter(
+                        (msg) => msg.id !== loadingMessage.id,
+                    );
+                }
 
                 // 봇 메시지 추가
                 const botMessageResponse = await axios.post(
@@ -272,10 +254,9 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                 botMessage.animationState = 'typing';
 
                 // 메시지 목록에 봇 메시지 추가
-                this.currentSession!.messages.push(botMessage);
-
-                // 타이핑 애니메이션
-                await this.simulateTyping(botMessage.id, botResponseText);
+                if (this.currentSession && Array.isArray(this.currentSession.messages)) {
+                    this.currentSession.messages.push(botMessage);
+                }
 
                 // 세션 목록 업데이트 (최신 내용 반영)
                 const sessionIndex = this.sessions.findIndex((s) => s.sessionId === sessionId);
@@ -293,7 +274,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                 console.error('메시지 전송 오류:', err);
 
                 // 오류 메시지 추가
-                const errorMessage: ChatMessage = {
+                const errorMessage: ChatMessageType = {
                     id: generateId(),
                     sender: 'bot',
                     text: '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.',
@@ -301,7 +282,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                     animationState: 'appear',
                 };
 
-                if (this.currentSession && this.currentSession.messages) {
+                if (this.currentSession && Array.isArray(this.currentSession.messages)) {
                     this.currentSession.messages.push(errorMessage);
                 }
 
@@ -312,49 +293,11 @@ export const useChatHistoryStore = defineStore('chatHistory', {
             }
         },
 
-        // 타이핑 애니메이션 시뮬레이션
-        async simulateTyping(messageId: string, fullText: string) {
-            if (!this.currentSession || !this.currentSession.messages) return;
-
-            const message = this.currentSession.messages.find((m) => m.id === messageId);
-            if (!message) return;
-
-            const typingSpeed = 10; // 문자당 타이핑 시간 (밀리초)
-            const maxTypingTime = 2000; // 최대 타이핑 시간 (밀리초)
-
-            // 최대 타이핑 시간에 맞춰 속도 조절
-            const totalTypingTime = Math.min(fullText.length * typingSpeed, maxTypingTime);
-            const charInterval = totalTypingTime / fullText.length;
-
-            message.displayText = '';
-
-            for (let i = 0; i < fullText.length; i++) {
-                await new Promise((resolve) => setTimeout(resolve, charInterval));
-
-                // 메시지가 여전히 존재하는지 확인 (삭제되었을 수 있음)
-                const updatedMessage = this.currentSession?.messages.find(
-                    (m) => m.id === messageId,
-                );
-                if (!updatedMessage) return;
-
-                // 다음 글자 추가
-                updatedMessage.displayText = fullText.substring(0, i + 1);
-            }
-
-            // 애니메이션 완료 상태로 변경
-            const completedMessage = this.currentSession.messages.find((m) => m.id === messageId);
-            if (completedMessage) {
-                completedMessage.animationState = 'complete';
-            }
-        },
-
         // 봇 응답 생성 함수
         async generateBotResponse(userMessage: string): Promise<string> {
             try {
                 // API URL 설정
                 const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
-
-                console.log('API 요청 전송:', userMessage);
 
                 // API 호출
                 const response = await axios.post(
@@ -371,13 +314,10 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                     },
                 );
 
-                console.log('API 응답 수신:', response.data);
-
                 // API 응답 처리 로직
                 if (response.data) {
                     // 응답이 배열 형태인지 확인
                     if (Array.isArray(response.data.answer)) {
-                        console.log('배열 형태의 응답 변환 처리');
                         // rank_order로 정렬
                         const sortedItems = [...response.data.answer].sort(
                             (a, b) => a.rank_order - b.rank_order,
@@ -388,15 +328,12 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                             .map((item) => `${item.context}\n${item.title}\n${item.url}`)
                             .join('\n\n');
                     } else if (typeof response.data.answer === 'string') {
-                        console.log('문자열 형태의 응답 처리');
                         return response.data.answer;
                     } else {
-                        console.log('예상 외 응답 형식:', typeof response.data.answer);
                         return JSON.stringify(response.data.answer);
                     }
                 }
 
-                console.log('유효한 응답 데이터가 없음');
                 return '죄송합니다. 유효한 응답 데이터를 받지 못했습니다.';
             } catch (error: any) {
                 console.error('봇 응답 API 호출 오류:', error);

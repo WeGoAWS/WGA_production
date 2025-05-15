@@ -70,16 +70,36 @@
             const formatMessageContent = (content: string): string => {
                 if (!content) return '';
 
-                // URL 패턴 정규식
-                const urlPattern = /(https?:\/\/[^\s]+)/g;
+                // 1. 안전하게 HTML 엔티티 이스케이프 처리 (XSS 방지)
+                const escapeHtml = (text: string) => {
+                    return text
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+                };
 
-                // 줄바꿈을 HTML <br>로 변환하고 URL을 링크로 변환
-                return content
-                    .replace(/\n/g, '<br>')
-                    .replace(
-                        urlPattern,
-                        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
-                    );
+                // 내용을 이스케이프 처리
+                const escapedContent = escapeHtml(content);
+
+                // 2. URL 패턴 정규식 개선 - 더 정확한 URL 인식
+                const urlPattern = /(https?:\/\/[^\s<]+[^.\s<,.;:!?）)}\]]*)/g;
+
+                // 3. 처리 순서 변경: URL을 먼저 링크로 변환한 후 줄바꿈 처리
+                let processed = escapedContent;
+
+                // URL을 링크로 변환
+                processed = processed.replace(
+                    urlPattern,
+                    (url) =>
+                        `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`,
+                );
+
+                // 줄바꿈 변환
+                processed = processed.replace(/\n/g, '<br>');
+
+                return processed;
             };
 
             // 메시지 시간 포맷팅 (HH:MM)

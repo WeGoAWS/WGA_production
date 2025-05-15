@@ -170,32 +170,25 @@
             const router = useRouter();
             const chatHistoryStore = useChatHistoryStore();
             const messageText = ref('');
-            // 요청 중복 방지를 위한 플래그
-            const isProcessing = ref(false);
 
-            // 새 대화 시작 함수
+            // 새 대화 시작 함수 - 바로 페이지 이동 후 비동기로 세션 생성
             const startNewChat = async () => {
-                if (!messageText.value.trim() || isProcessing.value) return;
+                if (!messageText.value.trim()) return;
 
                 try {
-                    isProcessing.value = true;
+                    // 질문을 세션 스토리지에 저장
+                    sessionStorage.setItem('pendingQuestion', messageText.value);
 
-                    // 새 세션 생성 (API 호출)
-                    const newSession = await chatHistoryStore.createNewSession();
+                    // 즉시 채팅 페이지로 이동
+                    router.push('/chat');
 
-                    if (newSession) {
-                        // 세션이 성공적으로 생성되면 질문을 저장하고 채팅 페이지로 이동
-                        sessionStorage.setItem('pendingQuestion', messageText.value);
-                        router.push('/chat');
-                    } else {
-                        console.error('새 세션 생성 실패');
-                        alert('새 대화를 시작할 수 없습니다. 다시 시도해 주세요.');
-                    }
+                    // 세션 생성은 백그라운드에서 처리 (이미 페이지를 이동했으므로 결과에 영향 없음)
+                    chatHistoryStore.createNewSession().catch((error) => {
+                        console.error('백그라운드 세션 생성 중 오류 발생:', error);
+                    });
                 } catch (error) {
-                    console.error('새 세션 생성 중 오류 발생:', error);
+                    console.error('새 대화 시작 중 오류 발생:', error);
                     alert('새 대화를 시작할 수 없습니다. 다시 시도해 주세요.');
-                } finally {
-                    isProcessing.value = false;
                 }
             };
 
@@ -207,27 +200,19 @@
 
             // 향상된 채팅 페이지로 이동하는 함수
             const goToEnhancedChat = async () => {
-                try {
-                    if (messageText.value.trim()) {
-                        isProcessing.value = true;
+                // 입력된 질문이 있다면 저장
+                if (messageText.value.trim()) {
+                    sessionStorage.setItem('pendingQuestion', messageText.value);
+                }
 
-                        // 새 세션 생성 후 채팅 페이지로 이동
-                        const newSession = await chatHistoryStore.createNewSession();
+                // 즉시 채팅 페이지로 이동
+                router.push('/chat');
 
-                        if (newSession) {
-                            // 세션이 생성되면 질문 저장 후 이동
-                            sessionStorage.setItem('pendingQuestion', messageText.value);
-                        }
-                    }
-
-                    // 채팅 페이지로 이동
-                    router.push('/chat');
-                } catch (error) {
-                    console.error('향상된 채팅 페이지 이동 중 오류 발생:', error);
-                    // 오류가 있어도 채팅 페이지로 이동
-                    router.push('/chat');
-                } finally {
-                    isProcessing.value = false;
+                // 세션 생성은 백그라운드에서 처리
+                if (messageText.value.trim()) {
+                    chatHistoryStore.createNewSession().catch((error) => {
+                        console.error('백그라운드 세션 생성 중 오류 발생:', error);
+                    });
                 }
             };
 
