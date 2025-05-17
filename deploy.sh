@@ -30,6 +30,7 @@ BASE_STACK_NAME="wga-base-$ENV"
 MAIN_STACK_NAME="wga-$ENV"
 FRONTEND_STACK_NAME="wga-frontend-$ENV"
 MCP_STACK_NAME="wga-mcp-$ENV"
+FARGATE_STACK_NAME="wga-fargate-$ENV"
 
 # 도메인 설정 (필요한 경우 수정)
 DOMAIN_NAME=""  # 사용자 정의 도메인
@@ -67,6 +68,7 @@ aws s3 cp cloudformation/logs.yaml "s3://$CLOUDFORMATION_BUCKET/logs.yaml"
 aws s3 cp cloudformation/slackbot.yaml "s3://$CLOUDFORMATION_BUCKET/slackbot.yaml"
 aws s3 cp cloudformation/mcp.yaml "s3://$CLOUDFORMATION_BUCKET/mcp.yaml"
 aws s3 cp cloudformation/chat-history.yaml "s3://$CLOUDFORMATION_BUCKET/chat-history.yaml"
+aws s3 cp cloudformation/fargate.yaml "s3://$CLOUDFORMATION_BUCKET/fargate.yaml"
 
 echo "CloudFormation 템플릿 업로드 완료"
 
@@ -450,6 +452,72 @@ ECR_IMAGE_TAG="latest"
 MCP_IMAGE_URI="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$ECR_REPOSITORY:$ECR_IMAGE_TAG"
 echo "MCP 이미지 URI: $MCP_IMAGE_URI"
 
+#################################################
+# 4. Fargate 스택 배포 (MCP 컨테이너 배포)
+#################################################
+echo "====== 4. Fargate MCP 인프라 배포 ======"
+
+# VPC ID 가져오기 (기본 VPC 또는 존재하는 VPC 사용)
+VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query "Vpcs[0].VpcId" --output text)
+if [ -z "$VPC_ID" ]; then
+    echo "기본 VPC를 찾을 수 없습니다. 다른 VPC를 사용하려면 스크립트를 수정하세요."
+    exit 1
+fi
+echo "사용할 VPC ID: $VPC_ID"
+
+# 서브넷 가져오기
+SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query "Subnets[?MapPublicIpOnLaunch==`true`].SubnetId" --output text | tr '\t' ',')
+if [ -z "$SUBNETS" ]; then
+    echo "VPC에서 퍼블릭 서브넷을 찾을 수 없습니다. 프라이빗 서브넷을 사용합니다."
+    SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query "Subnets[0:2].SubnetId" --output text | tr '\t' ',')
+    if [ -z "$SUBNETS" ]; then
+        echo "VPC에서 서브넷을 찾을 수 없습니다. 스크립트를 수정하세요."
+        exit 1
+    fi
+fi
+echo "사용할 서브넷: $SUBNETS"
+
+# Fargate 스택 배포
+if aws cloudformation describe-stacks --stack-name $FARGATE_STACK_NAME > /dev/null 2>&1; then
+    # 스택이 존재하면 업데이트
+    echo "기존 Fargate 스택 업데이트 중: $FARGATE_STACK_NAME"
+    aws cloudformation update-stack \
+        --stack-name $FARGATE_STACK_NAME \
+        --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/fargate.yaml" \
+        --parameters \
+            ParameterKey=Environment,ParameterValue=$ENV \
+            ParameterKey=VpcId,ParameterValue=$VPC_ID \
+            ParameterKey=SubnetIds,ParameterValue=\"$SUBNETS\" \
+            ParameterKey=McpImageUri,ParameterValue=$MCP_IMAGE_URI \
+        --capabilities CAPABILITY_NAMED_IAM
+
+    # 스택 업데이트 완료 대기
+    echo "Fargate 스택 업데이트 완료 대기 중: $FARGATE_STACK_NAME"
+    aws cloudformation wait stack-update-complete --stack-name $FARGATE_STACK_NAME
+else
+    # 스택이 존재하지 않으면 생성
+    echo "새 Fargate 스택 생성 중: $FARGATE_STACK_NAME"
+    aws cloudformation create-stack \
+        --stack-name $FARGATE_STACK_NAME \
+        --template-url "https://s3.amazonaws.com/$CLOUDFORMATION_BUCKET/fargate.yaml" \
+        --parameters \
+            ParameterKey=Environment,ParameterValue=$ENV \
+            ParameterKey=VpcId,ParameterValue=$VPC_ID \
+            ParameterKey=SubnetIds,ParameterValue=\"$SUBNETS\" \
+            ParameterKey=McpImageUri,ParameterValue=$MCP_IMAGE_URI \
+        --capabilities CAPABILITY_NAMED_IAM
+
+    # 스택 생성 완료 대기
+    echo "Fargate 스택 생성 완료 대기 중: $FARGATE_STACK_NAME"
+    aws cloudformation wait stack-create-complete --stack-name $FARGATE_STACK_NAME
+fi
+
+echo "Fargate MCP 인프라 스택 배포 완료: $FARGATE_STACK_NAME"
+
+# Fargate 서비스 URL 가져오기
+MCP_FUNCTION_URL=$(aws cloudformation describe-stacks --stack-name $FARGATE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='McpServiceUrl'].OutputValue" --output text)
+echo "MCP Fargate Service URL: $MCP_FUNCTION_URL"
+
 # 기본 스택에서 출력값 가져오기
 echo "기본 스택에서 출력값 가져오는 중..."
 API_GATEWAY_ID=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayId'].OutputValue" --output text)
@@ -460,6 +528,14 @@ echo "가져온 파라미터 확인:"
 echo "API_GATEWAY_ID: $API_GATEWAY_ID"
 echo "API_GATEWAY_ROOT_RESOURCE_ID: $API_GATEWAY_ROOT_RESOURCE_ID"
 echo "FRONTEND_REDIRECT_DOMAIN: $FRONTEND_REDIRECT_DOMAIN"
+
+# Fargate 서비스 URL을 SSM에 저장
+echo "MCP Function URL을 SSM에 업데이트 중..."
+aws ssm put-parameter \
+    --name "$SSM_PATH_PREFIX/McpFunctionUrl" \
+    --value "$MCP_FUNCTION_URL" \
+    --type "String" \
+    --overwrite
 
 # 메인 스택 배포 부분 수정
 if aws cloudformation describe-stacks --stack-name $MAIN_STACK_NAME > /dev/null 2>&1; then
@@ -536,7 +612,7 @@ API_URL="https://${API_GATEWAY_ID}.execute-api.${REGION}.amazonaws.com/${ENV}"
 echo "API Gateway URL: $API_URL"
 
 #################################################
-# 4. 환경 변수 설정
+# 5. 환경 변수 설정
 #################################################
 echo "====== 4. 환경 변수 설정 ======"
 # SSM 파라미터에서 값을 가져옴 (API URL 제외)
@@ -568,7 +644,7 @@ EOF
 echo "환경 파일($ENV_FILE)이 업데이트되었습니다."
 
 #################################################
-# 5. 프론트엔드 빌드 및 배포
+# 6. 프론트엔드 빌드 및 배포
 #################################################
 echo "====== 5. 프론트엔드 빌드 및 배포 ======"
 
@@ -612,7 +688,6 @@ echo "Amplify 배포 완료"
 # 기존 디렉토리로 돌아감
 cd ..
 
-#################################################
 McpFunctionUrl=$(aws lambda get-function-url-config \
   --function-name wga-mcp-$ENV \
   --query "FunctionUrl" \
@@ -633,7 +708,9 @@ aws cloudformation update-stack \
                 ParameterKey=McpFunctionUrl,ParameterValue=$McpFunctionUrl \
     --capabilities CAPABILITY_NAMED_IAM
 
-# 6. 배포 완료 요약
+#################################################
+# 7. 배포 완료 요약
+#################################################
 echo "====== 6. 배포 완료 요약 ======"
 echo "환경: $ENV"
 
