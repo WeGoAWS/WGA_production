@@ -2,6 +2,7 @@
 // src/stores/chatHistoryStore.ts 수정
 
 import { defineStore } from 'pinia';
+import type { CancelTokenSource } from 'axios';
 import axios from 'axios';
 import type { ChatHistoryState, ChatMessageType, ChatSession } from '@/types/chat';
 
@@ -11,12 +12,13 @@ const generateId = () => {
 };
 
 export const useChatHistoryStore = defineStore('chatHistory', {
-    state: (): ChatHistoryState => ({
+    state: (): ChatHistoryState & { apiCancelToken: CancelTokenSource | null } => ({
         loading: false,
         error: null,
         sessions: [],
         currentSession: null,
         waitingForResponse: false,
+        apiCancelToken: null, // API 요청 취소를 위한 토큰
     }),
 
     getters: {
@@ -178,6 +180,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
 
             this.waitingForResponse = true;
             let userMessageResponse = null;
+            let loadingMessageId = '';
 
             try {
                 const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
@@ -221,8 +224,12 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                     timestamp: new Date().toISOString(),
                     isTyping: true,
                 };
+                loadingMessageId = loadingMessage.id;
 
                 this.currentSession!.messages.push(loadingMessage);
+
+                // API 호출 취소 토큰 생성
+                this.apiCancelToken = axios.CancelToken.source();
 
                 // API 호출하여 봇 응답 가져오기
                 const botResponseText = await this.generateBotResponse(text);
@@ -230,7 +237,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                 // 로딩 메시지 제거
                 if (this.currentSession && Array.isArray(this.currentSession.messages)) {
                     this.currentSession.messages = this.currentSession.messages.filter(
-                        (msg) => msg.id !== loadingMessage.id,
+                        (msg) => msg.id !== loadingMessageId,
                     );
                 }
 
@@ -269,27 +276,67 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                     );
                 }
 
+                // 취소 토큰 초기화
+                this.apiCancelToken = null;
+
                 return botMessage;
             } catch (err: any) {
                 console.error('메시지 전송 오류:', err);
 
-                // 오류 메시지 추가
-                const errorMessage: ChatMessageType = {
-                    id: generateId(),
-                    sender: 'bot',
-                    text: '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.',
-                    timestamp: new Date().toISOString(),
-                    animationState: 'appear',
-                };
+                // 요청이 취소된 경우
+                if (axios.isCancel(err)) {
+                    console.log('사용자가 요청을 취소했습니다.');
 
-                if (this.currentSession && Array.isArray(this.currentSession.messages)) {
-                    this.currentSession.messages.push(errorMessage);
+                    // 로딩 메시지 제거
+                    if (this.currentSession && Array.isArray(this.currentSession.messages)) {
+                        this.currentSession.messages = this.currentSession.messages.filter(
+                            (msg) => msg.id !== loadingMessageId,
+                        );
+                    }
+
+                    // 취소 메시지 추가
+                    const cancelMessage: ChatMessageType = {
+                        id: generateId(),
+                        sender: 'bot',
+                        text: '요청이 취소되었습니다.',
+                        timestamp: new Date().toISOString(),
+                        animationState: 'appear',
+                    };
+
+                    if (this.currentSession && Array.isArray(this.currentSession.messages)) {
+                        this.currentSession.messages.push(cancelMessage);
+                    }
+                } else {
+                    // 다른 오류인 경우
+                    // 오류 메시지 추가
+                    const errorMessage: ChatMessageType = {
+                        id: generateId(),
+                        sender: 'bot',
+                        text: '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.',
+                        timestamp: new Date().toISOString(),
+                        animationState: 'appear',
+                    };
+
+                    if (this.currentSession && Array.isArray(this.currentSession.messages)) {
+                        this.currentSession.messages.push(errorMessage);
+                    }
+
+                    this.error = err.message || '메시지를 전송하는 중 오류가 발생했습니다.';
                 }
 
-                this.error = err.message || '메시지를 전송하는 중 오류가 발생했습니다.';
                 throw err;
             } finally {
                 this.waitingForResponse = false;
+                this.apiCancelToken = null;
+            }
+        },
+
+        // 요청 취소
+        cancelRequest() {
+            if (this.apiCancelToken) {
+                console.log('요청 취소 중...');
+                this.apiCancelToken.cancel('사용자가 요청을 취소했습니다.');
+                this.apiCancelToken = null;
             }
         },
 
@@ -311,6 +358,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                             'Content-Type': 'application/json',
                         },
                         withCredentials: true,
+                        cancelToken: this.apiCancelToken ? this.apiCancelToken.token : undefined, // 취소 토큰 설정
                     },
                 );
 
@@ -335,7 +383,12 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                 }
 
                 return '죄송합니다. 유효한 응답 데이터를 받지 못했습니다.';
-            } catch (error: any) {
+            } catch (error) {
+                // 취소된 요청은 상위 레벨에서 처리
+                if (axios.isCancel(error)) {
+                    throw error;
+                }
+
                 console.error('봇 응답 API 호출 오류:', error);
                 return '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.';
             }
@@ -453,6 +506,12 @@ export const useChatHistoryStore = defineStore('chatHistory', {
             this.sessions = [];
             this.currentSession = null;
             this.waitingForResponse = false;
+
+            // 진행 중인 요청이 있으면 취소
+            if (this.apiCancelToken) {
+                this.apiCancelToken.cancel('상태 초기화로 인한 취소');
+                this.apiCancelToken = null;
+            }
         },
     },
 });

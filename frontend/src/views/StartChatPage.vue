@@ -1,9 +1,82 @@
 <!-- src/views/StartChatPage.vue -->
 <template>
     <AppLayout>
+        <!-- 새로 추가된 네비게이션 사이드바 -->
+        <transition name="slide">
+            <div v-if="isNavOpen" class="nav-sidebar">
+                <div class="nav-header">
+                    <h2>대화 내역</h2>
+                    <button @click="toggleNav" class="close-nav-button">
+                        <span>&times;</span>
+                    </button>
+                </div>
+
+                <!-- 대화 내역 목록 -->
+                <div v-if="chatHistoryStore.loading" class="nav-loading">
+                    <div class="nav-spinner"></div>
+                    <span>로딩 중...</span>
+                </div>
+
+                <div v-else-if="chatHistoryStore.hasSessions" class="nav-sessions">
+                    <div
+                        v-for="session in chatHistoryStore.sessions"
+                        :key="session.sessionId"
+                        class="nav-session-item"
+                        @click="selectAndGoToChat(session.sessionId)"
+                    >
+                        <div class="session-title">{{ session.title }}</div>
+                        <div class="session-date">{{ formatDate(session.updatedAt) }}</div>
+                    </div>
+                </div>
+
+                <div v-else class="nav-empty">
+                    <p>대화 내역이 없습니다</p>
+                    <button @click="loadSessions" class="nav-refresh-button">새로고침</button>
+                </div>
+            </div>
+        </transition>
+
+        <!-- 배경 오버레이 (모바일에서 네비게이션 열릴 때) -->
+        <div v-if="isNavOpen" class="nav-overlay" @click="toggleNav"></div>
+
         <div class="start-chat-container">
             <div class="start-chat-header">
-                <h1 @click="getHealth">AWS Cloud Agent</h1>
+                <div class="header-content">
+                    <!-- 새로 추가된 메뉴 버튼 -->
+                    <button @click="toggleNav" class="nav-toggle-button">
+                        <svg
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <path
+                                d="M3 12H21"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                            <path
+                                d="M3 6H21"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                            <path
+                                d="M3 18H21"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                        </svg>
+                    </button>
+
+                    <h1 @click="getHealth">AWS Cloud Agent</h1>
+                </div>
                 <p class="start-chat-description">클라우드 운영 정보 질의응답 서비스</p>
             </div>
 
@@ -154,7 +227,7 @@
 </template>
 
 <script lang="ts">
-    import { defineComponent, ref } from 'vue';
+    import { defineComponent, onMounted, ref } from 'vue';
     import { useRouter } from 'vue-router';
     import AppLayout from '@/layouts/AppLayout.vue';
     import { useChatHistoryStore } from '@/stores/chatHistoryStore';
@@ -170,6 +243,43 @@
             const router = useRouter();
             const chatHistoryStore = useChatHistoryStore();
             const messageText = ref('');
+            const isNavOpen = ref(false);
+
+            // 컴포넌트 마운트 시 대화 내역 로드
+            onMounted(async () => {
+                // 세션이 로드되지 않았다면 로드
+                if (chatHistoryStore.sessions.length === 0) {
+                    try {
+                        await chatHistoryStore.fetchSessions();
+                    } catch (error) {
+                        console.error('세션 로드 중 오류 발생:', error);
+                    }
+                }
+            });
+
+            // 네비게이션 토글
+            const toggleNav = () => {
+                isNavOpen.value = !isNavOpen.value;
+            };
+
+            // 세션 목록 로드
+            const loadSessions = async () => {
+                try {
+                    await chatHistoryStore.fetchSessions();
+                } catch (error) {
+                    console.error('세션 로드 중 오류 발생:', error);
+                }
+            };
+
+            // 세션 선택 및 채팅 페이지로 이동
+            const selectAndGoToChat = async (sessionId: string) => {
+                try {
+                    await chatHistoryStore.selectSession(sessionId);
+                    router.push('/chat');
+                } catch (error) {
+                    console.error('세션 선택 중 오류 발생:', error);
+                }
+            };
 
             // 새 대화 시작 함수 - 바로 페이지 이동 후 비동기로 세션 생성
             const startNewChat = async () => {
@@ -216,6 +326,20 @@
                 }
             };
 
+            // 날짜 포맷팅 (YYYY년 MM월 DD일)
+            const formatDate = (dateString: string): string => {
+                try {
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('ko-KR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                    });
+                } catch (e) {
+                    return dateString;
+                }
+            };
+
             const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
             const getHealth = () => {
@@ -229,9 +353,15 @@
 
             return {
                 messageText,
+                chatHistoryStore,
+                isNavOpen,
+                toggleNav,
+                loadSessions,
+                selectAndGoToChat,
                 startNewChat,
                 askExampleQuestion,
                 goToEnhancedChat,
+                formatDate,
                 getHealth,
             };
         },
@@ -239,7 +369,7 @@
 </script>
 
 <style scoped>
-    /* 스타일은 변경하지 않음 */
+    /* 기존 스타일 */
     .start-chat-container {
         max-width: 900px;
         margin: 0 auto;
@@ -252,6 +382,14 @@
     .start-chat-header {
         text-align: center;
         margin-bottom: 2rem;
+        width: 100%;
+    }
+
+    .header-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
     }
 
     .start-chat-header h1 {
@@ -396,7 +534,7 @@
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 
-    /* 새로운 향상된 채팅 버튼 스타일 */
+    /* 향상된 채팅 버튼 스타일 */
     .enhanced-chat-button-container {
         margin-top: 1.5rem;
         text-align: center;
@@ -435,6 +573,176 @@
         font-size: 0.9rem;
     }
 
+    /* 새로 추가된 네비게이션 토글 버튼 스타일 */
+    .nav-toggle-button {
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #232f3e;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: background-color 0.3s;
+    }
+
+    .nav-toggle-button:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    /* 새로 추가된 네비게이션 사이드바 스타일 */
+    .nav-sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 320px;
+        height: 100vh;
+        background-color: #fff;
+        z-index: 1000;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .nav-header {
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .nav-header h2 {
+        margin: 0;
+        font-size: 1.5rem;
+        color: #232f3e;
+    }
+
+    .close-nav-button {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #666;
+        padding: 5px 10px;
+        border-radius: 5px;
+        transition: background-color 0.3s;
+    }
+
+    .close-nav-button:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    .nav-sessions {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px;
+    }
+
+    .nav-session-item {
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background-color: #f8f9fa;
+        border: 1px solid #eaeaea;
+    }
+
+    .nav-session-item:hover {
+        background-color: #e9f5ff;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .nav-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 30px;
+        color: #666;
+    }
+
+    .nav-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(0, 123, 255, 0.2);
+        border-top: 4px solid #007bff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 15px;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .nav-empty {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        color: #666;
+    }
+
+    .nav-refresh-button {
+        margin-top: 15px;
+        padding: 8px 16px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+
+    .nav-refresh-button:hover {
+        background-color: #0056b3;
+    }
+
+    /* 오버레이 스타일 */
+    .nav-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+    }
+
+    /* 애니메이션 */
+    .slide-enter-active,
+    .slide-leave-active {
+        transition: transform 0.3s;
+    }
+
+    .slide-enter-from,
+    .slide-leave-to {
+        transform: translateX(-100%);
+    }
+
+    .slide-enter-to,
+    .slide-leave-from {
+        transform: translateX(0);
+    }
+
+    /* 반응형 스타일 */
     @media (max-width: 768px) {
         .example-questions {
             grid-template-columns: 1fr;
@@ -455,6 +763,15 @@
             width: 100%;
             padding: 0.8rem;
             border-radius: 12px;
+        }
+
+        .nav-sidebar {
+            width: 85%;
+            max-width: 320px;
+        }
+
+        .start-chat-header h1 {
+            font-size: 2rem;
         }
     }
 </style>

@@ -5,6 +5,7 @@
             class="chat-input"
             placeholder="질문을 입력하세요..."
             @keydown.enter.prevent="handleEnterKey"
+            @keydown.esc="handleEscKey"
             :disabled="disabled"
             ref="inputRef"
             rows="1"
@@ -12,15 +13,32 @@
         ></textarea>
 
         <button
-            @click="sendMessage"
+            @click="disabled ? cancelRequest() : sendMessage()"
             class="send-button"
-            :disabled="!messageText.trim() || disabled"
-            :class="{ loading: disabled }"
+            :disabled="!messageText.trim() && !disabled"
+            :class="{ loading: disabled, 'cancel-mode': disabled }"
+            @mouseenter="showCancelIcon = true"
+            @mouseleave="showCancelIcon = false"
         >
-            <span v-if="disabled" class="loading-indicator">
+            <span v-if="disabled && !showCancelIcon" class="loading-indicator">
                 <span class="loading-dot"></span>
                 <span class="loading-dot"></span>
                 <span class="loading-dot"></span>
+            </span>
+            <span v-else-if="disabled && showCancelIcon" class="cancel-icon">
+                <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
             </span>
             <svg
                 v-else
@@ -72,11 +90,12 @@
             },
         },
 
-        emits: ['send'],
+        emits: ['send', 'cancel'],
 
         setup(props, { emit }) {
             const messageText = ref(props.initialText || '');
             const inputRef = ref<HTMLTextAreaElement | null>(null);
+            const showCancelIcon = ref(false);
 
             // 메시지 전송
             const sendMessage = () => {
@@ -91,10 +110,30 @@
                 }
             };
 
+            // 요청 취소
+            const cancelRequest = () => {
+                emit('cancel');
+                showCancelIcon.value = false;
+            };
+
             // Enter 키 처리 (Shift+Enter는 줄바꿈)
             const handleEnterKey = (e: KeyboardEvent) => {
                 if (e.shiftKey) return; // Shift+Enter는 줄바꿈
-                sendMessage();
+
+                if (props.disabled) {
+                    // 요청 중이면 취소
+                    cancelRequest();
+                } else {
+                    // 아니면 메시지 전송
+                    sendMessage();
+                }
+            };
+
+            // ESC 키 처리 (요청 취소)
+            const handleEscKey = () => {
+                if (props.disabled) {
+                    cancelRequest();
+                }
             };
 
             // 텍스트 에어리어 자동 크기 조절
@@ -126,8 +165,11 @@
             return {
                 messageText,
                 inputRef,
+                showCancelIcon,
                 sendMessage,
+                cancelRequest,
                 handleEnterKey,
+                handleEscKey,
                 autoResize,
             };
         },
@@ -204,7 +246,13 @@
     }
 
     .send-button.loading {
-        background-color: #ccc;
+        background-color: #007bff;
+    }
+
+    .send-button.cancel-mode:hover {
+        background-color: #dc3545; /* 빨간색 배경으로 변경 */
+        transform: scale(1.05);
+        cursor: pointer;
     }
 
     .loading-indicator {
@@ -232,6 +280,13 @@
 
     .loading-dot:nth-child(3) {
         animation-delay: 0.4s;
+    }
+
+    .cancel-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
     }
 
     @keyframes loadingDotPulse {
