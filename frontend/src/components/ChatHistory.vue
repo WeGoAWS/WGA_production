@@ -1,8 +1,8 @@
 <template>
-    <div class="chat-history">
+    <div class="chat-history" :class="{ 'disabled-chat-history': disabled }">
         <div class="sidebar-header">
             <h2>대화 목록</h2>
-            <button @click="createNewChat" class="new-chat-button">
+            <button @click="createNewChat" class="new-chat-button" :disabled="disabled">
                 <span class="icon">+</span>
                 <span>새 대화</span>
             </button>
@@ -18,12 +18,15 @@
                 v-for="session in store.sessions"
                 :key="session.sessionId"
                 class="chat-session-item"
-                :class="{ active: store.currentSession?.sessionId === session.sessionId }"
+                :class="{
+                    active: store.currentSession?.sessionId === session.sessionId,
+                    disabled: disabled,
+                }"
                 @click="selectSession(session.sessionId)"
             >
                 <div class="session-title">{{ session.title }}</div>
                 <div class="session-date">{{ formatDate(session.updatedAt) }}</div>
-                <div class="session-actions">
+                <div class="session-actions" v-if="!disabled">
                     <button
                         class="action-button rename-button"
                         @click.stop="startRenameSession(session)"
@@ -44,7 +47,9 @@
 
         <div v-else class="empty-sessions">
             <p>대화 내역이 없습니다.</p>
-            <button @click="fetchSessions" class="refresh-button">새로고침</button>
+            <button @click="fetchSessions" class="refresh-button" :disabled="disabled">
+                새로고침
+            </button>
         </div>
 
         <!-- 세션 이름 변경 모달 -->
@@ -88,7 +93,16 @@
     export default defineComponent({
         name: 'ChatHistory',
 
-        setup() {
+        props: {
+            disabled: {
+                type: Boolean,
+                default: false,
+            },
+        },
+
+        emits: ['session-click'],
+
+        setup(props, { emit }) {
             const store = useChatHistoryStore();
 
             // 세션 이름 변경 관련 상태
@@ -103,17 +117,22 @@
 
             // 세션 목록 가져오기
             const fetchSessions = async () => {
+                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
                 await store.fetchSessions();
             };
 
             // 새 채팅 세션 생성
             const createNewChat = async () => {
+                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
                 await store.createNewSession();
             };
 
             // 채팅 세션 선택
             const selectSession = async (sessionId: string) => {
-                await store.selectSession(sessionId);
+                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
+
+                // 세션 클릭 이벤트 발생
+                emit('session-click', sessionId);
             };
 
             // 날짜 포맷팅 (YYYY년 MM월 DD일)
@@ -132,6 +151,8 @@
 
             // 세션 이름 변경 시작
             const startRenameSession = (session: any) => {
+                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
+
                 renamingSession.value = session;
                 newSessionTitle.value = session.title;
                 isRenaming.value = true;
@@ -169,6 +190,8 @@
 
             // 세션 삭제 확인 모달 표시
             const confirmDeleteSession = (sessionId: string) => {
+                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
+
                 sessionToDelete.value = sessionId;
                 showDeleteConfirm.value = true;
             };
@@ -223,6 +246,12 @@
         position: relative;
     }
 
+    /* 비활성화 상태 스타일 */
+    .disabled-chat-history {
+        opacity: 0.7;
+        position: relative;
+    }
+
     .sidebar-header {
         padding: 16px;
         border-bottom: 1px solid rgba(0, 0, 0, 0.1);
@@ -251,8 +280,13 @@
         transition: background-color 0.2s;
     }
 
-    .new-chat-button:hover {
+    .new-chat-button:hover:not(:disabled) {
         background-color: #0069d9;
+    }
+
+    .new-chat-button:disabled {
+        background-color: #a3c8f1;
+        cursor: not-allowed;
     }
 
     .new-chat-button .icon {
@@ -305,8 +339,12 @@
         border: 1px solid #eaeaea;
     }
 
-    .chat-session-item:hover {
+    .chat-session-item:hover:not(.disabled) {
         background-color: #e9f5ff;
+    }
+
+    .chat-session-item.disabled {
+        cursor: not-allowed;
     }
 
     .chat-session-item.active {
@@ -387,8 +425,13 @@
         transition: background-color 0.2s;
     }
 
-    .refresh-button:hover {
+    .refresh-button:hover:not(:disabled) {
         background-color: #e0e0e0;
+    }
+
+    .refresh-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
     }
 
     /* 모달 스타일 */

@@ -1,5 +1,5 @@
 // src/types/chat.ts
-import { CancelTokenSource } from 'axios';
+import type { CancelTokenSource } from 'axios';
 
 export interface ChatMessageType {
     id: string;

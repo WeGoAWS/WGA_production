@@ -25,7 +25,7 @@
             </div>
             <div
                 v-else
-                class="message-content"
+                class="message-content markdown-content"
                 v-html="formatMessageContent(message.displayText || message.text)"
             ></div>
             <div class="message-time">
@@ -38,6 +38,7 @@
 <script lang="ts">
     import type { PropType } from 'vue';
     import { defineComponent } from 'vue';
+    import { parseMarkdown } from '@/utils/markdown';
 
     interface ChatMessage {
         id: string;
@@ -66,7 +67,7 @@
                 return userName.charAt(0).toUpperCase();
             };
 
-            // 메시지 내용 포맷팅 (URL, 줄바꿈 등)
+            // 메시지 내용 포맷팅 (마크다운, URL, 줄바꿈 등)
             const formatMessageContent = (content: string): string => {
                 if (!content) return '';
 
@@ -83,21 +84,21 @@
                 // 내용을 이스케이프 처리
                 const escapedContent = escapeHtml(content);
 
-                // 2. URL 패턴 정규식 개선 - 더 정확한 URL 인식
-                const urlPattern = /(https?:\/\/[^\s<]+[^.\s<,.;:!?）)}\]]*)/g;
+                // 2. 마크다운을 HTML로 변환 (기존 parseMarkdown 함수 활용)
+                // parseMarkdown 함수는 이스케이프된 HTML을 다루기 때문에 XSS 방지 이후에 적용
+                const htmlContent = parseMarkdown(escapedContent);
 
-                // 3. 처리 순서 변경: URL을 먼저 링크로 변환한 후 줄바꿈 처리
-                let processed = escapedContent;
+                // 3. URL 패턴 정규식 - 마크다운 변환 후 남아있는 일반 URL 처리
+                const urlPattern = /(https?:\/\/[^\s<>"]+[^.\s<>",.;:!?）)}\]]*)/g;
 
-                // URL을 링크로 변환
-                processed = processed.replace(
-                    urlPattern,
-                    (url) =>
-                        `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`,
-                );
-
-                // 줄바꿈 변환
-                processed = processed.replace(/\n/g, '<br>');
+                // URL을 링크로 변환 (마크다운 처리 후 남은 평문 URL에 대해)
+                const processed = htmlContent.replace(urlPattern, (url) => {
+                    // 이미 <a> 태그 내부에 있는 URL은 변환하지 않음
+                    if (/<a[^>]*>[^<]*url[^<]*<\/a>/i.test(url)) {
+                        return url;
+                    }
+                    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+                });
 
                 return processed;
             };
@@ -285,6 +286,68 @@
         margin-top: 4px;
         text-align: right;
         padding-right: 8px;
+    }
+
+    /* 마크다운 스타일링 */
+    :deep(.markdown-content h1) {
+        font-size: 1.5rem;
+        margin: 0.8rem 0;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 0.3rem;
+    }
+
+    :deep(.markdown-content h2) {
+        font-size: 1.3rem;
+        margin: 0.7rem 0;
+    }
+
+    :deep(.markdown-content h3) {
+        font-size: 1.1rem;
+        margin: 0.6rem 0;
+    }
+
+    :deep(.markdown-content p) {
+        margin: 0.5rem 0;
+    }
+
+    :deep(.markdown-content ul),
+    :deep(.markdown-content ol) {
+        padding-left: 1.5rem;
+        margin: 0.5rem 0;
+    }
+
+    :deep(.markdown-content li) {
+        margin: 0.3rem 0;
+    }
+
+    :deep(.markdown-content code) {
+        background-color: rgba(0, 0, 0, 0.05);
+        padding: 0.1rem 0.3rem;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 0.9em;
+    }
+
+    :deep(.markdown-content pre) {
+        background-color: rgba(0, 0, 0, 0.05);
+        padding: 0.8rem;
+        border-radius: 4px;
+        overflow-x: auto;
+        margin: 0.7rem 0;
+    }
+
+    :deep(.markdown-content pre code) {
+        background: none;
+        padding: 0;
+        white-space: pre;
+    }
+
+    :deep(.markdown-content strong) {
+        font-weight: bold;
+    }
+
+    :deep(.markdown-content em) {
+        font-style: italic;
     }
 
     /* 링크 스타일 */

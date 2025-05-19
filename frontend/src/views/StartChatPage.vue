@@ -288,14 +288,11 @@
                 try {
                     // 질문을 세션 스토리지에 저장
                     sessionStorage.setItem('pendingQuestion', messageText.value);
+                    // 새 세션 생성 플래그 저장
+                    sessionStorage.setItem('createNewSession', 'true');
 
                     // 즉시 채팅 페이지로 이동
                     router.push('/chat');
-
-                    // 세션 생성은 백그라운드에서 처리 (이미 페이지를 이동했으므로 결과에 영향 없음)
-                    chatHistoryStore.createNewSession().catch((error) => {
-                        console.error('백그라운드 세션 생성 중 오류 발생:', error);
-                    });
                 } catch (error) {
                     console.error('새 대화 시작 중 오류 발생:', error);
                     alert('새 대화를 시작할 수 없습니다. 다시 시도해 주세요.');
@@ -315,15 +312,11 @@
                     sessionStorage.setItem('pendingQuestion', messageText.value);
                 }
 
+                // 항상 새 세션 생성 플래그 저장
+                sessionStorage.setItem('createNewSession', 'true');
+
                 // 즉시 채팅 페이지로 이동
                 router.push('/chat');
-
-                // 세션 생성은 백그라운드에서 처리
-                if (messageText.value.trim()) {
-                    chatHistoryStore.createNewSession().catch((error) => {
-                        console.error('백그라운드 세션 생성 중 오류 발생:', error);
-                    });
-                }
             };
 
             // 날짜 포맷팅 (YYYY년 MM월 DD일)
