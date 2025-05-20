@@ -396,7 +396,7 @@ Possible response:
             call_create_table_cloudtrail() # 이 함수는 llm_service 내에 정의되어 있어야 합니다.
             call_create_table_guardduty() # 이 함수는 llm_service 내에 정의되어 있어야 합니다.
             query_execution_result = call_execute_query(cleaned_sql_query) # 이 함수는 llm_service 내에 정의되어 있어야 합니다.
-
+        
         # 쿼리 결과가 IGNORED가 아닐 때만 LLM2 호출
         if query_execution_result != "###IGNORED###":
             llm2_response = requests.post(
@@ -419,7 +419,7 @@ Possible response:
         
         response_data = {
             "answer": text_answer_content,
-            "sql_query": cleaned_sql_query,
+            "query_string": cleaned_sql_query,
             "query_result": query_execution_result
         }
 
@@ -440,18 +440,21 @@ Possible response:
             text_answer_content = "죄송합니다. 이 시스템은 AWS 보안 로그 관련 질문에만 답변합니다."
             response_data = {
                 "answer": text_answer_content,
-                "insights_query": "N/A (생성되지 않음)",
+                "query_string": "N/A (생성되지 않음)",
                 "query_result": "N/A (실행되지 않음)"
             }
         else:
-            try:
-                query_execution_result = call_insights_query( # 이 함수는 llm_service 내에 정의되어 있어야 합니다.
+            try:# 이 함수는 llm_service 내에 정의되어 있어야 합니다.
+                query_execution_result = call_insights_query( 
                     log_group=log_group_name,
                     query_string=insights_query_string,
                     start_time=int((time.time() - 7 * 24 * 3600) * 1000),  # 지난 7일
                     end_time=int(time.time() * 1000)
                 )
-                
+                query_list = []
+                for result in query_execution_result:
+                    query_list.append({item['field']: item['value'] for item in result})
+                print(">>> 쿼리 결과:", query_list)
                 llm2_response = requests.post(
                     f"{CONFIG['api']['endpoint']}/llm2",
                     json={
@@ -478,8 +481,8 @@ Possible response:
             
             response_data = {
                 "answer": text_answer_content,
-                "insights_query": insights_query_string, # Athena SQL이 아니므로 키 이름 변경
-                "query_result": query_execution_result if query_execution_result is not None else "오류로 인해 결과를 가져올 수 없음"
+                "query_string": insights_query_string, 
+                "query_result": query_list
             }
     else: # USELESS 또는 기타
         text_answer_content = "죄송합니다. 이 시스템은 AWS 운영정보 혹은 메뉴얼 관련 질문에만 답변합니다."
