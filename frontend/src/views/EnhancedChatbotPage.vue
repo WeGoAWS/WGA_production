@@ -294,8 +294,13 @@
                         animationState: 'appear',
                     };
 
-                    // 메시지를 UI에 추가
-                    store.currentSession.messages.push(userMessage);
+                    // 안전하게 메시지를 UI에 추가 (null 체크)
+                    if (store.currentSession && Array.isArray(store.currentSession.messages)) {
+                        store.currentSession.messages.push(userMessage);
+                    } else {
+                        console.error('세션 또는 메시지 배열이 없습니다');
+                        return;
+                    }
 
                     // 로딩 메시지 즉시 추가
                     const loadingId = 'loading-' + Date.now().toString(36);
@@ -307,7 +312,14 @@
                         isTyping: true,
                     };
 
-                    store.currentSession.messages.push(loadingMessage);
+                    // 안전하게 로딩 메시지를 UI에 추가 (null 체크)
+                    if (store.currentSession && Array.isArray(store.currentSession.messages)) {
+                        store.currentSession.messages.push(loadingMessage);
+                    } else {
+                        console.error('세션 또는 메시지 배열이 없습니다');
+                        return;
+                    }
+
                     store.waitingForResponse = true;
 
                     // UI 업데이트 및 스크롤 조정
