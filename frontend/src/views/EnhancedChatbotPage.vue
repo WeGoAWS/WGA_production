@@ -350,7 +350,13 @@
                             // 쿼리 정보가 있으면 추가
                             if (botResponse.query_string) {
                                 botMessage.query_string = botResponse.query_string;
+                            }
+
+                            if (botResponse.query_result) {
                                 botMessage.query_result = botResponse.query_result;
+                            }
+
+                            if (botResponse.elapsed_time) {
                                 botMessage.elapsed_time = botResponse.elapsed_time;
                             }
 

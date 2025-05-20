@@ -28,6 +28,9 @@
                 class="message-content markdown-content"
                 v-html="formatMessageContent(message.displayText || message.text)"
             ></div>
+            <div>message.elapsed_time</div>
+            <div>{{ message.elapsed_time }}</div>
+            <div>{{ typeof message.elapsed_time }}</div>
             <div v-if="message.elapsed_time !== undefined" class="query-metadata">
                 <div class="elapsed-time">실행 시간: {{ message.elapsed_time }}</div>
 
