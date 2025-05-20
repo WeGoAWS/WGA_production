@@ -144,7 +144,7 @@
     import ChatMessage from '@/components/ChatMessage.vue';
     import ChatInput from '@/components/ChatInput.vue';
     import { useChatHistoryStore } from '@/stores/chatHistoryStore';
-    import type { ChatMessageType } from '@/types/chat';
+    import type { BotResponse, ChatMessageType } from '@/types/chat';
 
     export default defineComponent({
         name: 'EnhancedChatbotPage',
@@ -328,7 +328,7 @@
 
                     try {
                         // 직접 API 호출하여 봇 응답 생성
-                        const botResponseText = await generateBotResponse(text);
+                        const botResponse = await generateBotResponse(text);
 
                         // 현재 세션과 메시지 배열이 존재하는지 확인
                         if (store.currentSession && Array.isArray(store.currentSession.messages)) {
@@ -337,20 +337,27 @@
                                 (msg) => msg.id !== loadingId,
                             );
 
-                            // 실제 봇 메시지 추가
+                            // 실제 봇 메시지 추가 - 응답 형식에 따라 필드 추가
                             const botMessage: ChatMessageType = {
                                 id: 'bot-' + Date.now().toString(36),
                                 sender: 'bot',
-                                text: botResponseText,
+                                text: botResponse.text || '',
                                 displayText: '', // 초기에는 빈 문자열로 시작
                                 timestamp: new Date().toISOString(),
                                 animationState: 'typing',
                             };
 
+                            // 쿼리 정보가 있으면 추가
+                            if (botResponse.query_string) {
+                                botMessage.query_string = botResponse.query_string;
+                                botMessage.query_result = botResponse.query_result;
+                                botMessage.elapsed_time = botResponse.elapsed_time;
+                            }
+
                             store.currentSession.messages.push(botMessage);
 
                             // 타이핑 애니메이션
-                            await simulateTyping(botMessage.id, botResponseText);
+                            await simulateTyping(botMessage.id, botResponse.text || '');
                         }
                     } catch (responseError) {
                         console.error('봇 응답 가져오기 오류:', responseError);
@@ -435,7 +442,7 @@
             };
 
             // 봇 응답 생성 함수
-            const generateBotResponse = async (userMessage: string): Promise<string> => {
+            const generateBotResponse = async (userMessage: string): Promise<BotResponse> => {
                 try {
                     // API URL 설정
                     const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
@@ -457,28 +464,52 @@
 
                     // API 응답 처리 로직
                     if (response.data) {
-                        // 응답이 배열 형태인지 확인
-                        if (Array.isArray(response.data.answer)) {
-                            // rank_order로 정렬
+                        if (
+                            response.data.query_string &&
+                            response.data.elapsed_time !== undefined
+                        ) {
+                            // 케이스 1: 쿼리 정보가 포함된 응답
+                            return {
+                                text: response.data.answer || '쿼리 결과 없음',
+                                query_string: response.data.query_string,
+                                query_result: response.data.query_result || [],
+                                elapsed_time: response.data.elapsed_time,
+                            };
+                        } else if (Array.isArray(response.data.answer)) {
+                            // 기존 형식 - 배열 형태의 응답
                             const sortedItems = [...response.data.answer].sort(
                                 (a, b) => a.rank_order - b.rank_order,
                             );
-
-                            // 배열을 문자열로 변환
-                            return sortedItems
-                                .map((item) => `${item.context}\n${item.title}\n${item.url}`)
-                                .join('\n\n');
+                            return {
+                                text: sortedItems
+                                    .map((item) => `${item.context}\n${item.title}\n${item.url}`)
+                                    .join('\n\n'),
+                            };
                         } else if (typeof response.data.answer === 'string') {
-                            return response.data.answer;
+                            // 기존 형식 - 문자열 형태의 응답
+                            return {
+                                text: response.data.answer,
+                            };
                         } else {
-                            return JSON.stringify(response.data.answer);
+                            // 예상치 못한 형식
+                            return {
+                                text: JSON.stringify(response.data.answer),
+                            };
                         }
                     }
 
-                    return '죄송합니다. 유효한 응답 데이터를 받지 못했습니다.';
+                    return {
+                        text: '죄송합니다. 유효한 응답 데이터를 받지 못했습니다.',
+                    };
                 } catch (error) {
+                    // 오류 처리는 그대로 유지
+                    if (axios.isCancel(error)) {
+                        throw error;
+                    }
                     console.error('봇 응답 API 호출 오류:', error);
-                    throw error; // 오류를 상위로 전파하여 UI에서 처리
+                    return {
+                        text: '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.',
+                    };
                 }
             };
 

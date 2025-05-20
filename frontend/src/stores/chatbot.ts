@@ -1,6 +1,7 @@
 // src/stores/chatbot.ts 수정
 import { defineStore } from 'pinia';
 import axios from 'axios';
+import type { BotResponse, ChatMessageType } from '@/types/chat.ts';
 
 interface ChatMessage {
     id: string;
@@ -201,7 +202,7 @@ export const useChatbotStore = defineStore('chatbot', {
                 );
 
                 // 실제 타이핑 효과를 위한 봇 메시지 추가
-                const botMessage: ChatMessage = {
+                const botMessage: ChatMessageType = {
                     id: generateId(),
                     sender: 'bot',
                     text: botResponseText,
@@ -271,7 +272,7 @@ export const useChatbotStore = defineStore('chatbot', {
         },
 
         // 간단한 봇 응답 생성 함수 (실제 구현에서는 API 호출로 대체)
-        async generateBotResponse(userMessage: string): Promise<string> {
+        async generateBotResponse(userMessage: string): Promise<BotResponse | any> {
             try {
                 // API URL 설정 - 환경변수나 설정에서 가져오는 것이 좋습니다
                 const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';

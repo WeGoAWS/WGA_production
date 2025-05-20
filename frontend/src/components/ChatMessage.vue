@@ -28,8 +28,54 @@
                 class="message-content markdown-content"
                 v-html="formatMessageContent(message.displayText || message.text)"
             ></div>
-            <div class="message-time">
-                {{ formatMessageTime(message.timestamp) }}
+            <div v-if="message.elapsed_time !== undefined" class="query-metadata">
+                <div class="elapsed-time">실행 시간: {{ message.elapsed_time }}</div>
+
+                <div class="details-toggle" @click="toggleDetails">
+                    <span>{{ showDetails ? '간략히 보기' : '자세히 보기' }}</span>
+                    <span class="toggle-icon">{{ showDetails ? '▲' : '▼' }}</span>
+                </div>
+
+                <div v-if="showDetails" class="query-details">
+                    <div class="query-section">
+                        <h4>SQL 쿼리</h4>
+                        <pre
+                            class="sql-query"
+                        ><code v-html="formatSqlQuery(message.query_string)"></code></pre>
+                    </div>
+
+                    <div
+                        v-if="message.query_result && message.query_result.length > 0"
+                        class="query-section"
+                    >
+                        <h4>쿼리 결과</h4>
+                        <div class="query-result-table-container">
+                            <table class="query-result-table">
+                                <thead>
+                                    <tr>
+                                        <th v-for="(_, key) in message.query_result[0]" :key="key">
+                                            {{ key }}
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr
+                                        v-for="(row, rowIndex) in message.query_result"
+                                        :key="rowIndex"
+                                    >
+                                        <td v-for="(value, key) in row" :key="`${rowIndex}-${key}`">
+                                            {{
+                                                typeof value === 'string'
+                                                    ? value.replace(/\\n/g, ' ')
+                                                    : value
+                                            }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -37,8 +83,9 @@
 
 <script lang="ts">
     import type { PropType } from 'vue';
-    import { defineComponent } from 'vue';
+    import { defineComponent, ref } from 'vue';
     import { parseMarkdown } from '@/utils/markdown';
+    import type { ChatMessageType } from '@/types/chat.ts';
 
     interface ChatMessage {
         id: string;
@@ -48,6 +95,9 @@
         timestamp: string;
         isTyping?: boolean;
         animationState?: 'appear' | 'typing' | 'complete';
+        query_string?: string;
+        query_result?: any[];
+        elapsed_time?: number;
     }
 
     export default defineComponent({
@@ -55,12 +105,30 @@
 
         props: {
             message: {
-                type: Object as PropType<ChatMessage>,
+                type: Object as PropType<ChatMessageType>,
                 required: true,
             },
         },
 
         setup() {
+            const showDetails = ref(false);
+
+            const toggleDetails = () => {
+                showDetails.value = !showDetails.value;
+            };
+
+            const formatSqlQuery = (sql: string | any) => {
+                if (!sql) return '';
+
+                // SQL 키워드 강조 표시를 위한 간단한 처리
+                return sql
+                    .replace(
+                        /\b(SELECT|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|GROUP BY|ORDER BY|HAVING|LIMIT|OFFSET|AS|ON|AND|OR|NOT|IN|BETWEEN|LIKE|IS|NULL|TRUE|FALSE|DESC|ASC|COUNT|SUM|AVG|MIN|MAX|date_parse)\b/gi,
+                        (match: any) => `<span class="sql-keyword">${match}</span>`,
+                    )
+                    .replace(/\n/g, '<br>')
+                    .replace(/('[^']*')/g, `<span class="sql-string">$1</span>`);
+            };
             // 사용자 이니셜 가져오기 (이름이 없으면 U 반환)
             const getUserInitial = (): string => {
                 const userName = localStorage.getItem('userName') || 'User';
@@ -120,6 +188,9 @@
                 getUserInitial,
                 formatMessageContent,
                 formatMessageTime,
+                formatSqlQuery,
+                showDetails,
+                toggleDetails,
             };
         },
     });
@@ -358,5 +429,94 @@
 
     :deep(.user-message .message-content a) {
         color: #0a58ca;
+    }
+
+    /* ChatMessage.vue의 <style> 섹션에 추가할 내용 */
+    .query-metadata {
+        margin-top: 10px;
+        font-size: 0.85rem;
+    }
+
+    .elapsed-time {
+        color: #888;
+        margin-bottom: 4px;
+    }
+
+    .details-toggle {
+        display: inline-flex;
+        align-items: center;
+        color: #007bff;
+        cursor: pointer;
+        user-select: none;
+        font-weight: 500;
+        margin-top: 4px;
+    }
+
+    .toggle-icon {
+        margin-left: 4px;
+        font-size: 0.75rem;
+    }
+
+    .query-details {
+        margin-top: 10px;
+        border-top: 1px solid #eee;
+        padding-top: 10px;
+    }
+
+    .query-section {
+        margin-bottom: 15px;
+    }
+
+    .query-section h4 {
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+        color: #555;
+    }
+
+    .sql-query {
+        background-color: #f5f5f5;
+        padding: 12px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+    }
+
+    :deep(.sql-keyword) {
+        color: #0033b3;
+        font-weight: bold;
+    }
+
+    :deep(.sql-string) {
+        color: #067d17;
+    }
+
+    .query-result-table-container {
+        overflow-x: auto;
+        margin-top: 8px;
+    }
+
+    .query-result-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+
+    .query-result-table th,
+    .query-result-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+
+    .query-result-table th {
+        background-color: #f2f2f2;
+        font-weight: 600;
+    }
+
+    .query-result-table tr:nth-child(even) {
+        background-color: #f9f9f9;
     }
 </style>

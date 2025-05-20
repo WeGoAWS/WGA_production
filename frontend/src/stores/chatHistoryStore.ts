@@ -4,7 +4,7 @@
 import { defineStore } from 'pinia';
 import type { CancelTokenSource } from 'axios';
 import axios from 'axios';
-import type { ChatHistoryState, ChatMessageType, ChatSession } from '@/types/chat';
+import type { BotResponse, ChatHistoryState, ChatMessageType, ChatSession } from '@/types/chat';
 
 // 유니크 ID 생성 함수
 const generateId = () => {
@@ -341,7 +341,8 @@ export const useChatHistoryStore = defineStore('chatHistory', {
         },
 
         // 봇 응답 생성 함수
-        async generateBotResponse(userMessage: string): Promise<string> {
+        // src/stores/chatHistoryStore.ts 파일의 generateBotResponse 함수 수정
+        async generateBotResponse(userMessage: string): Promise<BotResponse> {
             try {
                 // API URL 설정
                 const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
@@ -358,39 +359,55 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                             'Content-Type': 'application/json',
                         },
                         withCredentials: true,
-                        cancelToken: this.apiCancelToken ? this.apiCancelToken.token : undefined, // 취소 토큰 설정
+                        cancelToken: this.apiCancelToken ? this.apiCancelToken.token : undefined,
                     },
                 );
 
-                // API 응답 처리 로직
+                // 새로운 형식 감지 및 처리
                 if (response.data) {
-                    // 응답이 배열 형태인지 확인
-                    if (Array.isArray(response.data.answer)) {
-                        // rank_order로 정렬
+                    if (response.data.query_string && response.data.elapsed_time !== undefined) {
+                        // 케이스 1: 쿼리 정보가 포함된 응답
+                        return {
+                            text: response.data.answer || '쿼리 결과 없음',
+                            query_string: response.data.query_string,
+                            query_result: response.data.query_result || [],
+                            elapsed_time: response.data.elapsed_time,
+                        };
+                    } else if (Array.isArray(response.data.answer)) {
+                        // 기존 형식 - 배열 형태의 응답
                         const sortedItems = [...response.data.answer].sort(
                             (a, b) => a.rank_order - b.rank_order,
                         );
-
-                        // 배열을 문자열로 변환
-                        return sortedItems
-                            .map((item) => `${item.context}\n${item.title}\n${item.url}`)
-                            .join('\n\n');
+                        return {
+                            text: sortedItems
+                                .map((item) => `${item.context}\n${item.title}\n${item.url}`)
+                                .join('\n\n'),
+                        };
                     } else if (typeof response.data.answer === 'string') {
-                        return response.data.answer;
+                        // 기존 형식 - 문자열 형태의 응답
+                        return {
+                            text: response.data.answer,
+                        };
                     } else {
-                        return JSON.stringify(response.data.answer);
+                        // 예상치 못한 형식
+                        return {
+                            text: JSON.stringify(response.data.answer),
+                        };
                     }
                 }
 
-                return '죄송합니다. 유효한 응답 데이터를 받지 못했습니다.';
+                return {
+                    text: '죄송합니다. 유효한 응답 데이터를 받지 못했습니다.',
+                };
             } catch (error) {
-                // 취소된 요청은 상위 레벨에서 처리
+                // 오류 처리는 그대로 유지
                 if (axios.isCancel(error)) {
                     throw error;
                 }
-
                 console.error('봇 응답 API 호출 오류:', error);
-                return '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.';
+                return {
+                    text: '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.',
+                };
             }
         },
 
