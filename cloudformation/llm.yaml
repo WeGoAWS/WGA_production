@@ -117,7 +117,7 @@ Resources:
       Code:
         S3Bucket: !Sub 'wga-deployment-${Environment}'
         S3Key: !Sub 'llm/llm-lambda-${Environment}.zip'
-      Timeout: 30
+      Timeout: 120
       MemorySize: 256
       Role: !GetAtt LlmLambdaExecutionRole.Arn
       Environment:
@@ -148,6 +148,7 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LlmLambdaFunction.Arn}/invocations'
+        TimeoutInMillis: 50000
 
   LlmOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -157,9 +158,10 @@ Resources:
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
-        Type: AWS_PROXY  # MOCK에서 AWS_PROXY로 변경
+        Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LlmLambdaFunction.Arn}/invocations'
+        TimeoutInMillis: 50000
 
   LlmLambdaPermissionForOptions:
     Type: AWS::Lambda::Permission
