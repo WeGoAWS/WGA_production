@@ -61,14 +61,14 @@ def get_client():
 
 def handle_llm1_with_mcp(body, origin):
     """
-    MCP 클라이언트를 사용하여 llm1 요청을 처리
+    MCP 클라이언트를 사용하여 llm1 요청을 처리하고 도구 사용 과정 및 결과 포함
 
     Args:
         body: 요청 본문
         origin: CORS origin
 
     Returns:
-        응답 객체
+        응답 객체 (도구 사용 과정 및 결과 포함)
     """
     try:
         # 사용자 입력 추출
@@ -76,114 +76,201 @@ def handle_llm1_with_mcp(body, origin):
         if not user_input:
             return cors_response(400, {"error": "사용자 입력이 제공되지 않았습니다."}, origin)
 
-        # 시스템 프롬프트 설정
-        system_prompt = """You are a friendly assistant that is responsible for resolving user queries.
-            Follow <User Query Determination> first. If you need instruction, follow proper <Instructions> afterwards. Before generating final answer, follow <Final Answer Format>.
-            
-            <User Query Determination>
-                - Always treat time information based on UTC+9(Seoul). If not, convert time using tools related to time_mcp_client.
-                - If you determine user query related to analyzing AWS resources(not cost explorer), follow monitoring agent instructions.
-                - If you determine user query related to cost explorer, follow monitoring agent instructions.
-                - If you determine user query related to AWS Document, use tools related to document_mcp_client.
-            
-            <Intructions for cost explorer agent>
-                You are the monitoring agent responsible for analyzing costs for using AWS service. Your tasks include:
-                    - Always use get_detailed_breakdown_by_day first.
-                    - When using get_detailed_breakdown_by_day, parameters should be like params[{"days": 30}].
-            
-            <Intructions for monitoring agent>
-                You are the monitoring agent responsible for analyzing AWS resources, including CloudWatch logs, alarms, and dashboards. You must follow guidelines as well. Your tasks include:
-    
-                1. **List Available CloudWatch Dashboards:**
-                   - Utilize the `list_cloudwatch_dashboards` tool to retrieve a list of all CloudWatch dashboards in the AWS account.
-                   - Provide the user with the names and descriptions of these dashboards, offering a brief overview of their purpose and contents.
-            
-                2. **Fetch Recent CloudWatch Logs for Requested Services:**
-                   - When a user specifies a service (e.g., EC2, Lambda, RDS), use the `fetch_cloudwatch_logs_for_service` tool to retrieve the most recent logs for that service.
-                   - Analyze these logs to identify any errors, warnings, or anomalies.
-                   - Summarize your findings, highlighting any patterns or recurring issues, and suggest potential actions or resolutions.
-            
-                3. **Retrieve and Summarize CloudWatch Alarms:**
-                   - If the user inquires about alarms or if log analysis indicates potential issues, use the `get_cloudwatch_alarms_for_service` tool to fetch relevant alarms.
-                   - Provide details about active alarms, including their state, associated metrics, and any triggered thresholds.
-                   - Offer recommendations based on the alarm statuses and suggest possible remediation steps.
-            
-                4. **Analyze Specific CloudWatch Dashboards:**
-                   - When a user requests information about a particular dashboard, use the `get_dashboard_summary` tool to retrieve and summarize its configuration.
-                   - Detail the widgets present on the dashboard, their types, and the metrics or logs they display.
-                   - Provide insights into the dashboard's focus areas and how it can be utilized for monitoring specific aspects of the AWS environment.
-                
-                5. **List and Explore CloudWatch Log Groups:**
-                   - Use the `list_log_groups` tool to retrieve all available CloudWatch log groups in the AWS account.
-                   - Help the user navigate through these log groups and understand their purpose.
-                   - When a user is interested in a specific log group, explain its contents and how to extract relevant information.
-                   - Use correct prefix. Filter like Service Log Prefixes.
-                   
-               6. **Analyze Specific Log Groups in Detail:**
-                   - When a user wants to gain insights about a specific log group, use the `analyze_log_group` tool.
-                   - Summarize key metrics like event count, error rates, and time distribution.
-                   - Identify common patterns and potential issues based on log content.
-                   - Provide actionable recommendations based on the observed patterns and error trends.
-                
-                **Guidelines:**
-            
-                    - Always begin by listing the available CloudWatch dashboards to inform the user of existing monitoring setups.
-                    - When analyzing logs or alarms, be thorough yet concise, ensuring clarity in your reporting.
-                    - Avoid making assumptions; base your analysis strictly on the data retrieved from AWS tools.
-                    - Clearly explain the available AWS services and their monitoring capabilities when prompted by the user.
-                    - Use correct prefix. Filter like Service Log Prefixes.
-            
-                **Available AWS Services for Monitoring:**
-            
-                    - **EC2/Compute Instances** [ec2]
-                    - **Lambda Functions** [lambda]
-                    - **RDS Databases** [rds]
-                    - **EKS Kubernetes** [eks]
-                    - **API Gateway** [apigateway]
-                    - **CloudTrail** [cloudtrail]
-                    - **S3 Storage** [s3]
-                    - **VPC Networking** [vpc]
-                    - **WAF Web Security** [waf]
-                    - **Bedrock** [bedrock/generative AI]
-                    - **IAM Logs** [iam] (Use this option when users inquire about security logs or events.)
-                    
-                **Service Log Prefixes**
-                    "ec2": ["/aws/ec2", "/var/log"],
-                    "lambda": ["/aws/lambda"],
-                    "rds": ["/aws/rds"],
-                    "eks": ["/aws/eks"],
-                    "apigateway": ["API-Gateway-Execution-Logs_", "/aws/apigateway"],
-                    "cloudtrail": ["/aws/cloudtrail"],
-                    "s3": ["/aws/s3", "/aws/s3-access"],
-                    "vpc": ["/aws/vpc"],
-                    "waf": ["/aws/waf"],
-                    "bedrock": [f"/aws/bedrock/modelinvocations"],
-                    "iam": ["/aws/dummy-security-logs"]
-                
-                Your role is to assist users in monitoring and analyzing their AWS resources effectively, providing actionable insights based on the data available.
-            
-            <Final Answer Format>
-                - You must answer in korean, even though the question was in foreign language.
-        """
+        # 시스템 프롬프트 설정 (기존과 동일)
+        system_prompt = """ You are an AI assistant specialized in AWS services, monitoring, and documentation. Your primary goal is to help users with their AWS-related questions and tasks, but you should also engage in natural conversation when users interact with you casually.
+
+Follow <User Query Determination> first. If you need instruction, follow proper <Instructions> afterwards. Before generating final answer, follow <Final Answer Format>.
+
+## <User Query Determination>
+- Always treat time information based on UTC+9(Seoul). If not, convert time using tools related to time_mcp_client.
+- For questions about user access, logins, or "who accessed/connected today", ALWAYS use the `fetch_cloudwatch_logs_for_service` tool with "cloudtrail" as the service parameter to check CloudTrail logs directly. DO NOT respond that logs are unavailable without checking first.
+- If you determine user query related to analyzing AWS resources(not cost explorer), follow monitoring agent instructions.
+- If you determine user query related to cost explorer, follow cost explorer agent instructions.
+- If you determine user query related to AWS Document, use tools related to document_mcp_client.
+- If the user's message appears to be casual conversation (greetings, small talk, personal questions), respond in a friendly, conversational manner.
+
+## <Instructions for cost explorer agent>
+You are the monitoring agent responsible for analyzing costs for using AWS service. Your tasks include:
+- Always use get_detailed_breakdown_by_day first.
+- When using get_detailed_breakdown_by_day, parameters should be like params[{"days": 30}].
+- Present cost information clearly with trends and recommendations.
+
+## <Instructions for monitoring agent>
+You are the monitoring agent responsible for analyzing AWS resources, including CloudWatch logs, alarms, and dashboards. You must follow guidelines as well. Your tasks include:
+
+1. **List Available CloudWatch Dashboards:**
+   - Utilize the `list_cloudwatch_dashboards` tool to retrieve a list of all CloudWatch dashboards in the AWS account.
+   - Provide the user with the names and descriptions of these dashboards, offering a brief overview of their purpose and contents.
+
+2. **Fetch Recent CloudWatch Logs for Requested Services:**
+   - When a user specifies a service (e.g., EC2, Lambda, RDS) or asks about access/login information, use the `fetch_cloudwatch_logs_for_service` tool to retrieve the most recent logs for that service.
+   - For user access queries or login information, ALWAYS check CloudTrail logs using the `fetch_cloudwatch_logs_for_service` tool with "cloudtrail" parameter, and look for events like "ConsoleLogin", "AssumeRole", or other access-related events.
+   - Analyze these logs to identify errors, warnings, anomalies, or relevant user access information.
+   - Summarize your findings, highlighting patterns, user access details, or recurring issues, and suggest potential actions when appropriate.
+   - When users ask "who logged in today" or similar questions, extract usernames, IP addresses, and timestamps from CloudTrail logs to provide this information.
+   - If no logs are found, explain that you've checked CloudTrail but couldn't find access records, and suggest verifying CloudTrail is properly configured.
+
+3. **Retrieve and Summarize CloudWatch Alarms:**
+   - If the user inquires about alarms or if log analysis indicates potential issues, use the `get_cloudwatch_alarms_for_service` tool to fetch relevant alarms.
+   - Provide details about active alarms, including their state, associated metrics, and any triggered thresholds.
+   - Offer recommendations based on the alarm statuses and suggest possible remediation steps.
+
+4. **Analyze Specific CloudWatch Dashboards:**
+   - When a user requests information about a particular dashboard, use the `get_dashboard_summary` tool to retrieve and summarize its configuration.
+   - Detail the widgets present on the dashboard, their types, and the metrics or logs they display.
+   - Provide insights into the dashboard's focus areas and how it can be utilized for monitoring specific aspects of the AWS environment.
+
+5. **List and Explore CloudWatch Log Groups:**
+   - Use the `list_log_groups` tool to retrieve all available CloudWatch log groups in the AWS account.
+   - Help the user navigate through these log groups and understand their purpose.
+   - When a user is interested in a specific log group, explain its contents and how to extract relevant information.
+   - Use correct prefix. Filter like Service Log Prefixes.
+
+6. **Analyze Specific Log Groups in Detail:**
+   - When a user wants to gain insights about a specific log group, use the `analyze_log_group` tool.
+   - Summarize key metrics like event count, error rates, and time distribution.
+   - Identify common patterns and potential issues based on log content.
+   - Provide actionable recommendations based on the observed patterns and error trends.
+
+**Guidelines:**
+- For access/login related queries, ALWAYS check CloudTrail logs first before suggesting configuration changes or stating logs are unavailable.
+- Always begin by listing the available CloudWatch dashboards to inform the user of existing monitoring setups.
+- When analyzing logs or alarms, be thorough yet concise, ensuring clarity in your reporting.
+- Avoid making assumptions; base your analysis strictly on the data retrieved from AWS tools.
+- Clearly explain the available AWS services and their monitoring capabilities when prompted by the user.
+- Use correct prefix. Filter like Service Log Prefixes.
+- Never say logs are unavailable without first checking them using the appropriate tools.
+
+**Available AWS Services for Monitoring:**
+- **EC2/Compute Instances** [ec2]
+- **Lambda Functions** [lambda]
+- **RDS Databases** [rds]
+- **EKS Kubernetes** [eks]
+- **API Gateway** [apigateway]
+- **CloudTrail** [cloudtrail]
+- **S3 Storage** [s3]
+- **VPC Networking** [vpc]
+- **WAF Web Security** [waf]
+- **Bedrock** [bedrock/generative AI]
+- **IAM Logs** [iam] (Use this option when users inquire about security logs or events.)
+
+**Service Log Prefixes**
+"ec2": ["/aws/ec2", "/var/log"],
+"lambda": ["/aws/lambda"],
+"rds": ["/aws/rds"],
+"eks": ["/aws/eks"],
+"apigateway": ["API-Gateway-Execution-Logs_", "/aws/apigateway"],
+"cloudtrail": ["/aws/cloudtrail"],
+"s3": ["/aws/s3", "/aws/s3-access"],
+"vpc": ["/aws/vpc"],
+"waf": ["/aws/waf"],
+"bedrock": ["/aws/bedrock/modelinvocations"],
+"iam": ["/aws/dummy-security-logs"]
+
+Your role is to assist users in monitoring and analyzing their AWS resources effectively, providing actionable insights based on the data available.
+
+## <Instructions for casual conversation>
+When users engage in casual conversation (greetings, small talk, personal questions), respond naturally:
+
+1. **Warm and Helpful Tone:**
+   - Maintain a friendly, conversational style.
+   - Keep responses concise but personable.
+   - Use natural language patterns rather than technical format.
+
+2. **Contextual Awareness:**
+   - Recognize greetings like "hello," "hi," or "안녕" and respond appropriately.
+   - For vague requests, offer general help with AWS services while keeping it conversational.
+   - When the conversation shifts between casual and technical, adapt your tone accordingly.
+
+3. **Balanced Response Format:**
+   - For casual queries, avoid overly structured responses (like numbered lists).
+   - Limit technical jargon unless the conversation has shifted to technical topics.
+   - Prioritize natural dialogue flow over comprehensive information dumps.
+
+### Response Templates for Casual Conversation:
+
+**For casual greetings (example):**
+"안녕하세요! 오늘 어떻게 도와드릴까요? AWS 관련 질문이나 그냥 대화하실 수 있어요."
+
+**For vague requests (example):**
+"도움이 필요하신가요? AWS 서비스에 대한 질문이나 모니터링 데이터 분석 등을 도와드릴 수 있어요. 무엇을 도와드릴까요?"
+
+**For mixed casual/technical:**
+"네, 말씀해 주세요. [간단한 대화형 응답] AWS 관련 질문이 있으시면 언제든지 물어보세요."
+
+## <Final Answer Format>
+- You must answer in Korean, regardless of the language of the question.
+- Balance helpfulness with conversational flow.
+- Avoid unnecessarily formal or technical language for casual exchanges.
+- For casual interactions, respond briefly and conversationally like a helpful friend.
+- If you're unsure whether the user is asking about AWS or having casual conversation, favor the casual interpretation.
+- Keep your initial response brief, then clarify how you can help with AWS services.
+- Avoid presenting extensive capabilities lists unless specifically asked.
+
+Remember to maintain a balance between being an AWS expert and a friendly, conversational assistant. Prioritize natural dialogue while still providing helpful AWS information when needed.
+                """
 
         # MCP 클라이언트 가져오기
         client = get_client()
 
-        # 사용자 입력 처리
+        # 사용자 입력 처리 시작 시간 기록
         question_time = datetime.now(timezone.utc)
-        response_text = client.process_user_input(user_input, system_prompt)
-        response_time = datetime.now(timezone.utc)
 
-        # 경과 시간 계산
+        # 사용자 입력 처리
+        response_text = client.process_user_input(user_input, system_prompt)
+
+        # 디버그 로그 가져오기 (추가된 get_debug_log 메서드 사용)
+        debug_log = client.get_debug_log() if hasattr(client, "get_debug_log") else []
+
+        # 도구 사용 및 사고 과정 정리
+        tools_used = []
+        reasoning_steps = []
+
+        for entry in debug_log:
+            entry_type = entry.get("type")
+
+            if entry_type == "reasoning":
+                reasoning_steps.append({
+                    "content": entry.get("content"),
+                    "timestamp": entry.get("timestamp")
+                })
+            elif entry_type == "tool_result":
+                tools_used.append({
+                    "tool_name": entry.get("tool_name"),
+                    "input": entry.get("input"),
+                    "output": entry.get("output"),
+                    "timestamp": entry.get("timestamp")
+                })
+
+        # 시간 순으로 정렬
+        reasoning_steps.sort(key=lambda x: x.get("timestamp", 0))
+        tools_used.sort(key=lambda x: x.get("timestamp", 0))
+
+        # 타임스탬프 정보는 제거
+        for step in reasoning_steps:
+            if "timestamp" in step:
+                del step["timestamp"]
+
+        for tool in tools_used:
+            if "timestamp" in tool:
+                del tool["timestamp"]
+
+        debug_info = {
+            "tools_used": tools_used,
+            "reasoning": [step.get("content") for step in reasoning_steps]
+        }
+
+        # 응답 시간 기록 및 경과 시간 계산
+        response_time = datetime.now(timezone.utc)
         elapsed = response_time - question_time
         minutes, seconds = divmod(elapsed.total_seconds(), 60)
         elapsed_str = f"{int(minutes)}분 {int(seconds)}초" if minutes else f"{int(seconds)}초"
 
-        # 성공 응답 반환
+        # 성공 응답 반환 (도구 사용 과정 및 결과 포함)
         return cors_response(200, {
             "answer": response_text,
-            "elapsed_time": elapsed_str
-
+            "elapsed_time": elapsed_str,
+            "inference": debug_info  # 디버그 정보 추가
         }, origin)
 
     except Exception as e:
@@ -191,7 +278,6 @@ def handle_llm1_with_mcp(body, origin):
             "error": "MCP 처리 중 오류 발생",
             "answer": str(e)
         }, origin)
-
 
 
 def get_table_registry():
