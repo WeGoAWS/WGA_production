@@ -326,6 +326,32 @@
                     await nextTick();
                     scrollToBottom();
 
+                    // 서버에 사용자 메시지 저장 (API 호출)
+                    try {
+                        const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
+                        const sessionId = store.currentSession.sessionId;
+
+                        // 사용자 메시지를 서버에 저장
+                        const userMessageResponse = await axios.post(
+                            `${apiUrl}/sessions/${sessionId}/messages`,
+                            {
+                                sender: 'user',
+                                text: text,
+                            },
+                            {
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                withCredentials: true,
+                            },
+                        );
+
+                        console.log('사용자 메시지 저장 완료:', userMessageResponse.data);
+                    } catch (saveError) {
+                        console.error('사용자 메시지 저장 오류:', saveError);
+                        // 메시지 저장 실패해도 계속 진행
+                    }
+
                     try {
                         // 직접 API 호출하여 봇 응답 생성
                         const botResponse = await generateBotResponse(text);
@@ -364,6 +390,43 @@
 
                             // 타이핑 애니메이션
                             await simulateTyping(botMessage.id, botResponse.text || '');
+
+                            // 봇 메시지를 서버에 저장 (API 호출) - 여기가 중요한 수정 부분
+                            try {
+                                const apiUrl =
+                                    import.meta.env.VITE_API_DEST || 'http://localhost:8000';
+                                const sessionId = store.currentSession.sessionId;
+
+                                // 봇 메시지를 서버에 저장
+                                const botMessageResponse = await axios.post(
+                                    `${apiUrl}/sessions/${sessionId}/messages`,
+                                    {
+                                        sender: 'bot',
+                                        text: botResponse.text || '',
+                                        // 추가 정보가 있으면 함께 전송
+                                        ...(botResponse.query_string && {
+                                            query_string: botResponse.query_string,
+                                        }),
+                                        ...(botResponse.query_result && {
+                                            query_result: JSON.stringify(botResponse.query_result),
+                                        }),
+                                        ...(botResponse.elapsed_time !== undefined && {
+                                            elapsed_time: botResponse.elapsed_time,
+                                        }),
+                                    },
+                                    {
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        withCredentials: true,
+                                    },
+                                );
+
+                                console.log('봇 메시지 저장 완료:', botMessageResponse.data);
+                            } catch (saveError) {
+                                console.error('봇 메시지 저장 오류:', saveError);
+                                // 메시지 저장 실패해도 계속 진행
+                            }
                         }
                     } catch (responseError) {
                         console.error('봇 응답 가져오기 오류:', responseError);
@@ -385,6 +448,29 @@
                             };
 
                             store.currentSession.messages.push(errorMessage);
+
+                            // 오류 메시지도 서버에 저장
+                            try {
+                                const apiUrl =
+                                    import.meta.env.VITE_API_DEST || 'http://localhost:8000';
+                                const sessionId = store.currentSession.sessionId;
+
+                                await axios.post(
+                                    `${apiUrl}/sessions/${sessionId}/messages`,
+                                    {
+                                        sender: 'bot',
+                                        text: errorMessage.text,
+                                    },
+                                    {
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        withCredentials: true,
+                                    },
+                                );
+                            } catch (saveError) {
+                                console.error('오류 메시지 저장 실패:', saveError);
+                            }
                         }
                     }
 

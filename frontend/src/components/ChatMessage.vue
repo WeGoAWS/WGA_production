@@ -290,7 +290,7 @@
     }
 
     .message-content {
-        padding: 12px 16px;
+        padding: 8px 16px;
         border-radius: 18px;
         position: relative;
         white-space: pre-wrap;
