@@ -29,7 +29,7 @@ def get_client():
         if use_anthropic:
             # Anthropic API 설정
             anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY') or CONFIG.get('anthropic', {}).get('api_key')
-            model_id = os.environ.get('ANTHROPIC_MODEL_ID', 'claude-3-5-sonnet-20241022')
+            model_id = os.environ.get('ANTHROPIC_MODEL_ID', 'claude-3-7-sonnet-20250219')
 
             # Anthropic 클라이언트 초기화
             from mcp_anthropic_client import AnthropicMCPClient

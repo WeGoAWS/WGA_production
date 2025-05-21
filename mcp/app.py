@@ -76,7 +76,7 @@ def fetch_cloudwatch_logs_for_service(
             "lambda": ["/aws/lambda"],
             "rds": ["/aws/rds"],
             "eks": ["/aws/eks"],
-            "apigateway": ["/aws/apigateway"],
+            "apigateway": ["/aws/apigateway", "API-Gateway-Execution-Logs"],
             "cloudtrail": ["/aws/cloudtrail"],
             "s3": ["/aws/s3", "/aws/s3-access"],
             "vpc": ["/aws/vpc"],
