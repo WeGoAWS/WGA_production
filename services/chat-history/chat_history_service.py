@@ -110,7 +110,7 @@ def handle_chat_history_request(path, http_method, body, event, origin):
             query_string = body.get('query_string')
             query_result = body.get('query_result')
 
-            if not sender or not text or elapsed_time is None or inference is None or query_string is None or query_result is None:
+            if not sender or not text or elapsed_time is None:
                 return cors_response(400, {'error': 'Missing required message fields'}, origin)
 
             message = add_message(session_id, sender, text, elapsed_time, inference, query_string, query_result)
@@ -244,7 +244,7 @@ def delete_session(session_id):
     return True
 
 
-def add_message(session_id, sender, text, elapsed_time, inference, query_string, query_result):
+def add_message(session_id, sender, text, elapsed_time, inference=None, query_string=None, query_result=None):
     """세션에 새 메시지 추가"""
     # 세션 정보 조회
     response = table.get_item(
@@ -264,11 +264,15 @@ def add_message(session_id, sender, text, elapsed_time, inference, query_string,
         'sender': sender,
         'text': text,
         'elapsed_time': elapsed_time,
-        'inference': inference,
-        'query_string': query_string,
-        'query_result': query_result,
         'timestamp': timestamp
     }
+
+    if inference is not None:
+        message['inference'] = inference
+    if query_string is not None:
+        message['query_string'] = query_string
+    if query_result is not None:
+        message['query_result'] = query_result
 
     # 메시지 추가 및 세션 업데이트 시간 변경
     messages = session.get('messages', [])
