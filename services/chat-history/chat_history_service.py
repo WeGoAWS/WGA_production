@@ -110,9 +110,6 @@ def handle_chat_history_request(path, http_method, body, event, origin):
             query_string = body.get('query_string')
             query_result = body.get('query_result')
 
-            if not sender or not text or elapsed_time is None:
-                return cors_response(400, {'error': 'Missing required message fields'}, origin)
-
             message = add_message(session_id, sender, text, elapsed_time, inference, query_string, query_result)
             if not message:
                 return cors_response(404, {'error': 'Session not found'}, origin)
