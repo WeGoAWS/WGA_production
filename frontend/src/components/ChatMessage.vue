@@ -29,8 +29,10 @@
                 v-html="formatMessageContent(message.displayText || message.text)"
             ></div>
 
-            <div v-if="message.elapsed_time" class="query-metadata">
-                <div class="elapsed-time">실행 시간: {{ message.elapsed_time }}</div>
+            <div v-if="message.elapsed_time || message.inference" class="query-metadata">
+                <div v-if="message.elapsed_time" class="elapsed-time">
+                    실행 시간: {{ message.elapsed_time }}
+                </div>
 
                 <div class="details-toggle" @click="toggleDetails">
                     <span>{{ showDetails ? '간략히 보기' : '자세히 보기' }}</span>
@@ -38,7 +40,7 @@
                 </div>
 
                 <div v-if="showDetails" class="query-details">
-                    <div class="query-section">
+                    <div v-if="message.query_string" class="query-section">
                         <h4>SQL 쿼리</h4>
                         <pre
                             class="sql-query"
@@ -76,6 +78,14 @@
                             </table>
                         </div>
                     </div>
+
+                    <!-- 추가된 inference 섹션 -->
+                    <div v-if="message.inference" class="query-section">
+                        <h4>추론 데이터</h4>
+                        <pre
+                            class="inference-data"
+                        ><code v-html="formatInferenceData(message.inference)"></code></pre>
+                    </div>
                 </div>
             </div>
         </div>
@@ -99,6 +109,7 @@
         query_string?: string;
         query_result?: any[];
         elapsed_time?: string | number;
+        inference?: any; // 추가된 inference 필드
     }
 
     export default defineComponent({
@@ -130,6 +141,53 @@
                     .replace(/\n/g, '<br>')
                     .replace(/('[^']*')/g, `<span class="sql-string">$1</span>`);
             };
+
+            // inference 데이터 포맷팅 함수 추가
+            const formatInferenceData = (inference: any): string => {
+                try {
+                    // inference가 이미 문자열이면 그대로 사용, 아니면 JSON 변환
+                    if (typeof inference === 'string') {
+                        // 문자열이 JSON인지 확인하고 예쁘게 포맷팅
+                        try {
+                            const obj = JSON.parse(inference);
+                            // 중첩된 객체를 더 깊게 포맷팅
+                            return (
+                                JSON.stringify(obj, null, 2)
+                                    // JSON 문자열의 키와 문자열 값을 다른 색상으로 강조
+                                    .replace(
+                                        /"([^"]+)":/g,
+                                        '"<span style="color: #0033b3; font-weight: bold;">$1</span>":',
+                                    )
+                                    // 문자열 값 강조
+                                    .replace(
+                                        /: "([^"]*)"/g,
+                                        ': "<span style="color: #067d17;">$1</span>"',
+                                    )
+                            );
+                        } catch (e) {
+                            // JSON이 아니면 그대로 반환
+                            return inference;
+                        }
+                    }
+
+                    // 객체나 배열이면 예쁘게 포맷팅하여 문자열로 변환
+                    const jsonStr = JSON.stringify(inference, null, 2);
+                    return (
+                        jsonStr
+                            // JSON 문자열의 키와 문자열 값을 다른 색상으로 강조
+                            .replace(
+                                /"([^"]+)":/g,
+                                '"<span style="color: #0033b3; font-weight: bold;">$1</span>":',
+                            )
+                            // 문자열 값 강조
+                            .replace(/: "([^"]*)"/g, ': "<span style="color: #067d17;">$1</span>"')
+                    );
+                } catch (error) {
+                    console.error('Inference 데이터 포맷팅 오류:', error);
+                    return String(inference);
+                }
+            };
+
             // 사용자 이니셜 가져오기 (이름이 없으면 U 반환)
             const getUserInitial = (): string => {
                 const userName = localStorage.getItem('userName') || 'User';
@@ -190,6 +248,7 @@
                 formatMessageContent,
                 formatMessageTime,
                 formatSqlQuery,
+                formatInferenceData, // 새로 추가된 함수
                 showDetails,
                 toggleDetails,
             };
@@ -285,6 +344,7 @@
     .message-content-wrapper {
         flex: 1;
         max-width: calc(100% - 50px);
+        overflow-wrap: break-word;
     }
 
     .message-content {
@@ -462,6 +522,7 @@
         margin-top: 10px;
         border-top: 1px solid #eee;
         padding-top: 10px;
+        width: 100%;
     }
 
     .query-section {
@@ -483,6 +544,32 @@
         font-size: 0.9rem;
         line-height: 1.5;
         white-space: pre-wrap;
+        word-wrap: break-word;
+        word-break: break-word;
+        max-width: 100%;
+    }
+
+    /* 추론 데이터 스타일 */
+    .inference-data {
+        background-color: #f8f8f8;
+        padding: 12px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        border: 1px solid #eaeaea;
+        max-width: 100%;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        word-break: break-word;
+        color: #333;
+    }
+
+    .inference-data code {
+        background: none;
+        font-family: 'Courier New', monospace;
+        color: #0a3253;
     }
 
     :deep(.sql-keyword) {

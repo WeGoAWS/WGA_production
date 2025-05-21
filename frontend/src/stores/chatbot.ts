@@ -277,8 +277,6 @@ export const useChatbotStore = defineStore('chatbot', {
                 // API URL 설정 - 환경변수나 설정에서 가져오는 것이 좋습니다
                 const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
-                console.log('API 요청 전송:', userMessage);
-
                 // API 호출
                 const response = await axios.post(
                     `${apiUrl}/llm1`,
@@ -294,13 +292,10 @@ export const useChatbotStore = defineStore('chatbot', {
                     },
                 );
 
-                console.log('API 응답 수신:', response.data);
-
                 // API 응답 처리 로직 개선
                 if (response.data) {
                     // 응답이 배열 형태인지 확인 (첫 번째 형식: answer가 배열)
                     if (Array.isArray(response.data.answer)) {
-                        console.log('배열 형태의 응답 변환 처리');
                         // rank_order로 정렬
                         const sortedItems = [...response.data.answer].sort(
                             (a, b) => a.rank_order - b.rank_order,
@@ -311,17 +306,14 @@ export const useChatbotStore = defineStore('chatbot', {
                             .map((item) => `${item.context}\n${item.title}\n${item.url}`)
                             .join('\n\n');
                     } else if (typeof response.data.answer === 'string') {
-                        console.log('문자열 형태의 응답 처리');
                         // 이미 문자열 형태인 경우 (두 번째 형식)
                         return response.data.answer;
                     } else {
-                        console.log('예상 외 응답 형식:', typeof response.data.answer);
                         // 응답 형식이 예상과 다른 경우
                         return JSON.stringify(response.data.answer);
                     }
                 }
 
-                console.log('유효한 응답 데이터가 없음');
                 return '죄송합니다. 유효한 응답 데이터를 받지 못했습니다.';
             } catch (error) {
                 console.error('봇 응답 API 호출 오류:', error);

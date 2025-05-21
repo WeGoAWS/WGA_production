@@ -23,11 +23,9 @@ export const logEnvironmentVars = () => {
         API_URL: import.meta.env.API_URL || '설정되지 않음',
     };
 
-    console.log('====== 환경 변수 ======');
     Object.entries(vars).forEach(([key, value]) => {
         console.log(`${key}: ${value}`);
     });
-    console.log('======================');
 };
 
 /**
@@ -88,18 +86,12 @@ export const logRequestDetails = (
     headers: Record<string, any>,
     body?: any,
 ) => {
-    console.log('====== HTTP 요청 상세 정보 ======');
-    console.log(`${method} ${url}`);
-
-    console.log('헤더:');
     const sanitizedHeaders = { ...headers };
     if (sanitizedHeaders['Authorization']) {
         sanitizedHeaders['Authorization'] = '*** 마스킹됨 ***';
     }
-    console.log(sanitizedHeaders);
 
     if (body) {
-        console.log('본문:');
         // 민감한 정보를 포함할 수 있는 필드 마스킹
         const sanitizedBody = { ...body };
         ['code', 'refresh_token', 'access_token', 'id_token'].forEach((field) => {
@@ -107,8 +99,5 @@ export const logRequestDetails = (
                 sanitizedBody[field] = maskString(sanitizedBody[field]);
             }
         });
-        console.log(sanitizedBody);
     }
-
-    console.log('================================');
 };

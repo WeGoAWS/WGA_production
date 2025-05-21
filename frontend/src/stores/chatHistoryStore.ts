@@ -285,8 +285,6 @@ export const useChatHistoryStore = defineStore('chatHistory', {
 
                 // 요청이 취소된 경우
                 if (axios.isCancel(err)) {
-                    console.log('사용자가 요청을 취소했습니다.');
-
                     // 로딩 메시지 제거
                     if (this.currentSession && Array.isArray(this.currentSession.messages)) {
                         this.currentSession.messages = this.currentSession.messages.filter(
@@ -334,7 +332,6 @@ export const useChatHistoryStore = defineStore('chatHistory', {
         // 요청 취소
         cancelRequest() {
             if (this.apiCancelToken) {
-                console.log('요청 취소 중...');
                 this.apiCancelToken.cancel('사용자가 요청을 취소했습니다.');
                 this.apiCancelToken = null;
             }
@@ -363,11 +360,23 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                     },
                 );
 
-                console.log('API 응답 데이터:', response.data);
-
                 // 새로운 형식 감지 및 처리
                 if (response.data) {
-                    if (response.data.query_string && response.data.elapsed_time !== undefined) {
+                    // inference 필드가 있는 경우 처리
+                    if (response.data.inference) {
+                        return {
+                            text: response.data.answer || '쿼리 결과 없음',
+                            query_string: response.data.query_string,
+                            query_result: response.data.query_result || [],
+                            elapsed_time: response.data.elapsed_time,
+                            inference: response.data.inference,
+                        };
+                    }
+                    // 기존 케이스 처리
+                    else if (
+                        response.data.query_string &&
+                        response.data.elapsed_time !== undefined
+                    ) {
                         // 케이스 1: 쿼리 정보가 포함된 응답
                         return {
                             text: response.data.answer || '쿼리 결과 없음',

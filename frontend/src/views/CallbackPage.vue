@@ -43,13 +43,11 @@
                         throw new Error('인증 코드가 없습니다. URL 쿼리 파라미터를 확인하세요.');
                     }
 
-                    console.log('Auth code received:', code.substring(0, 10) + '...');
 
                     // 코드를 토큰으로 교환
                     const success = await authStore.exchangeCodeForTokens(code);
 
                     if (success) {
-                        console.log('Token exchange successful, redirecting...');
 
                         // 리다이렉트할 경로 가져오기 (없으면 기본값으로 /start-chat 사용)
                         const redirectPath =

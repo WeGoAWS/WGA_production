@@ -21,7 +21,6 @@ const http = axios.create({
 http.interceptors.request.use(
     (config) => {
         // 요청이 전달되기 전에 작업 수행
-        console.log(`API 요청: ${config.method?.toUpperCase()} ${config.url}`);
         return config;
     },
     (error) => {

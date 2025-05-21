@@ -163,8 +163,6 @@ export const useAuthStore = defineStore('auth', {
                 // AWS Cognito 호스팅 UI URL 형식 사용
                 const authUrl = `https://${cognitoDomain}.auth.us-east-1.amazoncognito.com/login?response_type=${responseType}&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
 
-                console.log('Auth URL:', authUrl);
-
                 // 리다이렉트 전 현재 경로 저장 (로그인 후 돌아오기 위함)
                 localStorage.setItem('auth_redirect_path', window.location.pathname);
 
@@ -217,7 +215,6 @@ export const useAuthStore = defineStore('auth', {
                 params.append('code', authCode);
                 params.append('redirect_uri', redirectUri);
 
-                console.log('Token exchange request:', tokenEndpoint);
                 const response = await axios.post(tokenEndpoint, params, { headers });
 
                 // 토큰 정보 저장
@@ -249,7 +246,6 @@ export const useAuthStore = defineStore('auth', {
             try {
                 localStorage.setItem(AUTH_TOKENS_KEY, JSON.stringify(this.tokens));
                 localStorage.setItem(AUTH_USER_KEY, JSON.stringify(this.user));
-                console.log('인증 정보가 로컬 스토리지에 저장되었습니다.');
             } catch (error) {
                 console.error('인증 정보 저장 오류:', error);
             }
@@ -298,7 +294,6 @@ export const useAuthStore = defineStore('auth', {
 
                 // AWS Cognito 호스팅 UI 로그아웃 URL
                 const logoutUrl = `https://${cognitoDomain}.auth.us-east-1.amazoncognito.com/logout?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`;
-                console.log('🔐 Logout URL:', logoutUrl);
                 // 로그아웃 리다이렉트
                 window.location.href = logoutUrl;
             } catch (error) {

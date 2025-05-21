@@ -345,8 +345,6 @@
                                 withCredentials: true,
                             },
                         );
-
-                        console.log('사용자 메시지 저장 완료:', userMessageResponse.data);
                     } catch (saveError) {
                         console.error('사용자 메시지 저장 오류:', saveError);
                         // 메시지 저장 실패해도 계속 진행
@@ -382,8 +380,11 @@
                                 botMessage.query_result = botResponse.query_result;
                             }
 
-                            if (botResponse.elapsed_time !== undefined) {
+                            if (botResponse.elapsed_time) {
                                 botMessage.elapsed_time = botResponse.elapsed_time;
+                            }
+                            if (botResponse.inference) {
+                                botMessage.inference = botResponse.inference;
                             }
 
                             store.currentSession.messages.push(botMessage);
@@ -423,11 +424,14 @@
                                         ...(botResponse.query_string && {
                                             query_string: botResponse.query_string,
                                         }),
-                                        ...(botResponse.query_result && {
+                                        ...(botResponse.query_result?.length && {
                                             query_result: JSON.stringify(botResponse.query_result),
                                         }),
-                                        ...(botResponse.elapsed_time !== undefined && {
+                                        ...(botResponse.elapsed_time && {
                                             elapsed_time: botResponse.elapsed_time,
+                                        }),
+                                        ...(botResponse.inference && {
+                                            inference: JSON.stringify(botResponse.inference),
                                         }),
                                     },
                                     {
@@ -437,8 +441,6 @@
                                         withCredentials: true,
                                     },
                                 );
-
-                                console.log('봇 메시지 저장 완료:', botMessageResponse.data);
                             } catch (saveError) {
                                 console.error('봇 메시지 저장 오류:', saveError);
                                 // 메시지 저장 실패해도 계속 진행
@@ -572,7 +574,16 @@
 
                     // API 응답 처리 로직
                     if (response.data) {
-                        if (
+                        // inference 필드가 있는 경우 처리 (추가)
+                        if (response.data.inference) {
+                            return {
+                                text: response.data.answer || '쿼리 결과 없음',
+                                query_string: response.data.query_string,
+                                query_result: response.data.query_result || [],
+                                elapsed_time: response.data.elapsed_time,
+                                inference: response.data.inference,
+                            };
+                        } else if (
                             response.data.query_string &&
                             response.data.elapsed_time !== undefined
                         ) {
@@ -581,6 +592,11 @@
                                 text: response.data.answer || '쿼리 결과 없음',
                                 query_string: response.data.query_string,
                                 query_result: response.data.query_result || [],
+                                elapsed_time: response.data.elapsed_time,
+                            };
+                        } else if (response.data.elapsed_time) {
+                            return {
+                                text: response.data.answer || '쿼리 결과 없음',
                                 elapsed_time: response.data.elapsed_time,
                             };
                         } else if (Array.isArray(response.data.answer)) {

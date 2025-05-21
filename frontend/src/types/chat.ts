@@ -2,7 +2,7 @@
 export interface ChatMessageType {
     id: string;
     sender: 'user' | 'bot';
-    text: string | any;
+    text: string;
     displayText?: string;
     timestamp: string;
     isTyping?: boolean;
@@ -10,6 +10,7 @@ export interface ChatMessageType {
     query_string?: string;
     query_result?: any[];
     elapsed_time?: string | number;
+    inference?: any; // 추가된 inference 필드
 }
 
 export interface ChatSession {
@@ -28,10 +29,10 @@ export interface ChatHistoryState {
     waitingForResponse: boolean;
 }
 
-// 봇 응답 타입 정의 추가
 export interface BotResponse {
-    text: string | any;
+    text: string;
     query_string?: string;
     query_result?: any[];
     elapsed_time?: string | number;
+    inference?: any; // 추가된 inference 필드
 }
