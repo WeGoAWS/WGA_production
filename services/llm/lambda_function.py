@@ -1,6 +1,6 @@
 # llm/lambda_function.py
 import requests
-from llm_service import parse_body, handle_llm1_request, handle_llm2_request
+from llm_service import parse_body, handle_llm1_request, handle_llm2_request, handle_llm1_with_mcp
 from common.config import get_config
 from common.utils import cors_response
 
@@ -20,7 +20,7 @@ def lambda_handler(event, context):
             return cors_response(200, {"status": "ok"}, origin)
 
         elif path == "/llm1" and http_method == "POST":
-            return handle_llm1_request(body, CONFIG, origin)
+            return handle_llm1_with_mcp(body, origin)
 
         elif path == "/llm2" and http_method == "POST":
             return handle_llm2_request(body, CONFIG, origin)

@@ -147,6 +147,17 @@ Resources:
       Value: !Sub "https://${ApiGatewayIdParameter}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
       Description: API Gateway endpoint URL
 
+  ApiGatewayFinalDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - LlmStack
+      - DBStack
+      - SlackbotStack
+      - ChatHistoryStack
+    Properties:
+      RestApiId: !Ref ApiGatewayIdParameter
+      StageName: !Ref Environment
+
 Outputs:
   CognitoDomain:
     Description: Cognito User Pool Domain

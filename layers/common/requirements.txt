@@ -10,4 +10,3 @@ python-dateutil
 jsonschema
 slack_sdk
 mcp
-awslabs.aws-documentation-mcp-server

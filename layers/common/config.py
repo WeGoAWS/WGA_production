@@ -62,6 +62,9 @@ def load_config():
         },
         'db': {
             'chat_history_table': os.environ.get('CHAT_HISTORY_TABLE', f'wga-chat-history-{ENV}')
+        },
+        'anthropic': {
+            'api_key': ''
         }
     }
 
@@ -110,7 +113,8 @@ def load_config():
             'UserPoolId': ('cognito', 'user_pool_id'),
             'McpFunctionUrl': ('mcp', 'function_url'),
             'KnowledgeBaseId': ('kb', 'kb_id'),
-            'ChatHistoryTable': ('db', 'chat_history_table')  # 새로 추가된 SSM 파라미터
+            'ChatHistoryTable': ('db', 'chat_history_table'),  # 새로 추가된 SSM 파라미터
+            'ANTHROPIC_API_KEY': ('anthropic', 'api_key')
         }
 
         for param in parameters:

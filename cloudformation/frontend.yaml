@@ -27,6 +27,10 @@ Parameters:
     Default: ""
     Description: API Gateway endpoint URL for redirecting API requests
 
+  FrontendBucketName:
+    Type: String
+    Description: Name of the existing S3 bucket to host frontend assets
+
 Conditions:
   IsProd: !Equals [!Ref Environment, "prod"]
   IsDev: !Equals [!Ref Environment, "dev"]
@@ -34,17 +38,10 @@ Conditions:
   HasApiEndpoint: !Not [!Equals [!Ref ApiEndpoint, ""]]
 
 Resources:
-  FrontendBucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    Properties:
-      BucketName: !Sub wga-frontend-${Environment}
-      AccessControl: Private
-
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref FrontendBucket
+      Bucket: !Ref FrontendBucketName
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -58,8 +55,8 @@ Resources:
               - s3:ListBucket
               - s3:GetBucketLocation
             Resource:
-              - !Sub arn:aws:s3:::wga-frontend-${Environment}
-              - !Sub arn:aws:s3:::wga-frontend-${Environment}/*
+              - !Sub arn:aws:s3:::${FrontendBucketName}
+              - !Sub arn:aws:s3:::${FrontendBucketName}/*
 
   # Amplify App for frontend hosting
   AmplifyApp:

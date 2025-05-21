@@ -92,6 +92,14 @@ Resources:
       ParentId: !Ref ApiGatewayRootResourceId
       PathPart: 'sessions'
 
+  # Session ID Resource
+  SessionIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ParentId: !Ref SessionsResource
+      PathPart: '{sessionId}'
+
   # POST /sessions
   SessionsPostMethod:
     Type: AWS::ApiGateway::Method
@@ -104,10 +112,6 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
 
   # GET /sessions
   SessionsGetMethod:
@@ -121,10 +125,6 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
 
   # OPTIONS /sessions
   SessionsOptionsMethod:
@@ -138,20 +138,6 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-
-  # Session ID Resource
-  SessionIdResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref ApiGatewayId
-      ParentId: !Ref SessionsResource
-      PathPart: '{sessionId}'
 
   # GET /sessions/{sessionId}
   SessionIdGetMethod:
@@ -165,10 +151,7 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
+
 
   # PUT /sessions/{sessionId}
   SessionIdPutMethod:
@@ -182,10 +165,6 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
 
   # DELETE /sessions/{sessionId}
   SessionIdDeleteMethod:
@@ -199,10 +178,6 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
 
   # OPTIONS /sessions/{sessionId}
   SessionIdOptionsMethod:
@@ -216,12 +191,6 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
 
   # Messages Resource
   MessagesResource:
@@ -243,10 +212,6 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
 
   # POST /sessions/{sessionId}/messages
   MessagesPostMethod:
@@ -260,10 +225,6 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
 
   # OPTIONS /sessions/{sessionId}/messages
   MessagesOptionsMethod:
@@ -277,12 +238,6 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
 
   # Lambda Permissions
   ChatHistoryLambdaPermissionSessionsPost:
@@ -364,24 +319,6 @@ Resources:
       FunctionName: !Ref ChatHistoryLambdaFunction
       Principal: 'apigateway.amazonaws.com'
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/${Environment}/OPTIONS/sessions/*/messages'
-
-  # Deploy API
-  ApiGatewayDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn:
-      - SessionsPostMethod
-      - SessionsGetMethod
-      - SessionsOptionsMethod
-      - SessionIdGetMethod
-      - SessionIdPutMethod
-      - SessionIdDeleteMethod
-      - SessionIdOptionsMethod
-      - MessagesGetMethod
-      - MessagesPostMethod
-      - MessagesOptionsMethod
-    Properties:
-      RestApiId: !Ref ApiGatewayId
-      StageName: !Ref Environment
 
 Outputs:
   ChatHistoryLambdaArn:

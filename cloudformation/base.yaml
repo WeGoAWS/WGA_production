@@ -46,6 +46,13 @@ Parameters:
       - "true"
       - "false"
 
+  FrontendBucketExists:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+
   FrontendRedirectDomain:
     Type: String
     Default: placeholder.example.com
@@ -72,6 +79,7 @@ Conditions:
   ShouldCreateAthenaOutputBucket: !Equals [!Ref AthenaOutputBucketExists, "false"]
   ShouldCreateGuardDutyExportBucket: !Equals [!Ref GuardDutyExportBucketExists, "false"]
   ShouldCreateDockerBuildBucket: !Equals [!Ref DockerBuildBucketExists, "false"]
+  ShouldCreateFrontendBucket: !Equals [!Ref FrontendBucketExists, "false"]
   IsProd: !Equals [!Ref Environment, "prod"]
   IsTest: !Equals [!Ref Environment, "test"]
   IsDev: !Equals [!Ref Environment, "dev"]
@@ -136,12 +144,12 @@ Resources:
     Properties:
       BucketName: !Sub 'wga-outputbucket-${Environment}'
       VersioningConfiguration:
-        !If 
+        !If
           - ShouldCreateOutputBucket
           - Status: Enabled
           - !Ref "AWS::NoValue"
-      BucketEncryption: 
-        !If 
+      BucketEncryption:
+        !If
           - ShouldCreateOutputBucket
           - ServerSideEncryptionConfiguration:
               - ServerSideEncryptionByDefault:
@@ -234,6 +242,41 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldCreateFrontendBucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub 'wga-frontend-${Environment}'
+      VersioningConfiguration:
+        !If
+        - ShouldCreateFrontendBucket
+        - Status: Enabled
+        - !Ref "AWS::NoValue"
+      BucketEncryption:
+        !If
+        - ShouldCreateFrontendBucket
+        - ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        - !Ref "AWS::NoValue"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
   # DynamoDB
   SlackbotSessionTable:
     Type: AWS::DynamoDB::Table
@@ -288,6 +331,28 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
+
+  McpSessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'wga-mcp-sessions-${Environment}'
+      AttributeDefinitions:
+        - AttributeName: 'session_id'
+          AttributeType: S
+      KeySchema:
+        - AttributeName: 'session_id'
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      TimeToLiveSpecification:
+        AttributeName: 'expires_at'
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: WGA
+        - Key: Purpose
+          Value: MCP Session Management
 
   # Cognito User Pool
   UserPool:
@@ -511,6 +576,15 @@ Resources:
       Value: !If [ ShouldCreateDockerBuildBucket, !Ref DockerBuildBucket, !Sub 'wga-dockerbuildbucket-${Environment}' ]
       Description: S3 bucket for Docker Build
 
+  FrontendBucketParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '/wga/${Environment}/FrontendBucketName'
+      Type: String
+      Value: !If [ ShouldCreateFrontendBucket, !Ref FrontendBucket, !Sub 'wga-frontend-${Environment}' ]
+      Description: S3 bucket for frontend hosting
+
   UserPoolIdParameter:
     Type: AWS::SSM::Parameter
     DeletionPolicy: Delete
@@ -610,6 +684,15 @@ Resources:
       Value: !Ref ChatHistoryTable
       Description: 'Name of the DynamoDB table for chat history'
 
+  McpSessionsTableParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '/wga/${Environment}/McpSessionsTable'
+      Type: String
+      Value: !Ref McpSessionsTable
+      Description: 'Name of the DynamoDB table for mcp sessions'
+
 Outputs:
   DeploymentBucketName:
     Description: Name of the S3 bucket for deployment packages
@@ -630,6 +713,10 @@ Outputs:
   DockerBuildBucketName:
     Description: Name of the S3 bucket for docker build files
     Value: !If [ ShouldCreateDockerBuildBucket, !Ref DockerBuildBucket, !Sub 'wga-dockerbuildbucket-${Environment}' ]
+
+  FrontendBucketName:
+    Description: Name of the S3 bucket for frontend hosting
+    Value: !If [ShouldCreateFrontendBucket, !Ref FrontendBucket, !Sub 'wga-frontend-${Environment}']
 
   UserPoolId:
     Description: ID of the Cognito User Pool

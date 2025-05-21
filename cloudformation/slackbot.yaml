@@ -161,12 +161,3 @@ Resources:
       FunctionName: !Ref SlackbotLambdaFunction
       Principal: "apigateway.amazonaws.com"
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/GET/callback"
-
-  SlackbotApiDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn:
-      - SlackbotLoginMethod
-      - SlackbotCallbackMethod
-    Properties:
-      RestApiId: !Ref ApiGatewayId
-      StageName: !Ref Environment

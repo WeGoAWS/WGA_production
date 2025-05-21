@@ -142,14 +142,6 @@ Resources:
       Principal: 'apigateway.amazonaws.com'
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/create-table'
 
-  AthenaUtilityApiDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn:
-      - ExecuteQueryMethod
-      - CreateTableMethod
-    Properties:
-      RestApiId: !Ref ApiGatewayId
-      StageName: !Ref Environment
 
 Outputs:
   AthenaUtilityLambdaFunctionArn:
