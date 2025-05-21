@@ -82,7 +82,8 @@ def fetch_cloudwatch_logs_for_service(
             "vpc": ["/aws/vpc"],
             "waf": ["/aws/waf"],
             "bedrock": [f"/aws/bedrock/modelinvocations"],
-            "iam": ["/aws/dummy-security-logs"]
+            "iam": ["/aws/dummy-security-logs"],
+            "guardduty": ["/aws/guardduty"]
         }
 
         # Default to searching all log groups if service isn't in our mapping
