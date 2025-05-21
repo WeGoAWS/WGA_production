@@ -29,13 +29,6 @@ interface ChatbotState {
     waitingForResponse: boolean;
 }
 
-interface RankItem {
-    context: string;
-    rank_order: number;
-    title: string;
-    url: string;
-}
-
 // 유니크 ID 생성 함수
 const generateId = () => {
     return Date.now().toString(36) + Math.random().toString(36).substring(2);

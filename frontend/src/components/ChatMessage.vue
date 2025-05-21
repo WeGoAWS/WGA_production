@@ -98,20 +98,6 @@
     import { parseMarkdown } from '@/utils/markdown';
     import type { ChatMessageType } from '@/types/chat.ts';
 
-    interface ChatMessage {
-        id: string;
-        sender: 'user' | 'bot';
-        text: string;
-        displayText?: string;
-        timestamp: string;
-        isTyping?: boolean;
-        animationState?: 'appear' | 'typing' | 'complete';
-        query_string?: string;
-        query_result?: any[];
-        elapsed_time?: string | number;
-        inference?: any; // 추가된 inference 필드
-    }
-
     export default defineComponent({
         name: 'ChatMessage',
 
@@ -410,14 +396,6 @@
             transform: scale(1.2);
             opacity: 1;
         }
-    }
-
-    .message-time {
-        font-size: 0.75rem;
-        color: #888;
-        margin-top: 4px;
-        text-align: right;
-        padding-right: 8px;
     }
 
     /* 마크다운 스타일링 */

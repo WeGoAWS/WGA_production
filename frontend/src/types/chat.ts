@@ -10,7 +10,7 @@ export interface ChatMessageType {
     query_string?: string;
     query_result?: any[];
     elapsed_time?: string | number;
-    inference?: any; // 추가된 inference 필드
+    inference?: any;
 }
 
 export interface ChatSession {
@@ -34,5 +34,5 @@ export interface BotResponse {
     query_string?: string;
     query_result?: any[];
     elapsed_time?: string | number;
-    inference?: any; // 추가된 inference 필드
+    inference?: any;
 }

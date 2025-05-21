@@ -74,7 +74,6 @@
             const tokens = computed(() => authStore.tokens);
 
             onMounted(() => {
-                // 인증 상태 확인
                 if (!authStore.isAuthenticated) {
                     router.push('/login');
                 }
@@ -125,21 +124,6 @@
         border-bottom: 1px solid #eee;
     }
 
-    .logout-button {
-        padding: 0.5rem 1rem;
-        background-color: #232f3e;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-weight: 500;
-        transition: background-color 0.2s;
-    }
-
-    .logout-button:hover {
-        background-color: #364759;
-    }
-
     .dashboard-container {
         max-width: 1000px;
         margin: 0 auto;
@@ -155,38 +139,6 @@
         border-bottom: 1px solid #eee;
     }
 
-    .logout-button {
-        padding: 0.5rem 1rem;
-        background-color: #232f3e;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-weight: 500;
-        transition: background-color 0.2s;
-    }
-
-    .logout-button:hover {
-        background-color: #364759;
-    }
-
-    .loading-spinner {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1rem;
-        margin: 3rem 0;
-    }
-
-    .spinner {
-        width: 50px;
-        height: 50px;
-        border: 5px solid #f3f3f3;
-        border-top: 5px solid #ff9900;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-    }
-
     @keyframes spin {
         0% {
             transform: rotate(0deg);
@@ -194,23 +146,6 @@
         100% {
             transform: rotate(360deg);
         }
-    }
-
-    .auth-info-card {
-        background-color: white;
-        border-radius: 8px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        margin-bottom: 2rem;
-    }
-
-    .auth-details {
-        margin-top: 1rem;
-    }
-
-    .auth-field {
-        display: flex;
-        margin-bottom: 0.5rem;
     }
 
     .field-label {
@@ -228,30 +163,6 @@
         font-weight: 600;
     }
 
-    .resources-section {
-        margin-top: 2rem;
-    }
-
-    .resources-info {
-        margin-bottom: 1.5rem;
-        color: #555;
-    }
-
-    .resource-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 1.5rem;
-    }
-
-    .resource-card {
-        background-color: white;
-        border-radius: 8px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        display: flex;
-        flex-direction: column;
-    }
-
     .resource-card h3 {
         margin-bottom: 0.5rem;
         color: #333;
@@ -261,21 +172,5 @@
         margin-bottom: 1rem;
         color: #666;
         flex-grow: 1;
-    }
-
-    .action-button {
-        padding: 0.5rem 1rem;
-        background-color: #ff9900;
-        color: #232f3e;
-        border: none;
-        border-radius: 4px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background-color 0.2s;
-        align-self: flex-start;
-    }
-
-    .action-button:hover {
-        background-color: #ffac33;
     }
 </style>

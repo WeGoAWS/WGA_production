@@ -36,38 +36,29 @@
 
             onMounted(async () => {
                 try {
-                    // 백엔드에서 인증 처리된 후 일반적으로 쿼리 파라미터 없이 호출됨
-                    // 쿼리 파라미터가 있다면 에러일 가능성이 높음 (예: error=access_denied)
                     if (route.query.error) {
                         throw new Error(
                             `인증 오류: ${route.query.error} - ${route.query.error_description || ''}`,
                         );
                     }
 
-                    // 인증 상태 확인
                     const isAuthenticated = await authStore.validateToken();
 
                     if (isAuthenticated) {
-                        // 세션 스토리지에 저장된 리다이렉트 경로가 있는지 확인
                         const redirectPath = localStorage.getItem('auth_redirect_path');
                         if (redirectPath) {
-                            // 원래 요청한 페이지로 리다이렉트
                             router.push(redirectPath);
-                            // 사용한 경로 정보 삭제
                             localStorage.removeItem('auth_redirect_path');
                         } else {
-                            // 기본 리다이렉트
                             router.push('/start-chat');
                         }
                     } else {
-                        // 인증되지 않은 경우 로그인 페이지로 리다이렉트
                         router.push('/login');
                     }
                 } catch (err: any) {
                     console.error('Redirect handling error:', err);
                     error.value = { message: err.message || '인증 처리 중 오류가 발생했습니다.' };
 
-                    // 에러 세부 정보 저장
                     if (err.response) {
                         errorDetails.value = JSON.stringify(
                             {

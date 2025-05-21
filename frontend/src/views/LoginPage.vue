@@ -60,9 +60,7 @@
                 error.value = '';
 
                 try {
-                    // AWS Cognito OAuth 로그인 시작
                     authStore.initiateLogin();
-                    // 리다이렉트가 발생하므로 이 아래 코드는 실행되지 않음
                 } catch (err: any) {
                     console.error('Login error:', err);
                     error.value = err.message || '로그인 과정에서 오류가 발생했습니다.';

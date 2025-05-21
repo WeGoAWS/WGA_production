@@ -36,27 +36,20 @@
 
             onMounted(async () => {
                 try {
-                    // URL에서 인증 코드 추출
                     const code = route.query.code as string;
 
                     if (!code) {
                         throw new Error('인증 코드가 없습니다. URL 쿼리 파라미터를 확인하세요.');
                     }
 
-
-                    // 코드를 토큰으로 교환
                     const success = await authStore.exchangeCodeForTokens(code);
 
                     if (success) {
-
-                        // 리다이렉트할 경로 가져오기 (없으면 기본값으로 /start-chat 사용)
                         const redirectPath =
                             localStorage.getItem('auth_redirect_path') || '/start-chat';
 
-                        // 리다이렉트 정보 사용 후 삭제
                         localStorage.removeItem('auth_redirect_path');
 
-                        // 해당 경로로 리다이렉트
                         router.push(redirectPath);
                     } else {
                         throw new Error('토큰 교환 과정에서 오류가 발생했습니다.');
@@ -65,7 +58,6 @@
                     console.error('Callback handling error:', err);
                     error.value = err.message || '인증 과정에서 오류가 발생했습니다.';
 
-                    // 상세 에러 정보 저장
                     if (err.response) {
                         errorDetails.value = JSON.stringify(
                             {

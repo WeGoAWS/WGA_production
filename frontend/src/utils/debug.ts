@@ -1,10 +1,5 @@
 // src/utils/debug.ts
-// 디버깅을 위한 유틸리티 함수들
 
-/**
- * 현재 환경 변수를 콘솔에 출력합니다.
- * 민감한 정보는 마스킹 처리합니다.
- */
 export const logEnvironmentVars = () => {
     const vars = {
         AWS_REGION: import.meta.env.AWS_REGION || '설정되지 않음',
@@ -35,7 +30,6 @@ export const validateOAuthUrl = (url: string): boolean => {
     try {
         const urlObj = new URL(url);
 
-        // 필수 파라미터 확인
         const params = new URLSearchParams(urlObj.search);
         const requiredParams = ['client_id', 'redirect_uri', 'response_type', 'scope'];
 
@@ -46,7 +40,6 @@ export const validateOAuthUrl = (url: string): boolean => {
             return false;
         }
 
-        // 프로토콜 검사
         if (urlObj.protocol !== 'https:') {
             console.error('OAuth URL은 HTTPS 프로토콜을 사용해야 합니다');
             return false;
@@ -92,7 +85,6 @@ export const logRequestDetails = (
     }
 
     if (body) {
-        // 민감한 정보를 포함할 수 있는 필드 마스킹
         const sanitizedBody = { ...body };
         ['code', 'refresh_token', 'access_token', 'id_token'].forEach((field) => {
             if (sanitizedBody[field]) {

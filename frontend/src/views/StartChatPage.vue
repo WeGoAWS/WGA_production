@@ -211,17 +211,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- 새로운 향상된 챗봇 페이지로 이동하는 버튼 추가 -->
-            <div class="enhanced-chat-button-container">
-                <button @click="goToEnhancedChat" class="enhanced-chat-button">
-                    <span class="enhanced-chat-icon">🚀</span>
-                    향상된 대화 기능 사용하기
-                </button>
-                <p class="enhanced-chat-description">
-                    대화 기록 저장, 세션 관리, 타이핑 이펙트 등 향상된 기능을 사용해보세요!
-                </p>
-            </div>
         </div>
     </AppLayout>
 </template>
@@ -245,9 +234,7 @@
             const messageText = ref('');
             const isNavOpen = ref(false);
 
-            // 컴포넌트 마운트 시 대화 내역 로드
             onMounted(async () => {
-                // 세션이 로드되지 않았다면 로드
                 if (chatHistoryStore.sessions.length === 0) {
                     try {
                         await chatHistoryStore.fetchSessions();
@@ -257,12 +244,10 @@
                 }
             });
 
-            // 네비게이션 토글
             const toggleNav = () => {
                 isNavOpen.value = !isNavOpen.value;
             };
 
-            // 세션 목록 로드
             const loadSessions = async () => {
                 try {
                     await chatHistoryStore.fetchSessions();
@@ -271,7 +256,6 @@
                 }
             };
 
-            // 세션 선택 및 채팅 페이지로 이동
             const selectAndGoToChat = async (sessionId: string) => {
                 try {
                     await chatHistoryStore.selectSession(sessionId);
@@ -281,17 +265,13 @@
                 }
             };
 
-            // 새 대화 시작 함수 - 바로 페이지 이동 후 비동기로 세션 생성
             const startNewChat = async () => {
                 if (!messageText.value.trim()) return;
 
                 try {
-                    // 질문을 세션 스토리지에 저장
                     sessionStorage.setItem('pendingQuestion', messageText.value);
-                    // 새 세션 생성 플래그 저장
                     sessionStorage.setItem('createNewSession', 'true');
 
-                    // 즉시 채팅 페이지로 이동
                     router.push('/chat');
                 } catch (error) {
                     console.error('새 대화 시작 중 오류 발생:', error);
@@ -299,23 +279,18 @@
                 }
             };
 
-            // 예시 질문 클릭 처리
             const askExampleQuestion = (question: string) => {
                 messageText.value = question;
                 startNewChat();
             };
 
-            // 향상된 채팅 페이지로 이동하는 함수
             const goToEnhancedChat = async () => {
-                // 입력된 질문이 있다면 저장
                 if (messageText.value.trim()) {
                     sessionStorage.setItem('pendingQuestion', messageText.value);
                 }
 
-                // 항상 새 세션 생성 플래그 저장
                 sessionStorage.setItem('createNewSession', 'true');
 
-                // 즉시 채팅 페이지로 이동
                 router.push('/chat');
             };
 
@@ -515,55 +490,9 @@
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
     }
 
-    .example-question:hover {
-        background-color: #f0f7ff;
-        border-color: #b3d9ff;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-    }
-
     .example-question:active {
         transform: translateY(0);
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    }
-
-    /* 향상된 채팅 버튼 스타일 */
-    .enhanced-chat-button-container {
-        margin-top: 1.5rem;
-        text-align: center;
-    }
-
-    .enhanced-chat-button {
-        padding: 1rem 2rem;
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: white;
-        background-color: #ff9900;
-        border: none;
-        border-radius: 50px;
-        cursor: pointer;
-        box-shadow: 0 4px 12px rgba(255, 153, 0, 0.3);
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-    }
-
-    .enhanced-chat-button:hover {
-        background-color: #f08c00;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(255, 153, 0, 0.4);
-    }
-
-    .enhanced-chat-icon {
-        font-size: 1.3rem;
-    }
-
-    .enhanced-chat-description {
-        margin-top: 1rem;
-        color: #666;
-        font-size: 0.9rem;
     }
 
     /* 새로 추가된 네비게이션 토글 버튼 스타일 */
@@ -717,22 +646,6 @@
         bottom: 0;
         background-color: rgba(0, 0, 0, 0.5);
         z-index: 999;
-    }
-
-    /* 애니메이션 */
-    .slide-enter-active,
-    .slide-leave-active {
-        transition: transform 0.3s;
-    }
-
-    .slide-enter-from,
-    .slide-leave-to {
-        transform: translateX(-100%);
-    }
-
-    .slide-enter-to,
-    .slide-leave-from {
-        transform: translateX(0);
     }
 
     /* 반응형 스타일 */

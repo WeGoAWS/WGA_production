@@ -163,30 +163,23 @@
             const initialSetupDone = ref(false);
             const pendingQuestionProcessed = ref(false);
 
-            // 세션 전환 관련 상태
             const showSessionChangeWarning = ref(false);
             const targetSessionId = ref<string | null>(null);
 
-            // 컴포넌트 마운트 시 세션 로드 및 초기화
             onMounted(async () => {
                 try {
-                    // 세션스토리지에서 질문과 새 세션 생성 플래그 가져오기
                     const pendingQuestion = sessionStorage.getItem('pendingQuestion');
                     const shouldCreateNewSession =
                         sessionStorage.getItem('createNewSession') === 'true';
 
-                    // 플래그 사용 후 제거
                     sessionStorage.removeItem('createNewSession');
 
-                    // 보류 중인 질문이 있는 경우
                     if (pendingQuestion && !pendingQuestionProcessed.value) {
                         pendingQuestionProcessed.value = true;
                         sessionStorage.removeItem('pendingQuestion');
 
-                        // 세션 관련 작업 진행
                         if (store.sessions.length === 0 || shouldCreateNewSession) {
                             try {
-                                // 세션이 없거나 새 세션 요청인 경우 새 세션 생성
                                 await store.createNewSession(
                                     pendingQuestion.length > 30
                                         ? pendingQuestion.substring(0, 30) + '...'
@@ -196,7 +189,6 @@
                                 console.error('세션 생성 오류:', e);
                             }
                         } else if (!store.currentSession) {
-                            // 세션 선택 필요
                             try {
                                 await store.selectSession(store.sessions[0].sessionId);
                             } catch (e) {
@@ -204,26 +196,19 @@
                             }
                         }
 
-                        // 여기서 메시지 처리는 한 번만 수행
-                        // sendMessage 함수 호출로 통합 (자체 구현하지 않고)
                         await sendMessage(pendingQuestion, true);
                     } else {
-                        // 보류 중인 질문이 없는 경우 일반적인 세션 초기화
                         if (shouldCreateNewSession) {
-                            // 플래그가 있으면 항상 새 세션 생성
                             await store
                                 .createNewSession()
                                 .catch((e) => console.error('세션 생성 오류:', e));
                         } else {
-                            // 플래그가 없으면 기존 로직 수행
-                            // 세션 로드
                             if (store.sessions.length === 0) {
                                 await store
                                     .fetchSessions()
                                     .catch((e) => console.error('세션 로드 오류:', e));
                             }
 
-                            // 세션 선택 또는 생성
                             if (!store.currentSession) {
                                 if (store.sessions.length > 0) {
                                     await store
@@ -235,13 +220,11 @@
                                         .catch((e) => console.error('세션 생성 오류:', e));
                                 }
                             } else if (!store.currentSession.messages) {
-                                // messages가 없는 경우에 대비해 빈 배열로 초기화
                                 store.currentSession.messages = [];
                             }
                         }
                     }
 
-                    // 이미 초기화가 완료되었는지 확인 (중복 실행 방지)
                     initialSetupDone.value = true;
                 } catch (error) {
                     console.error('채팅 페이지 초기화 오류:', error);
@@ -249,7 +232,6 @@
                 }
             });
 
-            // 메시지가 추가될 때마다 스크롤을 아래로 이동
             watch(
                 () => store.currentMessages,
                 () => {
@@ -258,7 +240,6 @@
                 { deep: true },
             );
 
-            // 스크롤을 채팅 맨 아래로 이동
             const scrollToBottom = async () => {
                 await nextTick();
                 if (messagesContainer.value) {
@@ -266,26 +247,20 @@
                 }
             };
 
-            // 메시지 전송 처리
             const sendMessage = async (text: string, isPending = false) => {
                 if (!text.trim() || store.waitingForResponse) return;
 
                 try {
-                    // 현재 세션 확인
                     if (!store.currentSession) {
-                        // 세션이 없으면 새 세션 생성
                         await store.createNewSession(
                             text.length > 30 ? text.substring(0, 30) + '...' : text,
                         );
                     } else if (!store.currentSession.messages) {
-                        // messages가 없는 경우 빈 배열로 초기화
                         store.currentSession.messages = [];
                     }
 
-                    // 메시지 ID 생성
                     const messageId = 'msg-' + Date.now().toString(36);
 
-                    // 사용자 메시지 UI에 즉시 표시
                     const userMessage: ChatMessageType = {
                         id: messageId,
                         sender: 'user',
@@ -415,7 +390,7 @@
                                 }
 
                                 // 봇 메시지를 서버에 저장
-                                const botMessageResponse = await axios.post(
+                                await axios.post(
                                     `${apiUrl}/sessions/${sessionId}/messages`,
                                     {
                                         sender: 'bot',
@@ -1012,40 +987,6 @@
 
     .input-container {
         margin-top: 20px;
-    }
-
-    .chat-actions {
-        display: flex;
-        justify-content: center;
-        margin-top: 15px;
-    }
-
-    .clear-button {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 8px 16px;
-        background-color: transparent;
-        color: #6c757d;
-        border: 1px solid #ced4da;
-        border-radius: 20px;
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: all 0.2s;
-    }
-
-    .clear-button:hover:not(:disabled) {
-        background-color: #f8f9fa;
-        color: #495057;
-    }
-
-    .clear-button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .action-icon {
-        font-size: 1rem;
     }
 
     /* 반응형 스타일 */
