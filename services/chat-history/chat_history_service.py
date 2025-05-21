@@ -40,6 +40,17 @@ def handle_chat_history_request(path, http_method, body, event, origin):
             sessions = get_sessions(user_id)
             return cors_response(200, {'sessions': sessions}, origin)
 
+        elif http_method == 'DELETE':
+            # 사용자 세션 전체 삭제
+            query_params = event.get('queryStringParameters', {}) or {}
+            user_id = query_params.get('userId')
+
+            if not user_id:
+                return cors_response(400, {'error': 'Missing userId parameter'}, origin)
+
+            result = delete_sessions_by_user(user_id)
+            return cors_response(200, result, origin)
+
     # 세션 ID 파싱 (정규식 대신 간단한 방법 사용)
     path_parts = path.split('/')
     session_id = None
@@ -300,3 +311,23 @@ def get_messages(session_id):
 
     # 메시지 반환
     return session.get('messages', [])
+
+
+def delete_sessions_by_user(user_id):
+    """사용자 ID에 해당하는 모든 세션 삭제"""
+    # 사용자 ID에 해당하는 세션 조회
+    response = table.query(
+        IndexName='UserIdIndex',
+        KeyConditionExpression=Key('userId').eq(user_id)
+    )
+
+    items = response.get('Items', [])
+    deleted_count = 0
+
+    for item in items:
+        session_id = item.get('sessionId')
+        if session_id:
+            table.delete_item(Key={'sessionId': session_id})
+            deleted_count += 1
+
+    return {'deletedCount': deleted_count}
