@@ -340,6 +340,8 @@
         white-space: pre-wrap;
         overflow-wrap: break-word;
         word-break: break-word;
+        max-width: 100%;
+        overflow-x: auto;
     }
 
     .user-message .message-content {
@@ -418,6 +420,7 @@
 
     :deep(.markdown-content p) {
         margin: 0.5rem 0;
+        max-width: 100%;
     }
 
     :deep(.markdown-content ul),
@@ -444,12 +447,15 @@
         border-radius: 4px;
         overflow-x: auto;
         margin: 0.7rem 0;
+        max-width: 100%;
+        white-space: pre-wrap;
     }
 
     :deep(.markdown-content pre code) {
         background: none;
         padding: 0;
-        white-space: pre;
+        white-space: pre-wrap;
+        word-break: break-word;
     }
 
     :deep(.markdown-content strong) {
@@ -464,6 +470,7 @@
     :deep(.message-content a) {
         color: #0d6efd;
         text-decoration: underline;
+        word-break: break-all;
     }
 
     :deep(.user-message .message-content a) {
@@ -562,12 +569,14 @@
     .query-result-table-container {
         overflow-x: auto;
         margin-top: 8px;
+        max-width: 100%;
     }
 
     .query-result-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 0.85rem;
+        table-layout: auto;
     }
 
     .query-result-table th,
@@ -575,6 +584,9 @@
         border: 1px solid #ddd;
         padding: 8px;
         text-align: left;
+        word-break: break-word;
+        max-width: 250px;
+        overflow-wrap: break-word;
     }
 
     .query-result-table th {

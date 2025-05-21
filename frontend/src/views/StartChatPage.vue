@@ -483,16 +483,32 @@
         border: 1px solid #e6e6e6;
         border-radius: 8px;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.3s ease; /* 전환 시간 0.2s에서 0.3s로 늘림 */
         color: #333;
         font-size: 0.95rem;
         font-weight: 400;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
     }
 
+    .example-question:hover:not(:disabled) {
+        background-color: #e1f0ff; /* 호버 시 좀 더 밝은 파란색 배경 */
+        border-color: #99caff;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 그림자 효과 강화 */
+        color: #0056b3; /* 호버 시 텍스트 색상 변경 */
+    }
+
     .example-question:active {
         transform: translateY(0);
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        background-color: #d4e7ff;
+    }
+
+    .example-question:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
     }
 
     /* 새로 추가된 네비게이션 토글 버튼 스타일 */
@@ -646,6 +662,32 @@
         bottom: 0;
         background-color: rgba(0, 0, 0, 0.5);
         z-index: 999;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .nav-overlay {
+        opacity: 1;
+    }
+
+    /* 애니메이션 트랜지션 스타일 추가 */
+    .slide-enter-active,
+    .slide-leave-active {
+        transition:
+            transform 0.3s ease,
+            opacity 0.3s ease;
+    }
+
+    .slide-enter-from,
+    .slide-leave-to {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+
+    .slide-enter-to,
+    .slide-leave-from {
+        transform: translateX(0);
+        opacity: 1;
     }
 
     /* 반응형 스타일 */

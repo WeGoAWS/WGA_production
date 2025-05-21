@@ -1,17 +1,56 @@
 <template>
     <AppLayout>
         <div class="chatbot-container">
-            <!-- 좌측 사이드바 (채팅 세션 목록) -->
-            <div class="chatbot-sidebar" :class="{ 'disabled-sidebar': store.waitingForResponse }">
-                <ChatHistory
-                    :disabled="store.waitingForResponse"
-                    @session-click="handleSessionClick"
-                />
-            </div>
-
+            <!-- 토글 가능한 좌측 사이드바 (채팅 세션 목록) -->
+            <transition name="slide">
+                <div
+                    v-if="isSidebarOpen"
+                    class="chatbot-sidebar"
+                    :class="{ 'disabled-sidebar': store.waitingForResponse }"
+                >
+                    <ChatHistory
+                        :disabled="store.waitingForResponse"
+                        @session-click="handleSessionClick"
+                    />
+                </div>
+            </transition>
+            
             <!-- 메인 채팅 영역 -->
-            <div class="chatbot-main">
+            <div class="chatbot-main" :class="{ 'sidebar-open': isSidebarOpen }">
                 <div class="chat-header">
+                    <!-- 사이드바 토글 버튼 추가 -->
+                    <button @click="toggleSidebar" class="sidebar-toggle-button">
+                        <svg
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <path
+                                d="M3 12H21"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                            <path
+                                d="M3 6H21"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                            <path
+                                d="M3 18H21"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                        </svg>
+                    </button>
+
                     <h1 @click="handleGoMain">AWS Cloud Agent</h1>
                     <p class="chat-description">운영 정보/메뉴얼 질의</p>
                     <!-- 진행 중인 질의가 있을 때 상태 표시 -->
@@ -115,21 +154,6 @@
                 <div class="input-container">
                     <ChatInput :disabled="store.waitingForResponse" @send="sendMessage" />
                 </div>
-
-                <!-- 채팅 관련 추가 액션 버튼들 -->
-                <!--                <div-->
-                <!--                    class="chat-actions"-->
-                <!--                    v-if="store.currentSession && store.currentMessages.length > 0"-->
-                <!--                >-->
-                <!--                    <button-->
-                <!--                        @click="clearChat"-->
-                <!--                        class="clear-button"-->
-                <!--                        :disabled="store.waitingForResponse"-->
-                <!--                    >-->
-                <!--                        <span class="action-icon">🧹</span>-->
-                <!--                        대화 내용 지우기-->
-                <!--                    </button>-->
-                <!--                </div>-->
             </div>
         </div>
     </AppLayout>
@@ -165,6 +189,21 @@
 
             const showSessionChangeWarning = ref(false);
             const targetSessionId = ref<string | null>(null);
+
+            // 사이드바 상태 관리 (토글 기능 추가)
+            const isSidebarOpen = ref(false); // 기본적으로 사이드바가 닫힌 상태로 시작
+
+            const toggleSidebar = () => {
+                isSidebarOpen.value = !isSidebarOpen.value;
+            };
+
+            // 윈도우 크기 변화에 대응하는 함수
+            const handleResize = () => {
+                // 모바일 환경(<768px)에서 사이드바가 열려있을 경우 닫기
+                if (window.innerWidth < 768 && isSidebarOpen.value) {
+                    isSidebarOpen.value = false;
+                }
+            };
 
             onMounted(async () => {
                 try {
@@ -226,6 +265,13 @@
                     }
 
                     initialSetupDone.value = true;
+
+                    // 윈도우 리사이즈 이벤트 리스너 등록
+                    window.addEventListener('resize', handleResize);
+
+                    return () => {
+                        window.removeEventListener('resize', handleResize);
+                    };
                 } catch (error) {
                     console.error('채팅 페이지 초기화 오류:', error);
                     store.error = '채팅 세션을 불러오는 중 오류가 발생했습니다.';
@@ -296,6 +342,11 @@
                     }
 
                     store.waitingForResponse = true;
+
+                    // 모바일에서 메시지 전송 시 사이드바 닫기
+                    if (window.innerWidth < 768) {
+                        isSidebarOpen.value = false;
+                    }
 
                     // UI 업데이트 및 스크롤 조정
                     await nextTick();
@@ -374,20 +425,7 @@
                                 const sessionId = store.currentSession.sessionId;
 
                                 // elapsed_time이 있으면 텍스트 메시지에 추가
-                                let messageText = botResponse.text || '';
-                                if (botResponse.elapsed_time) {
-                                    // 이미 마지막 줄에 실행시간이 포함되어 있는지 확인
-                                    if (
-                                        !messageText.includes(
-                                            `실행시간: ${botResponse.elapsed_time}`,
-                                        )
-                                    ) {
-                                        // 개행 후 실행시간 추가
-                                        messageText =
-                                            messageText.trim() +
-                                            `\n\n실행시간: ${botResponse.elapsed_time}`;
-                                    }
-                                }
+                                const messageText = botResponse.text || '';
 
                                 // 봇 메시지를 서버에 저장
                                 await axios.post(
@@ -502,6 +540,11 @@
                 } else {
                     // 대기 중이 아니면 바로 세션 전환
                     store.selectSession(sessionId);
+
+                    // 모바일에서는 세션 선택 후 사이드바 닫기
+                    if (window.innerWidth < 768) {
+                        isSidebarOpen.value = false;
+                    }
                 }
             };
 
@@ -519,6 +562,11 @@
 
                     // 세션 전환
                     await store.selectSession(targetSessionId.value);
+
+                    // 모바일에서는 세션 선택 후 사이드바 닫기
+                    if (window.innerWidth < 768) {
+                        isSidebarOpen.value = false;
+                    }
 
                     // 모달 닫기
                     targetSessionId.value = null;
@@ -703,6 +751,8 @@
                 handleSessionClick,
                 cancelSessionChange,
                 confirmSessionChange,
+                isSidebarOpen, // 사이드바 상태 노출
+                toggleSidebar, // 사이드바 토글 함수 노출
             };
         },
     });
@@ -714,17 +764,94 @@
         height: calc(100vh - 40px);
         max-height: calc(100vh - 40px);
         background-color: #f8f9fa;
+        position: relative;
+        overflow-x: hidden; /* 너비 변경 시 스크롤바 방지 */
     }
 
+    /* 채팅 목록 사이드바 스타일 */
     .chatbot-sidebar {
+        min-width: 300px;
         width: 300px;
+        height: 100%;
         background-color: #fff;
         border-right: 1px solid #e5e5e5;
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.03);
-        transition: opacity 0.3s;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+        z-index: 100;
+        transition: transform 0.3s ease-in-out;
+    }
+
+    /* 모바일에서는 사이드바를 고정 위치에 표시 */
+    @media (max-width: 767px) {
+        .chatbot-sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+        }
+    }
+
+    /* 사이드바 헤더 스타일 */
+    .sidebar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px;
+        border-bottom: 1px solid #e5e5e5;
+        background-color: #f8f9fa;
+    }
+
+    .sidebar-header h2 {
+        margin: 0;
+        font-size: 1.2rem;
+        color: #333;
+    }
+
+    .close-sidebar-button {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #666;
+        padding: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        transition: background-color 0.2s;
+    }
+
+    .close-sidebar-button:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    /* 사이드바 오버레이 스타일 */
+    .sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 90;
+    }
+
+    /* 사이드바 애니메이션 트랜지션 */
+    .slide-enter-active,
+    .slide-leave-active {
+        transition: transform 0.3s ease-in-out;
+    }
+
+    .slide-enter-from,
+    .slide-leave-to {
+        transform: translateX(-300px);
+    }
+
+    .slide-enter-to,
+    .slide-leave-from {
+        transform: translateX(0);
     }
 
     /* 사이드바 비활성화 스타일 */
@@ -753,13 +880,45 @@
         position: relative;
         background-color: #f8f9fa;
         overflow: hidden;
+        transition: all 0.3s ease-in-out;
+        will-change: width, flex; /* 브라우저에게 변경될 속성 힌트 제공 */
+    }
+
+    /* 사이드바 토글 버튼 스타일 */
+    .sidebar-toggle-button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #333;
+        padding: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        transition: background-color 0.2s;
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .sidebar-toggle-button:hover {
+        background-color: rgba(0, 0, 0, 0.05);
     }
 
     .chat-header {
         margin-bottom: 20px;
         padding-bottom: 15px;
+        padding-left: 50px; /* 토글 버튼 공간 확보 */
         border-bottom: 1px solid #e5e5e5;
         position: relative;
+        text-align: center;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
     }
 
     /* 처리 중 인디케이터 스타일 */
@@ -811,6 +970,7 @@
     }
 
     .chat-header h1 {
+        width: 250px;
         margin-bottom: 5px;
         cursor: pointer;
         color: #232f3e;
@@ -822,6 +982,7 @@
     }
 
     .chat-description {
+        width: 200px;
         color: #6c757d;
         font-size: 0.95rem;
     }
@@ -996,10 +1157,12 @@
         }
 
         .chatbot-sidebar {
-            width: 100%;
-            height: 60px;
-            flex-direction: row;
-            overflow: auto;
+            width: 280px;
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100%;
+            z-index: 1000;
         }
 
         .chat-messages {
@@ -1008,6 +1171,10 @@
 
         .example-questions {
             grid-template-columns: 1fr;
+        }
+
+        .chat-header {
+            padding-left: 45px;
         }
     }
 </style>
