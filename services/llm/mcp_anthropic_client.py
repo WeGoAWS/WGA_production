@@ -37,6 +37,7 @@ class AnthropicMCPClient:
         self.max_iterations = max_iterations
         self.pending_tasks = {}  # 대기 중인 작업 ID 및 상태 추적
         self.system_prompt = None
+        self.debug_log = []  # 디버그 로그 추가 - 사고 과정과 도구 사용 추적
 
     def initialize(self) -> str:
         """
@@ -89,7 +90,16 @@ class AnthropicMCPClient:
             최종 응답
         """
         # 응답 텍스트 추출
-        response_text = response.get('content', [''])[0]
+        response_text = ""
+        if "content" in response:
+            if isinstance(response["content"], list):
+                for item in response["content"]:
+                    if isinstance(item, str):
+                        response_text += item
+                    elif isinstance(item, dict) and "text" in item:
+                        response_text += item["text"]
+            elif isinstance(response["content"], str):
+                response_text = response["content"]
 
         # 작업 ID 패턴 탐지
         task_patterns = [
@@ -112,6 +122,13 @@ class AnthropicMCPClient:
         # 대기 중인 작업이 감지되지 않은 경우 현재 응답 반환
         if not pending_task_detected or not task_ids:
             return response
+
+        # 디버그 로그에 비동기 작업 감지 기록
+        self.debug_log.append({
+            "type": "async_task_detected",
+            "task_ids": task_ids,
+            "timestamp": time.time()
+        })
 
         # 대기 중인 작업 처리
         for task_id in task_ids:
@@ -149,20 +166,54 @@ class AnthropicMCPClient:
 
                         # 작업 ID가 ARN인지 확인
                         if "arn:aws" in task_id:
-                            status_result = self.mcp_client.call_tool(mcp_tool_name, {"execution_arn": task_id})
+                            tool_input = {"execution_arn": task_id}
                         else:
-                            status_result = self.mcp_client.call_tool(mcp_tool_name, {"task_id": task_id})
+                            tool_input = {"task_id": task_id}
 
+                        # 디버그 로그에 상태 확인 도구 요청 기록
+                        self.debug_log.append({
+                            "type": "status_check_request",
+                            "tool_name": mcp_tool_name,
+                            "input": tool_input,
+                            "timestamp": time.time()
+                        })
+
+                        status_result = self.mcp_client.call_tool(mcp_tool_name, tool_input)
                         status_checked = True
+
+                        # 디버그 로그에 상태 확인 결과 기록
+                        self.debug_log.append({
+                            "type": "status_check_result",
+                            "tool_name": mcp_tool_name,
+                            "input": tool_input,
+                            "output": status_result,
+                            "timestamp": time.time()
+                        })
 
                         # 작업 상태 확인
                         if status_result.get('status') == 'complete':
                             self.pending_tasks[task_id]['status'] = 'complete'
                             self.pending_tasks[task_id]['result'] = status_result
+
+                            # 디버그 로그에 작업 완료 기록
+                            self.debug_log.append({
+                                "type": "async_task_complete",
+                                "task_id": task_id,
+                                "result": status_result,
+                                "timestamp": time.time()
+                            })
                             break
                         elif status_result.get('status') == 'error':
                             self.pending_tasks[task_id]['status'] = 'error'
                             self.pending_tasks[task_id]['error'] = status_result.get('message')
+
+                            # 디버그 로그에 작업 오류 기록
+                            self.debug_log.append({
+                                "type": "async_task_error",
+                                "task_id": task_id,
+                                "error": status_result.get('message'),
+                                "timestamp": time.time()
+                            })
                             break
 
                         # 여전히 진행 중인 경우 대기
@@ -170,6 +221,12 @@ class AnthropicMCPClient:
 
                     except Exception as e:
                         # 이 도구가 실패하면 다음 도구로 시도
+                        self.debug_log.append({
+                            "type": "status_check_error",
+                            "tool_name": mcp_tool_name,
+                            "error": str(e),
+                            "timestamp": time.time()
+                        })
                         continue
 
                 # 하나 이상의 도구로 상태를 확인했고 작업이 완료된 경우
@@ -179,6 +236,13 @@ class AnthropicMCPClient:
                 # 타임아웃 확인 (60초)
                 if time.time() - task_info['start_time'] > 60:
                     self.pending_tasks[task_id]['status'] = 'timeout'
+
+                    # 디버그 로그에 작업 타임아웃 기록
+                    self.debug_log.append({
+                        "type": "async_task_timeout",
+                        "task_id": task_id,
+                        "timestamp": time.time()
+                    })
                     break
 
                 # 잠시 대기 후 다시 시도
@@ -211,6 +275,13 @@ class AnthropicMCPClient:
                 final_request += "## 오류가 발생한 작업\n"
                 for task_id, error in task_errors.items():
                     final_request += f"작업 ID: {task_id}, 오류: {error}\n"
+
+            # 디버그 로그에 최종 분석 요청 기록
+            self.debug_log.append({
+                "type": "final_analysis_request",
+                "content": final_request,
+                "timestamp": time.time()
+            })
 
             # 최종 분석 요청
             self.messages.append({
@@ -245,6 +316,13 @@ class AnthropicMCPClient:
                     if item.get("type") == "text":
                         final_message += item.get("text", "")
 
+                # 디버그 로그에 최종 분석 응답 기록
+                self.debug_log.append({
+                    "type": "final_analysis_response",
+                    "content": final_message,
+                    "timestamp": time.time()
+                })
+
                 # 메시지에 최종 응답 추가
                 self.messages.append({
                     "role": "assistant",
@@ -264,6 +342,14 @@ class AnthropicMCPClient:
                 }
             else:
                 error_message = f"Anthropic API 오류: {response.status_code} - {response.text}"
+
+                # 디버그 로그에 API 오류 기록
+                self.debug_log.append({
+                    "type": "api_error",
+                    "error": error_message,
+                    "timestamp": time.time()
+                })
+
                 return {
                     "output": {
                         "message": {
@@ -276,6 +362,13 @@ class AnthropicMCPClient:
             status_summary = "일부 작업이 아직 진행 중입니다. 현재 상태:\n\n"
             for task_id, task_info in self.pending_tasks.items():
                 status_summary += f"작업 ID: {task_id}, 상태: {task_info['status']}\n"
+
+            # 디버그 로그에 상태 업데이트 요청 기록
+            self.debug_log.append({
+                "type": "status_update_request",
+                "content": status_summary,
+                "timestamp": time.time()
+            })
 
             self.messages.append({
                 "role": "user",
@@ -309,6 +402,13 @@ class AnthropicMCPClient:
                     if item.get("type") == "text":
                         updated_message += item.get("text", "")
 
+                # 디버그 로그에 상태 업데이트 응답 기록
+                self.debug_log.append({
+                    "type": "status_update_response",
+                    "content": updated_message,
+                    "timestamp": time.time()
+                })
+
                 # 메시지에 업데이트된 응답 추가
                 self.messages.append({
                     "role": "assistant",
@@ -321,6 +421,14 @@ class AnthropicMCPClient:
                 })
             else:
                 error_message = f"Anthropic API 오류: {response.status_code} - {response.text}"
+
+                # 디버그 로그에 API 오류 기록
+                self.debug_log.append({
+                    "type": "api_error",
+                    "error": error_message,
+                    "timestamp": time.time()
+                })
+
                 return {
                     "output": {
                         "message": {
@@ -352,6 +460,24 @@ class AnthropicMCPClient:
         if not self.messages:
             self.messages = []
 
+        # 디버그 로그 초기화
+        self.debug_log = []
+
+        # 디버그 로그에 사용자 입력 기록
+        self.debug_log.append({
+            "type": "user_input",
+            "content": prompt,
+            "timestamp": time.time()
+        })
+
+        # 시스템 프롬프트가 있는 경우 디버그 로그에 기록
+        if system_prompt:
+            self.debug_log.append({
+                "type": "system_prompt",
+                "content": system_prompt,
+                "timestamp": time.time()
+            })
+
         # 메시지 추가
         self.messages.append({
             "role": "user",
@@ -360,6 +486,13 @@ class AnthropicMCPClient:
 
         # Anthropic 도구 형식으로 변환
         anthropic_tools = self._convert_tools_format()
+
+        # 디버그 로그에 사용 가능한 도구 기록
+        self.debug_log.append({
+            "type": "available_tools",
+            "tools": [tool["name"] for tool in anthropic_tools],
+            "timestamp": time.time()
+        })
 
         # 모델 호출 루프 시작 (도구 사용이 완료될 때까지)
         final_response = None
@@ -372,6 +505,13 @@ class AnthropicMCPClient:
         while iteration < self.max_iterations:
             iteration += 1
             print(f"반복 {iteration}/{self.max_iterations}")
+
+            # 디버그 로그에 반복 정보 기록
+            self.debug_log.append({
+                "type": "iteration_start",
+                "iteration": iteration,
+                "timestamp": time.time()
+            })
 
             # API 요청 페이로드 구성 - max_tokens 필드 추가
             payload = {
@@ -405,6 +545,14 @@ class AnthropicMCPClient:
             # 응답 파싱
             if response.status_code != 200:
                 error_message = f"Anthropic API 오류: {response.status_code} - {response.text}"
+
+                # 디버그 로그에 API 오류 기록
+                self.debug_log.append({
+                    "type": "api_error",
+                    "error": error_message,
+                    "timestamp": time.time()
+                })
+
                 return {
                     "output": {
                         "message": {
@@ -429,6 +577,14 @@ class AnthropicMCPClient:
             print(f"응답 텍스트: {message_content[:100]}...")
             print(f"도구 사용 요청 수: {len(tool_uses)}")
 
+            # 디버그 로그에 모델 응답 기록
+            if message_content:
+                self.debug_log.append({
+                    "type": "model_reasoning",
+                    "content": message_content,
+                    "timestamp": time.time()
+                })
+
             # 텍스트 응답이 있으면 저장
             if message_content:
                 all_responses.append(message_content)
@@ -443,6 +599,13 @@ class AnthropicMCPClient:
 
             # 도구 사용 요청이 있는 경우
             if tool_uses:
+                # 디버그 로그에 도구 사용 요청 기록
+                self.debug_log.append({
+                    "type": "tool_use_requests",
+                    "count": len(tool_uses),
+                    "timestamp": time.time()
+                })
+
                 # 각 도구에 대해 MCP 도구 호출
                 tool_results = []
                 for tool_use in tool_uses:
@@ -454,6 +617,14 @@ class AnthropicMCPClient:
 
                         print(f"도구 호출: {tool_name}, 입력: {json.dumps(tool_input, ensure_ascii=False)}")
 
+                        # 디버그 로그에 도구 사용 요청 기록
+                        self.debug_log.append({
+                            "type": "tool_request",
+                            "tool_name": tool_name,
+                            "input": tool_input,
+                            "timestamp": time.time()
+                        })
+
                         # MCP 도구 호출
                         result = self.mcp_client.call_tool(
                             tool_name,
@@ -461,6 +632,15 @@ class AnthropicMCPClient:
                         )
 
                         print(f"도구 결과: {json.dumps(result, ensure_ascii=False)[:200]}...")
+
+                        # 디버그 로그에 도구 결과 기록
+                        self.debug_log.append({
+                            "type": "tool_result",
+                            "tool_name": tool_name,
+                            "input": tool_input,
+                            "output": result,
+                            "timestamp": time.time()
+                        })
 
                         # 도구 결과를 저장
                         tool_results.append({
@@ -471,6 +651,16 @@ class AnthropicMCPClient:
                     except Exception as e:
                         # 오류 처리
                         print(f"도구 호출 오류: {str(e)}")
+
+                        # 디버그 로그에 도구 오류 기록
+                        self.debug_log.append({
+                            "type": "tool_error",
+                            "tool_name": tool_name,
+                            "input": tool_input,
+                            "error": str(e),
+                            "timestamp": time.time()
+                        })
+
                         tool_results.append({
                             "tool_id": tool_use_id,
                             "name": tool_name,
@@ -494,6 +684,13 @@ class AnthropicMCPClient:
                     tool_result_message = "다음은 도구 호출 결과입니다:\n\n" + "\n\n".join(tool_result_messages)
                     print(f"도구 결과를 사용자 메시지로 추가: {len(tool_results)}개")
 
+                    # 디버그 로그에 도구 결과 요약 기록
+                    self.debug_log.append({
+                        "type": "tool_results_summary",
+                        "content": tool_result_message,
+                        "timestamp": time.time()
+                    })
+
                     self.messages.append({
                         "role": "user",
                         "content": tool_result_message
@@ -503,6 +700,14 @@ class AnthropicMCPClient:
             # 도구 호출이 없는 경우 최종 응답 설정 및 루프 종료
             else:
                 print("도구 호출 없음, 대화 종료")
+
+                # 디버그 로그에 대화 종료 기록
+                self.debug_log.append({
+                    "type": "conversation_complete",
+                    "iteration": iteration,
+                    "timestamp": time.time()
+                })
+
                 final_response = {
                     "content": [message_content]
                 }
@@ -516,11 +721,60 @@ class AnthropicMCPClient:
                 "content": [combined_response]
             }
             print(f"최종 응답 생성: {combined_response[:100]}...")
+
+            # 디버그 로그에 결합된 응답 기록
+            self.debug_log.append({
+                "type": "combined_response",
+                "content": combined_response,
+                "timestamp": time.time()
+            })
         elif not final_response:
-            raise Exception("최대 반복 횟수를 초과했습니다.")
+            error_message = "최대 반복 횟수를 초과했습니다."
+
+            # 디버그 로그에 반복 횟수 초과 오류 기록
+            self.debug_log.append({
+                "type": "max_iterations_exceeded",
+                "error": error_message,
+                "timestamp": time.time()
+            })
+            raise Exception(error_message)
 
         # 비동기 작업 완료 확인
         return self._check_task_completion(final_response)
+
+    def _extract_text_from_response(self, response):
+        """
+        응답에서 텍스트 추출
+
+        Args:
+            response: Anthropic 응답 객체
+
+        Returns:
+            추출된 텍스트
+        """
+        if "content" in response:
+            if isinstance(response["content"], list):
+                text = ""
+                for item in response["content"]:
+                    if isinstance(item, str):
+                        text += item
+                    elif isinstance(item, dict) and "text" in item:
+                        text += item["text"]
+                return text
+            elif isinstance(response["content"], str):
+                return response["content"]
+
+        output_message = response.get('output', {}).get('message', {})
+        if output_message:
+            content = output_message.get('content', [])
+            if content:
+                text = ""
+                for item in content:
+                    if isinstance(item, dict) and "text" in item:
+                        text += item["text"]
+                return text
+
+        return str(response)
 
     def process_user_input(self, user_input: str, system_prompt: str = None) -> str:
         """
@@ -540,6 +794,16 @@ class AnthropicMCPClient:
         # 메시지 배열 초기화
         self.messages = []
 
+        # 디버그 로그 초기화
+        self.debug_log = []
+
+        # 디버그 로그에 처리 시작 기록
+        self.debug_log.append({
+            "type": "process_start",
+            "user_input": user_input,
+            "timestamp": time.time()
+        })
+
         # LLM이 모든 필요한 도구를 사용하여 완전한 응답 생성
         response = self.invoke_with_tools(user_input, system_prompt)
 
@@ -558,6 +822,13 @@ class AnthropicMCPClient:
         # 최종 텍스트 로깅 추가
         print(f"최종 응답 반환: {final_text[:200]}...")
 
+        # 디버그 로그에 최종 응답 기록
+        self.debug_log.append({
+            "type": "final_response",
+            "content": final_text,
+            "timestamp": time.time()
+        })
+
         # 메시지 배열에서 마지막 assistant 응답 찾기
         if not final_text:
             for message in reversed(self.messages):
@@ -567,6 +838,15 @@ class AnthropicMCPClient:
                     break
 
         return final_text
+
+    def get_debug_log(self) -> List[Dict[str, Any]]:
+        """
+        디버그 로그 반환
+
+        Returns:
+            디버그 로그 배열
+        """
+        return self.debug_log
 
     def close(self) -> bool:
         """

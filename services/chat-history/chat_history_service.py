@@ -58,6 +58,7 @@ def handle_chat_history_request(path, http_method, body, event, origin):
         if http_method == "OPTIONS":
             response = cors_response(200, "", origin)
             return response
+
         # 특정 세션 관련 요청
         elif http_method == 'GET':
             # 세션 조회
@@ -91,6 +92,7 @@ def handle_chat_history_request(path, http_method, body, event, origin):
         if http_method == "OPTIONS":
             response = cors_response(200, "", origin)
             return response
+
         elif http_method == 'GET':
             # 메시지 목록 조회
             messages = get_messages(session_id)
@@ -103,11 +105,15 @@ def handle_chat_history_request(path, http_method, body, event, origin):
             # 메시지 추가
             sender = body.get('sender')
             text = body.get('text')
+            elapsed_time = body.get('elapsed_time')
+            inference = body.get('inference')
+            query_string = body.get('query_string')
+            query_result = body.get('query_result')
 
-            if not sender or not text:
-                return cors_response(400, {'error': 'sender and text are required'}, origin)
+            if not sender or not text or elapsed_time is None or inference is None or query_string is None or query_result is None:
+                return cors_response(400, {'error': 'Missing required message fields'}, origin)
 
-            message = add_message(session_id, sender, text)
+            message = add_message(session_id, sender, text, elapsed_time, inference, query_string, query_result)
             if not message:
                 return cors_response(404, {'error': 'Session not found'}, origin)
 
@@ -238,7 +244,7 @@ def delete_session(session_id):
     return True
 
 
-def add_message(session_id, sender, text):
+def add_message(session_id, sender, text, elapsed_time, inference, query_string, query_result):
     """세션에 새 메시지 추가"""
     # 세션 정보 조회
     response = table.get_item(
@@ -257,6 +263,10 @@ def add_message(session_id, sender, text):
         'id': message_id,
         'sender': sender,
         'text': text,
+        'elapsed_time': elapsed_time,
+        'inference': inference,
+        'query_string': query_string,
+        'query_result': query_result,
         'timestamp': timestamp
     }
 
