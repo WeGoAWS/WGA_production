@@ -152,7 +152,7 @@ def handle_llm1_with_mcp(body, origin):
                     "lambda": ["/aws/lambda"],
                     "rds": ["/aws/rds"],
                     "eks": ["/aws/eks"],
-                    "apigateway": ["/aws/apigateway"],
+                    "apigateway": ["API-Gateway-Execution-Logs_", "/aws/apigateway"],
                     "cloudtrail": ["/aws/cloudtrail"],
                     "s3": ["/aws/s3", "/aws/s3-access"],
                     "vpc": ["/aws/vpc"],

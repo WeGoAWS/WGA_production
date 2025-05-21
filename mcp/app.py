@@ -2,12 +2,26 @@ import os
 import json
 import boto3
 import pandas as pd
+import httpx
+import re
 from datetime import datetime, timedelta
 from collections import defaultdict
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Union
 from tabulate import tabulate
 from pydantic import BaseModel, Field
 from lambda_mcp.lambda_mcp import LambdaMCPServer
+from lambda_mcp.document_utils import (
+    extract_content_from_html,
+    format_documentation_result,
+    is_html_content,
+    parse_recommendation_results,
+)
+
+# API URL 상수 정의
+DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 ModelContextProtocol/1.0 (AWS Documentation Server)'
+SEARCH_API_URL = 'https://proxy.search.docs.aws.amazon.com/search'
+RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations'
+
 
 # Get session table name from environment variable
 session_table = os.environ.get('MCP_SESSION_TABLE', f'wga-mcp-sessions-{os.environ.get("ENV", "dev")}')
@@ -21,6 +35,7 @@ xray_client = boto3.client('xray', region_name=aws_region)
 autoscaling_client = boto3.client('autoscaling', region_name=aws_region)
 ec2_client = boto3.client('ec2', region_name=aws_region)
 health_client = boto3.client('health', region_name=aws_region)
+ce_client = boto3.client('ce', region_name=aws_region)
 
 # Initialize the MCP server
 mcp_server = LambdaMCPServer(name="cloudguard", version="1.0.0", session_table=session_table)
@@ -479,7 +494,7 @@ def analyze_log_group(
 
 
 @mcp_server.tool()
-async def get_detailed_breakdown_by_day(params: DaysParam) -> Dict[str, Any]:
+def get_detailed_breakdown_by_day(params: DaysParam) -> Dict[str, Any]:
     """
     Retrieve daily spend breakdown by region, service, and instance type.
 
@@ -491,9 +506,6 @@ async def get_detailed_breakdown_by_day(params: DaysParam) -> Dict[str, Any]:
             - A nested dictionary with cost data organized by date, region, and service
             - A string containing the formatted output report
     """
-    # Initialize the Cost Explorer client
-    ce_client = boto3.client('ce')
-
     # Get the days parameter
     days = params.days
 
@@ -578,162 +590,176 @@ async def get_detailed_breakdown_by_day(params: DaysParam) -> Dict[str, Any]:
                         output_buffer.append(
                             f"... and {len(services_df) - 5} more services totaling {other_cost:.2f} {currency}")
 
-                    # For EC2, get instance type breakdown
-                    if any(s.startswith('Amazon Elastic Compute') for s in region_services[region].keys()):
-                        try:
-                            instance_response = get_instance_type_breakdown(
-                                ce_client,
-                                date,
-                                region,
-                                'Amazon Elastic Compute Cloud - Compute',
-                                'INSTANCE_TYPE'
-                            )
-
-                            if instance_response:
-                                output_buffer.append("\n  EC2 Instance Type Breakdown:")
-                                output_buffer.append("  " + "-" * 38)
-
-                                # Get table with indentation
-                                instance_table = tabulate(instance_response.round(2), headers='keys', tablefmt='pretty',
-                                                          showindex=False)
-                                for line in instance_table.split('\n'):
-                                    output_buffer.append(f"  {line}")
-
-                        except Exception as e:
-                            output_buffer.append(f"  Note: Could not retrieve EC2 instance type breakdown: {str(e)}")
-
-                    # For SageMaker, get instance type breakdown
-                    if any(s == 'Amazon SageMaker' for s in region_services[region].keys()):
-                        try:
-                            sagemaker_instance_response = get_instance_type_breakdown(
-                                ce_client,
-                                date,
-                                region,
-                                'Amazon SageMaker',
-                                'INSTANCE_TYPE'
-                            )
-
-                            if sagemaker_instance_response is not None and not sagemaker_instance_response.empty:
-                                output_buffer.append("\n  SageMaker Instance Type Breakdown:")
-                                output_buffer.append("  " + "-" * 38)
-
-                                # Get table with indentation
-                                sagemaker_table = tabulate(sagemaker_instance_response.round(2), headers='keys',
-                                                           tablefmt='pretty', showindex=False)
-                                for line in sagemaker_table.split('\n'):
-                                    output_buffer.append(f"  {line}")
-
-                            # Also try to get usage type breakdown for SageMaker (notebooks, endpoints, etc.)
-                            sagemaker_usage_response = get_instance_type_breakdown(
-                                ce_client,
-                                date,
-                                region,
-                                'Amazon SageMaker',
-                                'USAGE_TYPE'
-                            )
-
-                            if sagemaker_usage_response is not None and not sagemaker_usage_response.empty:
-                                output_buffer.append("\n  SageMaker Usage Type Breakdown:")
-                                output_buffer.append("  " + "-" * 38)
-
-                                # Get table with indentation
-                                usage_table = tabulate(sagemaker_usage_response.round(2), headers='keys',
-                                                       tablefmt='pretty', showindex=False)
-                                for line in usage_table.split('\n'):
-                                    output_buffer.append(f"  {line}")
-
-                        except Exception as e:
-                            output_buffer.append(f"  Note: Could not retrieve SageMaker breakdown: {str(e)}")
             else:
                 output_buffer.append("No data found for this date")
 
             output_buffer.append("\n" + "-" * 75)
 
-        # Join the buffer into a single string
-        formatted_output = "\n".join(output_buffer)
+        # Convert all_data (defaultdict) to list of dicts
+        breakdown_list = []
+        for date, regions in all_data.items():
+            for region, services in regions.items():
+                for service, cost in services.items():
+                    breakdown_list.append({
+                        "date": date,
+                        "region": region,
+                        "service": service,
+                        "cost": round(cost, 2)
+                    })
 
-        # Return both the raw data and the formatted output
-        return {"status": "success", "data": all_data, "formatted_output": formatted_output}
+        return {
+            "status": "success",
+            "breakdown_count": len(breakdown_list),
+            "breakdown": breakdown_list
+        }
 
     except Exception as e:
         error_message = f"Error retrieving detailed breakdown: {str(e)}"
         return {"status": "error", "message": error_message}
 
-
-def get_instance_type_breakdown(ce_client, date, region, service, dimension_key):
+@mcp_server.tool()
+def read_documentation(
+        url: str,
+        max_length: int = 5000,
+        start_index: int = 0,
+) -> str:
     """
-    Helper function to get instance type or usage type breakdown for a specific service.
+    AWS 문서 페이지를 마크다운 형식으로 가져와 변환합니다.
 
     Args:
-        ce_client: The Cost Explorer client
-        date: The date to query
-        region: The AWS region
-        service: The AWS service name
-        dimension_key: The dimension to group by (e.g., 'INSTANCE_TYPE' or 'USAGE_TYPE')
-
-    Returns:
-        DataFrame containing the breakdown or None if no data
+        url: 읽을 AWS 문서 페이지의 URL
+        max_length: 반환할 최대 문자 수
+        start_index: 이전 가져오기가 잘렸던 경우 더 많은 내용이 필요할 때 유용한, 이 문자 인덱스부터 반환 출력
     """
-    tomorrow = (datetime.strptime(date, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+    # URL 유효성 검사
+    url_str = str(url)
+    if not re.match(r'^https?://docs\.aws\.amazon\.com/', url_str):
+        return f'Invalid URL: {url_str}. URL must be from the docs.aws.amazon.com domain'
 
-    instance_response = ce_client.get_cost_and_usage(
-        TimePeriod={
-            'Start': date,
-            'End': tomorrow
-        },
-        Granularity='DAILY',
-        Filter={
-            'And': [
-                {
-                    'Dimensions': {
-                        'Key': 'REGION',
-                        'Values': [region]
-                    }
-                },
-                {
-                    'Dimensions': {
-                        'Key': 'SERVICE',
-                        'Values': [service]
-                    }
-                }
-            ]
-        },
-        Metrics=['UnblendedCost'],
-        GroupBy=[
-            {
-                'Type': 'DIMENSION',
-                'Key': dimension_key
-            }
-        ]
-    )
+    try:
+        # requests를 사용하여 문서 페이지 가져오기
+        import requests
+        response = requests.get(
+            url_str,
+            headers={'User-Agent': DEFAULT_USER_AGENT},
+            timeout=30
+        )
+        response.raise_for_status()
 
-    if ('ResultsByTime' in instance_response and
-            instance_response['ResultsByTime'] and
-            'Groups' in instance_response['ResultsByTime'][0] and
-            instance_response['ResultsByTime'][0]['Groups']):
+        page_raw = response.text
+        content_type = response.headers.get('content-type', '')
 
-        instance_data = instance_response['ResultsByTime'][0]
-        instance_costs = []
+        # HTML 콘텐츠인지 확인하고 처리
+        if is_html_content(page_raw, content_type):
+            content = extract_content_from_html(page_raw)
+        else:
+            content = page_raw
 
-        for instance_group in instance_data['Groups']:
-            type_value = instance_group['Keys'][0]
-            cost_value = float(instance_group['Metrics']['UnblendedCost']['Amount'])
+        # 결과 포맷팅
+        result = format_documentation_result(url_str, content, start_index, max_length)
+        return result
 
-            # Add a better label for the dimension used
-            column_name = 'Instance Type' if dimension_key == 'INSTANCE_TYPE' else 'Usage Type'
+    except Exception as e:
+        error_msg = f'Failed to fetch {url_str}: {str(e)}'
+        return error_msg
 
-            instance_costs.append({
-                column_name: type_value,
-                'Cost': cost_value
-            })
 
-        # Create DataFrame and sort by cost
-        result_df = pd.DataFrame(instance_costs)
-        if not result_df.empty:
-            result_df = result_df.sort_values('Cost', ascending=False)
-            return result_df
+@mcp_server.tool()
+def search_documentation(
+        search_phrase: str,
+        limit: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    공식 AWS 문서 검색 API를 사용하여 AWS 문서를 검색합니다.
 
-    return None
+    Args:
+        search_phrase: 검색어
+        limit: 반환할 최대 결과 수
+    """
+    try:
+        # 검색 요청 페이로드 구성
+        request_body = {
+            'textQuery': {
+                'input': search_phrase,
+            },
+            'contextAttributes': [{'key': 'domain', 'value': 'docs.aws.amazon.com'}],
+            'acceptSuggestionBody': 'RawText',
+            'locales': ['en_us'],
+        }
+
+        # HTTP 요청 보내기
+        import requests
+        response = requests.post(
+            SEARCH_API_URL,
+            json=request_body,
+            headers={'Content-Type': 'application/json', 'User-Agent': DEFAULT_USER_AGENT},
+            timeout=30
+        )
+        response.raise_for_status()
+
+        # 응답 파싱
+        data = response.json()
+
+        results = []
+        if 'suggestions' in data:
+            for i, suggestion in enumerate(data['suggestions'][:limit]):
+                if 'textExcerptSuggestion' in suggestion:
+                    text_suggestion = suggestion['textExcerptSuggestion']
+                    context = None
+
+                    # 컨텍스트가 있는 경우 추가
+                    if 'summary' in text_suggestion:
+                        context = text_suggestion['summary']
+                    elif 'suggestionBody' in text_suggestion:
+                        context = text_suggestion['suggestionBody']
+
+                    results.append({
+                        'rank_order': i + 1,
+                        'url': text_suggestion.get('link', ''),
+                        'title': text_suggestion.get('title', ''),
+                        'context': context
+                    })
+
+        return results
+
+    except Exception as e:
+        error_msg = f'Error searching AWS docs: {str(e)}'
+        return [{'rank_order': 1, 'url': '', 'title': error_msg, 'context': None}]
+
+
+@mcp_server.tool()
+def recommend_documentation(
+        url: str
+) -> List[Dict[str, Any]]:
+    """
+    AWS 문서 페이지에 대한 콘텐츠 추천을 가져옵니다.
+
+    Args:
+        url: 추천을 받을 AWS 문서 페이지의 URL
+    """
+    try:
+        url_str = str(url)
+        recommendation_url = f'{RECOMMENDATIONS_API_URL}?path={url_str}'
+
+        # HTTP 요청 보내기
+        import requests
+        response = requests.get(
+            recommendation_url,
+            headers={'User-Agent': DEFAULT_USER_AGENT},
+            timeout=30
+        )
+        response.raise_for_status()
+
+        # 응답 파싱
+        data = response.json()
+
+        # 결과 파싱
+        results = parse_recommendation_results(data)
+        return results
+
+    except Exception as e:
+        error_msg = f'Error getting recommendations: {str(e)}'
+        return [{'url': '', 'title': error_msg, 'context': None}]
 
 # Define the lambda handler
 def lambda_handler(event, context):

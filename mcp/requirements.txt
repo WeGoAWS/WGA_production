@@ -9,3 +9,5 @@ numpy
 pydantic
 pydantic-core
 tabulate
+markdownify
+httpx

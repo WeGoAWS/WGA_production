@@ -136,4 +136,34 @@ class ImageContent:
 
     def model_dump_json(self) -> str:
         import json
-        return json.dumps(self.model_dump()) 
+        return json.dumps(self.model_dump())
+
+@dataclass
+class SearchResult:
+    """Search result from AWS documentation search."""
+    rank_order: int
+    url: str
+    title: str
+    context: Optional[str] = None
+
+    def model_dump(self) -> Dict:
+        return {
+            "rank_order": self.rank_order,
+            "url": self.url,
+            "title": self.title,
+            "context": self.context
+        }
+
+@dataclass
+class RecommendationResult:
+    """Recommendation result from AWS documentation."""
+    url: str
+    title: str
+    context: Optional[str] = None
+
+    def model_dump(self) -> Dict:
+        return {
+            "url": self.url,
+            "title": self.title,
+            "context": self.context
+        }
