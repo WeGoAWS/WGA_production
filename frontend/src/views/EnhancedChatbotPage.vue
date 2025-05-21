@@ -382,7 +382,7 @@
                                 botMessage.query_result = botResponse.query_result;
                             }
 
-                            if (botResponse.elapsed_time) {
+                            if (botResponse.elapsed_time !== undefined) {
                                 botMessage.elapsed_time = botResponse.elapsed_time;
                             }
 
@@ -391,18 +391,34 @@
                             // 타이핑 애니메이션
                             await simulateTyping(botMessage.id, botResponse.text || '');
 
-                            // 봇 메시지를 서버에 저장 (API 호출) - 여기가 중요한 수정 부분
+                            // 봇 메시지를 서버에 저장 (API 호출)
                             try {
                                 const apiUrl =
                                     import.meta.env.VITE_API_DEST || 'http://localhost:8000';
                                 const sessionId = store.currentSession.sessionId;
+
+                                // elapsed_time이 있으면 텍스트 메시지에 추가
+                                let messageText = botResponse.text || '';
+                                if (botResponse.elapsed_time) {
+                                    // 이미 마지막 줄에 실행시간이 포함되어 있는지 확인
+                                    if (
+                                        !messageText.includes(
+                                            `실행시간: ${botResponse.elapsed_time}`,
+                                        )
+                                    ) {
+                                        // 개행 후 실행시간 추가
+                                        messageText =
+                                            messageText.trim() +
+                                            `\n\n실행시간: ${botResponse.elapsed_time}`;
+                                    }
+                                }
 
                                 // 봇 메시지를 서버에 저장
                                 const botMessageResponse = await axios.post(
                                     `${apiUrl}/sessions/${sessionId}/messages`,
                                     {
                                         sender: 'bot',
-                                        text: botResponse.text || '',
+                                        text: messageText,
                                         // 추가 정보가 있으면 함께 전송
                                         ...(botResponse.query_string && {
                                             query_string: botResponse.query_string,

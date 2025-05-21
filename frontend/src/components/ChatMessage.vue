@@ -28,10 +28,8 @@
                 class="message-content markdown-content"
                 v-html="formatMessageContent(message.displayText || message.text)"
             ></div>
-            <div>message.elapsed_time</div>
-            <div>{{ message.elapsed_time }}</div>
-            <div>{{ typeof message.elapsed_time }}</div>
-            <div v-if="message.elapsed_time !== undefined" class="query-metadata">
+
+            <div v-if="message.elapsed_time" class="query-metadata">
                 <div class="elapsed-time">실행 시간: {{ message.elapsed_time }}</div>
 
                 <div class="details-toggle" @click="toggleDetails">
@@ -100,7 +98,7 @@
         animationState?: 'appear' | 'typing' | 'complete';
         query_string?: string;
         query_result?: any[];
-        elapsed_time?: number;
+        elapsed_time?: string | number;
     }
 
     export default defineComponent({

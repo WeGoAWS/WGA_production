@@ -9,7 +9,7 @@ export interface ChatMessageType {
     animationState?: 'appear' | 'typing' | 'complete';
     query_string?: string;
     query_result?: any[];
-    elapsed_time?: number;
+    elapsed_time?: string | number;
 }
 
 export interface ChatSession {
@@ -33,5 +33,5 @@ export interface BotResponse {
     text: string | any;
     query_string?: string;
     query_result?: any[];
-    elapsed_time?: number;
+    elapsed_time?: string | number;
 }

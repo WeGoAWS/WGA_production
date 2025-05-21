@@ -363,6 +363,8 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                     },
                 );
 
+                console.log('API 응답 데이터:', response.data);
+
                 // 새로운 형식 감지 및 처리
                 if (response.data) {
                     if (response.data.query_string && response.data.elapsed_time !== undefined) {
@@ -371,6 +373,12 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                             text: response.data.answer || '쿼리 결과 없음',
                             query_string: response.data.query_string,
                             query_result: response.data.query_result || [],
+                            elapsed_time: response.data.elapsed_time,
+                        };
+                    } else if (response.data.answer && response.data.elapsed_time !== undefined) {
+                        // 케이스 2: 단순 응답과 실행 시간이 포함된 경우
+                        return {
+                            text: response.data.answer,
                             elapsed_time: response.data.elapsed_time,
                         };
                     } else if (Array.isArray(response.data.answer)) {
@@ -382,16 +390,19 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                             text: sortedItems
                                 .map((item) => `${item.context}\n${item.title}\n${item.url}`)
                                 .join('\n\n'),
+                            elapsed_time: response.data.elapsed_time,
                         };
                     } else if (typeof response.data.answer === 'string') {
                         // 기존 형식 - 문자열 형태의 응답
                         return {
                             text: response.data.answer,
+                            elapsed_time: response.data.elapsed_time,
                         };
                     } else {
                         // 예상치 못한 형식
                         return {
                             text: JSON.stringify(response.data.answer),
+                            elapsed_time: response.data.elapsed_time,
                         };
                     }
                 }
