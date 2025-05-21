@@ -479,7 +479,7 @@ def analyze_log_group(
 
 
 @mcp_server.tool()
-async def get_detailed_breakdown_by_day(params: DaysParam) -> str:  # Dict[str, Any]:
+async def get_detailed_breakdown_by_day(params: DaysParam) -> Dict[str, Any]:
     """
     Retrieve daily spend breakdown by region, service, and instance type.
 
@@ -490,7 +490,6 @@ async def get_detailed_breakdown_by_day(params: DaysParam) -> str:  # Dict[str, 
         Dict[str, Any]: A tuple containing:
             - A nested dictionary with cost data organized by date, region, and service
             - A string containing the formatted output report
-        or (None, error_message) if an error occurs.
     """
     # Initialize the Cost Explorer client
     ce_client = boto3.client('ce')
@@ -654,13 +653,11 @@ async def get_detailed_breakdown_by_day(params: DaysParam) -> str:  # Dict[str, 
         formatted_output = "\n".join(output_buffer)
 
         # Return both the raw data and the formatted output
-        # return {"data": all_data, "formatted_output": formatted_output}
-        return formatted_output
+        return {"status": "success", "data": all_data, "formatted_output": formatted_output}
 
     except Exception as e:
         error_message = f"Error retrieving detailed breakdown: {str(e)}"
-        # return {"data": None, "formatted_output": error_message}
-        return error_message
+        return {"status": "error", "message": error_message}
 
 
 def get_instance_type_breakdown(ce_client, date, region, service, dimension_key):
