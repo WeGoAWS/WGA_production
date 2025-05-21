@@ -86,6 +86,7 @@ Resources:
                   - autoscaling-plans:*
                   - ec2:*
                   - health:*
+                  - ce:*
                   
                 Resource: '*'
               - Effect: Allow
@@ -148,7 +149,7 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LlmLambdaFunction.Arn}/invocations'
-        TimeoutInMillis: 50000
+        TimeoutInMillis: 100000
 
   LlmOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -161,7 +162,7 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LlmLambdaFunction.Arn}/invocations'
-        TimeoutInMillis: 50000
+        TimeoutInMillis: 100000
 
   LlmLambdaPermissionForOptions:
     Type: AWS::Lambda::Permission

@@ -53,14 +53,6 @@ by the other server to take further steps, such as diagnose the issue and then a
 to create tickets.
 """
 
-class DaysParam(BaseModel):
-    """Parameters for specifying the number of days to look back."""
-
-    days: int = Field(
-        default=7,
-        description="Number of days to look back for cost data"
-    )
-
 @mcp_server.tool()
 def fetch_cloudwatch_logs_for_service(
         service_name: str,
@@ -494,7 +486,7 @@ def analyze_log_group(
 
 
 @mcp_server.tool()
-def get_detailed_breakdown_by_day(params: DaysParam) -> Dict[str, Any]:
+def get_detailed_breakdown_by_day(days: int = 7) -> Dict[str, Any]:
     """
     Retrieve daily spend breakdown by region, service, and instance type.
 
@@ -506,8 +498,6 @@ def get_detailed_breakdown_by_day(params: DaysParam) -> Dict[str, Any]:
             - A nested dictionary with cost data organized by date, region, and service
             - A string containing the formatted output report
     """
-    # Get the days parameter
-    days = params.days
 
     # Calculate the time period
     end_date = datetime.now().strftime('%Y-%m-%d')
