@@ -117,19 +117,19 @@
                 </div>
 
                 <!-- 채팅 관련 추가 액션 버튼들 -->
-                <div
-                    class="chat-actions"
-                    v-if="store.currentSession && store.currentMessages.length > 0"
-                >
-                    <button
-                        @click="clearChat"
-                        class="clear-button"
-                        :disabled="store.waitingForResponse"
-                    >
-                        <span class="action-icon">🧹</span>
-                        대화 내용 지우기
-                    </button>
-                </div>
+                <!--                <div-->
+                <!--                    class="chat-actions"-->
+                <!--                    v-if="store.currentSession && store.currentMessages.length > 0"-->
+                <!--                >-->
+                <!--                    <button-->
+                <!--                        @click="clearChat"-->
+                <!--                        class="clear-button"-->
+                <!--                        :disabled="store.waitingForResponse"-->
+                <!--                    >-->
+                <!--                        <span class="action-icon">🧹</span>-->
+                <!--                        대화 내용 지우기-->
+                <!--                    </button>-->
+                <!--                </div>-->
             </div>
         </div>
     </AppLayout>
@@ -894,7 +894,6 @@
 
     .input-container {
         margin-top: 20px;
-        padding: 10px 0;
     }
 
     .chat-actions {

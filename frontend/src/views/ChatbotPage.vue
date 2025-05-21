@@ -151,12 +151,12 @@
                     </button>
                 </div>
 
-                <div
-                    class="chat-actions"
-                    v-if="store.currentSession && store.currentMessages.length > 0"
-                >
-                    <button @click="clearChat" class="clear-button">대화 내용 지우기</button>
-                </div>
+                <!--                <div-->
+                <!--                    class="chat-actions"-->
+                <!--                    v-if="store.currentSession && store.currentMessages.length > 0"-->
+                <!--                >-->
+                <!--                    <button @click="clearChat" class="clear-button">대화 내용 지우기</button>-->
+                <!--                </div>-->
             </div>
         </div>
     </AppLayout>
