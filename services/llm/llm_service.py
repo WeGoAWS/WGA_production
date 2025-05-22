@@ -145,6 +145,7 @@ def handle_llm1_with_mcp(body, origin):
         user_input = body.get('question') or body.get('text') or body.get('input', {}).get('text', '')
         session_id = body.get('sessionId')
         is_cached = body.get('isCached', True)
+        slack_user_id = body.get("user_id")
 
         print(f"=== 요청 분석 ===")
         print(f"user_input: {user_input}")
@@ -398,6 +399,9 @@ def handle_llm1_with_mcp(body, origin):
         elapsed = response_time - question_time
         minutes, seconds = divmod(elapsed.total_seconds(), 60)
         elapsed_str = f"{int(minutes)}분 {int(seconds)}초" if minutes else f"{int(seconds)}초"
+        
+        # 최종 결과를 Slack으로 전송
+        send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{response_text}")
 
         # 성공 응답 반환 (도구 사용 과정 및 결과 포함)
         return cors_response(200, {
