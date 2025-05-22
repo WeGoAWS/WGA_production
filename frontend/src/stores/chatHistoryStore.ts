@@ -536,6 +536,36 @@ export const useChatHistoryStore = defineStore('chatHistory', {
             }
         },
 
+        async deleteAllSessions() {
+            try {
+                const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
+                const userId = localStorage.getItem('userId') || '';
+
+                if (!userId) {
+                    throw new Error('사용자 ID를 찾을 수 없습니다.');
+                }
+
+                // API 호출하여 모든 세션 삭제
+                await axios.delete(`${apiUrl}/sessions`, {
+                    params: { userId: userId },
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    withCredentials: true,
+                });
+
+                // 상태 초기화
+                this.sessions = [];
+                this.currentSession = null;
+
+                return true;
+            } catch (err: any) {
+                console.error('전체 세션 삭제 오류:', err);
+                this.error = err.message || '전체 세션을 삭제하는 중 오류가 발생했습니다.';
+                throw err;
+            }
+        },
+
         // 상태 초기화
         resetState() {
             this.loading = false;

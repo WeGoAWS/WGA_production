@@ -14,35 +14,61 @@
         </div>
 
         <div v-else-if="store.hasSessions" class="chat-sessions">
-            <div
-                v-for="session in store.sessions"
-                :key="session.sessionId"
-                class="chat-session-item"
-                :class="{
-                    active: store.currentSession?.sessionId === session.sessionId,
-                    disabled: disabled,
-                }"
-                @click="selectSession(session.sessionId)"
-            >
-                <div class="session-title">{{ session.title }}</div>
-                <div class="session-date">{{ formatDate(session.updatedAt) }}</div>
-                <div class="session-actions" v-if="!disabled">
-                    <button
-                        class="action-button rename-button"
-                        @click.stop="startRenameSession(session)"
-                        title="이름 변경"
-                    >
-                        <span class="icon">✏️</span>
-                    </button>
-                    <button
-                        class="action-button delete-button"
-                        @click.stop="confirmDeleteSession(session.sessionId)"
-                        title="삭제"
-                    >
-                        <span class="icon">🗑️</span>
-                    </button>
+            <div>
+                <div
+                    v-for="session in store.sessions"
+                    :key="session.sessionId"
+                    class="chat-session-item"
+                    :class="{
+                        active: store.currentSession?.sessionId === session.sessionId,
+                        disabled: disabled,
+                    }"
+                    @click="selectSession(session.sessionId)"
+                >
+                    <div class="session-title">{{ session.title }}</div>
+                    <div class="session-date">{{ formatDate(session.updatedAt) }}</div>
+                    <div class="session-actions" v-if="!disabled">
+                        <button
+                            class="action-button rename-button"
+                            @click.stop="startRenameSession(session)"
+                            title="이름 변경"
+                        >
+                            <span class="icon">✏️</span>
+                        </button>
+                        <button
+                            class="action-button delete-button"
+                            @click.stop="confirmDeleteSession(session.sessionId)"
+                            title="삭제"
+                        >
+                            <span class="icon">🗑️</span>
+                        </button>
+                    </div>
                 </div>
             </div>
+            <button
+                @click="confirmDeleteAllSessions"
+                class="delete-all-button"
+                :disabled="disabled"
+            >
+                <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="3,6 5,6 21,6"></polyline>
+                    <path
+                        d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"
+                    ></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+                <span>대화 전체 삭제</span>
+            </button>
         </div>
 
         <div v-else class="empty-sessions">
@@ -71,7 +97,7 @@
             </div>
         </div>
 
-        <!-- 세션 삭제 확인 모달 -->
+        <!-- 개별 세션 삭제 확인 모달 -->
         <div v-if="showDeleteConfirm" class="delete-modal">
             <div class="delete-modal-content">
                 <h3>대화 삭제 확인</h3>
@@ -80,6 +106,23 @@
                 <div class="delete-actions">
                     <button @click="cancelDelete" class="cancel-button">취소</button>
                     <button @click="confirmDelete" class="delete-confirm-button">삭제</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 전체 세션 삭제 확인 모달 -->
+        <div v-if="showDeleteAllConfirm" class="delete-modal">
+            <div class="delete-modal-content">
+                <h3>⚠️ 전체 대화 삭제 확인</h3>
+                <p>모든 대화를 삭제하시겠습니까?</p>
+                <p class="warning">
+                    이 작업은 되돌릴 수 없으며, 모든 대화 내역이 영구적으로 삭제됩니다.
+                </p>
+                <div class="delete-actions">
+                    <button @click="cancelDeleteAll" class="cancel-button">취소</button>
+                    <button @click="confirmDeleteAll" class="delete-confirm-button">
+                        전체 삭제
+                    </button>
                 </div>
             </div>
         </div>
@@ -111,9 +154,12 @@
             const newSessionTitle = ref('');
             const renamingInput = ref<HTMLInputElement | null>(null);
 
-            // 세션 삭제 확인 관련 상태
+            // 개별 세션 삭제 확인 관련 상태
             const showDeleteConfirm = ref(false);
             const sessionToDelete = ref<string | null>(null);
+
+            // 전체 세션 삭제 확인 관련 상태
+            const showDeleteAllConfirm = ref(false);
 
             // 세션 목록 가져오기
             const fetchSessions = async () => {
@@ -188,7 +234,7 @@
                 }
             };
 
-            // 세션 삭제 확인 모달 표시
+            // 개별 세션 삭제 확인 모달 표시
             const confirmDeleteSession = (sessionId: string) => {
                 if (props.disabled) return; // 비활성화 상태면 실행하지 않음
 
@@ -196,13 +242,13 @@
                 showDeleteConfirm.value = true;
             };
 
-            // 세션 삭제 취소
+            // 개별 세션 삭제 취소
             const cancelDelete = () => {
                 showDeleteConfirm.value = false;
                 sessionToDelete.value = null;
             };
 
-            // 세션 삭제 확인
+            // 개별 세션 삭제 확인
             const confirmDelete = async () => {
                 if (sessionToDelete.value) {
                     try {
@@ -212,6 +258,30 @@
                     } catch (error) {
                         console.error('세션 삭제 오류:', error);
                     }
+                }
+            };
+
+            // 전체 세션 삭제 확인 모달 표시
+            const confirmDeleteAllSessions = () => {
+                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
+                showDeleteAllConfirm.value = true;
+            };
+
+            // 전체 세션 삭제 취소
+            const cancelDeleteAll = () => {
+                showDeleteAllConfirm.value = false;
+            };
+
+            // 전체 세션 삭제 확인
+            const confirmDeleteAll = async () => {
+                try {
+                    await store.deleteAllSessions();
+                    showDeleteAllConfirm.value = false;
+                    console.log('모든 대화가 성공적으로 삭제되었습니다.');
+                } catch (error) {
+                    console.error('전체 세션 삭제 오류:', error);
+                    // 에러 처리 - 필요시 사용자에게 알림
+                    alert('전체 대화 삭제 중 오류가 발생했습니다. 다시 시도해 주세요.');
                 }
             };
 
@@ -233,6 +303,10 @@
                 confirmDeleteSession,
                 cancelDelete,
                 confirmDelete,
+                showDeleteAllConfirm,
+                confirmDeleteAllSessions,
+                cancelDeleteAll,
+                confirmDeleteAll,
             };
         },
     });
@@ -324,8 +398,11 @@
 
     .chat-sessions {
         flex: 1;
+        justify-content: space-between;
         overflow-y: auto;
         padding: 12px;
+        display: flex;
+        flex-direction: column;
     }
 
     .chat-session-item {
@@ -402,6 +479,43 @@
     .rename-button:hover .icon,
     .delete-button:hover .icon {
         opacity: 1;
+    }
+
+    /* 대화 전체 삭제 버튼 스타일 */
+    .delete-all-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        height: 50px;
+        margin-top: 12px;
+        background-color: #f8f9fa;
+        border: 1px solid #dc3545;
+        border-radius: 8px;
+        color: #dc3545;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+    }
+
+    .delete-all-button:hover:not(:disabled) {
+        background-color: #dc3545;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(220, 53, 69, 0.2);
+    }
+
+    .delete-all-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .delete-all-button svg {
+        flex-shrink: 0;
     }
 
     .empty-sessions {
@@ -540,6 +654,11 @@
         .delete-modal-content {
             padding: 16px;
             width: 95%;
+        }
+
+        .delete-all-button {
+            height: 45px;
+            font-size: 0.9rem;
         }
     }
 </style>

@@ -14,7 +14,7 @@
                     />
                 </div>
             </transition>
-            
+
             <!-- 메인 채팅 영역 -->
             <div class="chatbot-main" :class="{ 'sidebar-open': isSidebarOpen }">
                 <div class="chat-header">
@@ -152,7 +152,95 @@
 
                 <!-- 채팅 입력 영역 -->
                 <div class="input-container">
-                    <ChatInput :disabled="store.waitingForResponse" @send="sendMessage" />
+                    <div class="chat-input-wrapper">
+                        <textarea
+                            v-model="messageText"
+                            class="chat-input"
+                            placeholder="질문을 입력하세요..."
+                            @keydown.enter.prevent="handleEnterKey"
+                            @keydown.esc="handleEscKey"
+                            :disabled="store.waitingForResponse"
+                            ref="inputRef"
+                            rows="1"
+                            @input="autoResize"
+                        ></textarea>
+
+                        <!-- 대화 컨텍스트 기억 토글 -->
+                        <div class="context-toggle-container">
+                            <label class="context-toggle-label">
+                                <input
+                                    type="checkbox"
+                                    v-model="isCached"
+                                    class="context-toggle-input"
+                                    :disabled="store.waitingForResponse"
+                                />
+                                <span class="context-toggle-slider"></span>
+                                <span class="context-toggle-text">대화 컨텍스트 기억</span>
+                            </label>
+                        </div>
+
+                        <button
+                            @click="store.waitingForResponse ? cancelRequest() : sendMessage()"
+                            class="send-button"
+                            :disabled="!messageText.trim() && !store.waitingForResponse"
+                            :class="{
+                                loading: store.waitingForResponse,
+                                'cancel-mode': store.waitingForResponse,
+                            }"
+                            @mouseenter="showCancelIcon = true"
+                            @mouseleave="showCancelIcon = false"
+                        >
+                            <span
+                                v-if="store.waitingForResponse && !showCancelIcon"
+                                class="loading-indicator"
+                            >
+                                <span class="loading-dot"></span>
+                                <span class="loading-dot"></span>
+                                <span class="loading-dot"></span>
+                            </span>
+                            <span
+                                v-else-if="store.waitingForResponse && showCancelIcon"
+                                class="cancel-icon"
+                            >
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="white"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </span>
+                            <svg
+                                v-else
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                            >
+                                <path
+                                    d="M22 2L11 13"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                />
+                                <path
+                                    d="M22 2L15 22L11 13L2 9L22 2Z"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -166,7 +254,6 @@
     import AppLayout from '@/layouts/AppLayout.vue';
     import ChatHistory from '@/components/ChatHistory.vue';
     import ChatMessage from '@/components/ChatMessage.vue';
-    import ChatInput from '@/components/ChatInput.vue';
     import { useChatHistoryStore } from '@/stores/chatHistoryStore';
     import type { BotResponse, ChatMessageType } from '@/types/chat';
 
@@ -177,7 +264,6 @@
             AppLayout,
             ChatHistory,
             ChatMessage,
-            ChatInput,
         },
 
         setup() {
@@ -186,6 +272,10 @@
             const messagesContainer = ref<HTMLElement | null>(null);
             const initialSetupDone = ref(false);
             const pendingQuestionProcessed = ref(false);
+            const messageText = ref('');
+            const inputRef = ref<HTMLTextAreaElement | null>(null);
+            const showCancelIcon = ref(false);
+            const isCached = ref(true); // 대화 컨텍스트 기억 토글 상태 (기본값: true)
 
             const showSessionChangeWarning = ref(false);
             const targetSessionId = ref<string | null>(null);
@@ -203,6 +293,44 @@
                 if (window.innerWidth < 768 && isSidebarOpen.value) {
                     isSidebarOpen.value = false;
                 }
+            };
+
+            // Enter 키 처리 (Shift+Enter는 줄바꿈)
+            const handleEnterKey = (e: KeyboardEvent) => {
+                if (e.shiftKey) return; // Shift+Enter는 줄바꿈
+
+                if (store.waitingForResponse) {
+                    // 요청 중이면 취소
+                    cancelRequest();
+                } else {
+                    // 아니면 메시지 전송
+                    sendMessage();
+                }
+            };
+
+            // ESC 키 처리 (요청 취소)
+            const handleEscKey = () => {
+                if (store.waitingForResponse) {
+                    cancelRequest();
+                }
+            };
+
+            // 텍스트 에어리어 자동 크기 조절
+            const autoResize = () => {
+                if (!inputRef.value) return;
+
+                // 높이 초기화
+                inputRef.value.style.height = 'auto';
+
+                // 새 높이 설정 (스크롤 높이 기준, 최대 5줄 정도로 제한)
+                const newHeight = Math.min(inputRef.value.scrollHeight, 150);
+                inputRef.value.style.height = `${newHeight}px`;
+            };
+
+            // 요청 취소
+            const cancelRequest = () => {
+                store.cancelRequest();
+                showCancelIcon.value = false;
             };
 
             onMounted(async () => {
@@ -293,13 +421,16 @@
                 }
             };
 
-            const sendMessage = async (text: string, isPending = false) => {
-                if (!text.trim() || store.waitingForResponse) return;
+            const sendMessage = async (text?: string, isPending = false) => {
+                const messageToSend = text || messageText.value;
+                if (!messageToSend.trim() || store.waitingForResponse) return;
 
                 try {
                     if (!store.currentSession) {
                         await store.createNewSession(
-                            text.length > 30 ? text.substring(0, 30) + '...' : text,
+                            messageToSend.length > 30
+                                ? messageToSend.substring(0, 30) + '...'
+                                : messageToSend,
                         );
                     } else if (!store.currentSession.messages) {
                         store.currentSession.messages = [];
@@ -310,7 +441,7 @@
                     const userMessage: ChatMessageType = {
                         id: messageId,
                         sender: 'user',
-                        text: text,
+                        text: messageToSend,
                         timestamp: new Date().toISOString(),
                         animationState: 'appear',
                     };
@@ -348,6 +479,15 @@
                         isSidebarOpen.value = false;
                     }
 
+                    // UI 텍스트 입력창 초기화
+                    if (!text) {
+                        messageText.value = '';
+                        // 텍스트 에어리어 높이 초기화
+                        if (inputRef.value) {
+                            inputRef.value.style.height = 'auto';
+                        }
+                    }
+
                     // UI 업데이트 및 스크롤 조정
                     await nextTick();
                     scrollToBottom();
@@ -362,7 +502,7 @@
                             `${apiUrl}/sessions/${sessionId}/messages`,
                             {
                                 sender: 'user',
-                                text: text,
+                                text: messageToSend,
                             },
                             {
                                 headers: {
@@ -378,7 +518,7 @@
 
                     try {
                         // 직접 API 호출하여 봇 응답 생성
-                        const botResponse = await generateBotResponse(text);
+                        const botResponse = await generateBotResponse(messageToSend);
 
                         // 현재 세션과 메시지 배열이 존재하는지 확인
                         if (store.currentSession && Array.isArray(store.currentSession.messages)) {
@@ -580,18 +720,22 @@
                     // API URL 설정
                     const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
-                    // API 호출
+                    // API 호출 시 isCached 값을 포함
                     const response = await axios.post(
                         `${apiUrl}/llm1`,
                         {
                             text: userMessage,
                             sessionId: store.currentSession?.sessionId,
+                            isCached: isCached.value, // 토글 상태 전송
                         },
                         {
                             headers: {
                                 'Content-Type': 'application/json',
                             },
                             withCredentials: true,
+                            cancelToken: store.apiCancelToken
+                                ? store.apiCancelToken.token
+                                : undefined,
                         },
                     );
 
@@ -739,6 +883,10 @@
             return {
                 store,
                 messagesContainer,
+                messageText,
+                inputRef,
+                showCancelIcon,
+                isCached, // 토글 상태 노출
                 sendMessage,
                 askExampleQuestion,
                 clearChat,
@@ -753,6 +901,10 @@
                 confirmSessionChange,
                 isSidebarOpen, // 사이드바 상태 노출
                 toggleSidebar, // 사이드바 토글 함수 노출
+                handleEnterKey,
+                handleEscKey,
+                autoResize,
+                cancelRequest,
             };
         },
     });
@@ -1175,6 +1327,223 @@
 
         .chat-header {
             padding-left: 45px;
+        }
+    }
+
+    /* 채팅 입력 영역 새로운 스타일 */
+    .input-container {
+        margin-top: 20px;
+    }
+
+    .chat-input-wrapper {
+        display: flex;
+        align-items: center;
+        background-color: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 24px;
+        padding: 8px 8px 8px 16px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s;
+        gap: 12px;
+    }
+
+    .chat-input-wrapper:focus-within {
+        border-color: #90caf9;
+        box-shadow: 0 4px 12px rgba(0, 123, 255, 0.1);
+    }
+
+    .chat-input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        font-size: 1rem;
+        line-height: 1.5;
+        resize: none;
+        outline: none;
+        padding: 4px 0;
+        max-height: 150px;
+        min-height: 24px;
+        font-family: inherit;
+    }
+
+    .chat-input::placeholder {
+        color: #aaa;
+    }
+
+    .chat-input:disabled {
+        background-color: transparent;
+        color: #999;
+    }
+
+    /* 대화 컨텍스트 기억 토글 스타일 */
+    .context-toggle-container {
+        display: flex;
+        align-items: center;
+        margin: 0 8px;
+        min-width: fit-content;
+    }
+
+    .context-toggle-label {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        font-size: 0.85rem;
+        color: #666;
+        gap: 8px;
+        padding: 4px 8px;
+        border-radius: 12px;
+        transition: background-color 0.2s;
+        user-select: none;
+        white-space: nowrap;
+    }
+
+    .context-toggle-label:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+
+    .context-toggle-input {
+        display: none;
+    }
+
+    .context-toggle-slider {
+        position: relative;
+        width: 34px;
+        height: 18px;
+        background-color: #ccc;
+        border-radius: 34px;
+        transition: background-color 0.3s;
+        flex-shrink: 0;
+    }
+
+    .context-toggle-slider::before {
+        content: '';
+        position: absolute;
+        height: 14px;
+        width: 14px;
+        left: 2px;
+        bottom: 2px;
+        background-color: white;
+        border-radius: 50%;
+        transition: transform 0.3s;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .context-toggle-input:checked + .context-toggle-slider {
+        background-color: #007bff;
+    }
+
+    .context-toggle-input:checked + .context-toggle-slider::before {
+        transform: translateX(16px);
+    }
+
+    .context-toggle-input:disabled + .context-toggle-slider {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .context-toggle-text {
+        font-weight: 500;
+    }
+
+    .send-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: all 0.2s;
+        flex-shrink: 0;
+    }
+
+    .send-button:hover:not(:disabled) {
+        background-color: #0069d9;
+        transform: scale(1.05);
+    }
+
+    .send-button:active:not(:disabled) {
+        transform: scale(0.95);
+    }
+
+    .send-button:disabled {
+        background-color: #b3d7ff;
+        cursor: not-allowed;
+    }
+
+    .send-button.loading {
+        background-color: #007bff;
+    }
+
+    .send-button.cancel-mode:hover {
+        background-color: #dc3545; /* 빨간색 배경으로 변경 */
+        transform: scale(1.05);
+        cursor: pointer;
+    }
+
+    .loading-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+    }
+
+    .loading-dot {
+        width: 4px;
+        height: 4px;
+        background-color: white;
+        border-radius: 50%;
+        animation: loadingDotPulse 1.4s infinite ease-in-out;
+    }
+
+    .loading-dot:nth-child(1) {
+        animation-delay: 0s;
+    }
+
+    .loading-dot:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+
+    .loading-dot:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+
+    .cancel-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+
+    @keyframes loadingDotPulse {
+        0%,
+        60%,
+        100% {
+            transform: scale(1);
+            opacity: 0.6;
+        }
+        30% {
+            transform: scale(1.5);
+            opacity: 1;
+        }
+    }
+
+    /* 반응형 스타일 */
+    @media (max-width: 768px) {
+        .context-toggle-text {
+            display: none;
+        }
+
+        .context-toggle-container {
+            margin: 0 4px;
+        }
+
+        .chat-input-wrapper {
+            gap: 8px;
+            padding: 8px;
         }
     }
 </style>
