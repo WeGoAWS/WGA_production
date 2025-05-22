@@ -28,6 +28,60 @@ except Exception as e:
     chat_table = None
 
 
+def get_session_messages_as_array(session_id: str) -> list:
+    """
+    DynamoDB에서 세션의 메시지 히스토리를 messages 배열 형식으로 가져옴
+
+    Args:
+        session_id: 채팅 세션 ID
+
+    Returns:
+        messages 배열 형식의 대화 기록
+    """
+    try:
+        if not chat_table:
+            print("DynamoDB 테이블이 초기화되지 않았습니다.")
+            return []
+
+        response = chat_table.get_item(
+            Key={'sessionId': session_id}
+        )
+
+        session = response.get('Item')
+        if not session:
+            print(f"세션을 찾을 수 없습니다: {session_id}")
+            return []
+
+        messages = session.get('messages', [])
+
+        # 메시지를 시간순으로 정렬
+        messages.sort(key=lambda x: x.get('timestamp', ''))
+
+        # Claude/Anthropic API 형식으로 변환
+        formatted_messages = []
+        for msg in messages:
+            sender = msg.get('sender', 'user')
+            text = msg.get('text', '')
+
+            if sender == 'user':
+                formatted_messages.append({
+                    "role": "user",
+                    "content": text
+                })
+            elif sender == 'assistant':
+                formatted_messages.append({
+                    "role": "assistant",
+                    "content": text
+                })
+
+        print(f"세션 {session_id}에서 {len(formatted_messages)}개 메시지를 배열 형식으로 로드됨")
+        return formatted_messages
+
+    except Exception as e:
+        print(f"세션 메시지 조회 실패: {str(e)}")
+        return []
+
+
 def get_session_messages(session_id: str) -> list:
     """
     DynamoDB에서 세션의 메시지 히스토리를 가져옴
@@ -153,7 +207,7 @@ def get_client():
 def handle_llm1_with_mcp(body, origin):
     """
     MCP 클라이언트를 사용하여 llm1 요청을 처리하고 도구 사용 과정 및 결과 포함
-    세션 기반 메시지 캐싱 지원
+    세션 기반 메시지 캐싱 지원 (개선된 messages 배열 방식)
 
     Args:
         body: 요청 본문
@@ -331,36 +385,34 @@ Prioritize the most relevant tools for the user's question
         # 사용자 입력 처리 시작 시간 기록
         question_time = datetime.now(timezone.utc)
 
-        # 세션 기반 처리 (안전하게)
+        # 세션 기반 처리 (개선된 방식 - messages 배열 사용)
         if is_cached and session_id and chat_table:
             try:
-                # 세션 메시지 히스토리 로드
-                print(f"=== 세션 캐싱 모드 시작 ===")
+                print(f"=== 세션 캐싱 모드 시작 (개선된 방식) ===")
                 print(f"세션 ID: {session_id}")
-                session_messages = get_session_messages(session_id)
 
-                if session_messages:
+                # 세션 메시지 히스토리를 messages 배열로 로드
+                previous_messages = get_session_messages_as_array(session_id)
+
+                if previous_messages:
                     print(f"=== 히스토리 발견 ===")
-                    print(f"로드된 메시지 수: {len(session_messages)}")
+                    print(f"로드된 메시지 수: {len(previous_messages)}")
 
                     # 메시지 샘플 출력 (디버깅용)
-                    for i, msg in enumerate(session_messages[-3:]):  # 마지막 3개만
-                        print(f"최근 메시지 {i + 1}: {msg.get('sender')} - {msg.get('text', '')[:50]}...")
+                    for i, msg in enumerate(previous_messages[-3:]):  # 마지막 3개만
+                        print(f"최근 메시지 {i + 1}: {msg.get('role')} - {msg.get('content', '')[:50]}...")
 
-                    # 히스토리를 컨텍스트 문자열로 변환
-                    history_context = format_history_for_context(session_messages)
-
-                    # 시스템 프롬프트에 히스토리 컨텍스트 추가
-                    enhanced_system_prompt = f"{history_context}\n\n{system_prompt}"
-
-                    print(f"=== 컨텍스트 추가된 시스템 프롬프트 길이: {len(enhanced_system_prompt)} ===")
-
-                    # 현재 사용자 입력으로 처리 (히스토리는 시스템 프롬프트에 포함됨)
-                    response_text = client.process_user_input(user_input, enhanced_system_prompt)
+                    # 이전 대화 + 새 사용자 입력으로 처리
+                    response_text = client.process_user_input_with_history(
+                        user_input,
+                        system_prompt,
+                        previous_messages
+                    )
                 else:
                     print("=== 세션 메시지 없음 ===")
                     print("일반 모드로 처리")
                     response_text = client.process_user_input(user_input, system_prompt)
+
             except Exception as e:
                 print(f"=== 세션 캐싱 오류 ===")
                 print(f"오류: {str(e)}")

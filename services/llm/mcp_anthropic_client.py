@@ -517,13 +517,15 @@ class AnthropicMCPClient:
                     }
                 }
 
-    def invoke_with_tools(self, prompt: str, system_prompt: str = None) -> Dict[str, Any]:
+    def invoke_with_tools(self, prompt: str, system_prompt: str = None, previous_messages: list = None) -> Dict[
+        str, Any]:
         """
         MCP 도구를 사용하여 Anthropic 모델 호출
 
         Args:
             prompt: 사용자 프롬프트
             system_prompt: 시스템 프롬프트 (선택 사항)
+            previous_messages: 이전 대화 기록 (messages 배열 형식, 선택 사항)
 
         Returns:
             Anthropic 모델 응답 (표준 형식으로 변환됨)
@@ -536,8 +538,10 @@ class AnthropicMCPClient:
         if system_prompt:
             self.system_prompt = system_prompt
 
-        # 메시지 배열 초기화
-        if not self.messages:
+        # 메시지 배열 초기화 - 이전 대화 기록 포함
+        if previous_messages:
+            self.messages = previous_messages.copy()
+        else:
             self.messages = []
 
         # 디버그 로그 초기화
@@ -547,6 +551,7 @@ class AnthropicMCPClient:
         self.debug_log.append({
             "type": "user_input",
             "content": prompt,
+            "previous_messages_count": len(self.messages) if previous_messages else 0,
             "timestamp": time.time()
         })
 
@@ -558,7 +563,7 @@ class AnthropicMCPClient:
                 "timestamp": time.time()
             })
 
-        # 메시지 추가
+        # 현재 사용자 입력 추가
         self.messages.append({
             "role": "user",
             "content": prompt
@@ -937,6 +942,69 @@ class AnthropicMCPClient:
         # 디버그 로그에 최종 응답 기록
         self.debug_log.append({
             "type": "final_response",
+            "content": final_text,
+            "timestamp": time.time()
+        })
+
+        # 메시지 배열에서 마지막 assistant 응답 찾기
+        if not final_text:
+            for message in reversed(self.messages):
+                if message.get("role") == "assistant":
+                    final_text = message.get("content", "")
+                    print(f"마지막 assistant 메시지 사용: {final_text[:200]}...")
+                    break
+
+        return final_text
+
+    def process_user_input_with_history(self, user_input: str, system_prompt: str = None,
+                                        previous_messages: list = None) -> str:
+        """
+        이전 대화 기록을 포함하여 사용자 입력 처리
+
+        Args:
+            user_input: 현재 사용자 입력
+            system_prompt: 시스템 프롬프트 (선택 사항)
+            previous_messages: 이전 대화 기록 (messages 배열 형식)
+
+        Returns:
+            최종 텍스트 응답
+        """
+        # 시스템 프롬프트 저장
+        if system_prompt:
+            self.system_prompt = system_prompt
+
+        # 디버그 로그 초기화
+        self.debug_log = []
+
+        # 디버그 로그에 처리 시작 기록
+        self.debug_log.append({
+            "type": "process_start_with_history",
+            "user_input": user_input,
+            "previous_messages_count": len(previous_messages) if previous_messages else 0,
+            "timestamp": time.time()
+        })
+
+        # LLM이 모든 필요한 도구를 사용하여 완전한 응답 생성 (이전 메시지 포함)
+        response = self.invoke_with_tools(user_input, system_prompt, previous_messages)
+
+        # 응답에서 텍스트 추출
+        output_message = response.get('output', {}).get('message', {})
+        content = output_message.get('content', [])
+
+        # 모든 텍스트 콘텐츠 결합
+        final_text = ""
+        for item in content:
+            if isinstance(item, dict) and 'text' in item:
+                final_text += item['text']
+            elif isinstance(item, str):
+                final_text += item
+
+        # 최종 텍스트 로깅 추가
+        print(f"최종 응답 반환 (히스토리 포함): {final_text[:200]}...")
+
+        # 디버그 로그에 최종 응답 기록
+        self.debug_log.append({
+            "type": "final_response_with_history",
             "content": final_text,
             "timestamp": time.time()
         })
