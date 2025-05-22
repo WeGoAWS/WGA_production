@@ -401,7 +401,8 @@ def handle_llm1_with_mcp(body, origin):
         elapsed_str = f"{int(minutes)}분 {int(seconds)}초" if minutes else f"{int(seconds)}초"
         
         # 최종 결과를 Slack으로 전송
-        send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{response_text}")
+        if slack_user_id:
+            send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{response_text}")
 
         # 성공 응답 반환 (도구 사용 과정 및 결과 포함)
         return cors_response(200, {
