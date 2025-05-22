@@ -17,13 +17,13 @@ class AnthropicMCPClient:
         Args:
             mcp_url: MCP 서버 URL
             api_key: Anthropic API 키
-            model_id: Anthropic 모델 ID (기본값: 'claude-3-5-sonnet-20241022')
+            model_id: Anthropic 모델 ID (기본값: 'claude-3-7-sonnet-20250219')
             session_id: 기존 세션 ID (선택 사항)
             max_retries: 작업 상태 확인을 위한 최대 재시도 횟수
             max_iterations: 도구 호출을 위한 최대 반복 횟수
         """
         self.mcp_client = MCPClient(mcp_url, None, session_id)
-        self.model_id = model_id or 'claude-3-5-sonnet-20241022'
+        self.model_id = model_id or 'claude-3-7-sonnet-20250219'
         self.api_key = api_key
         self.api_url = "https://api.anthropic.com/v1/messages"
         self.api_headers = {
@@ -78,6 +78,78 @@ class AnthropicMCPClient:
             })
 
         return anthropic_tools
+
+    def _is_response_complete(self, message_content: str, tool_uses: List) -> bool:
+        """
+        응답이 완전한지 확인
+
+        Args:
+            message_content: 모델의 텍스트 응답
+            tool_uses: 도구 호출 목록
+
+        Returns:
+            응답이 완전한지 여부
+        """
+        # 도구 호출이 있으면 아직 진행 중
+        if tool_uses:
+            return False
+
+        # 응답이 너무 짧거나 비어있으면 불완전
+        if not message_content or len(message_content.strip()) < 50:
+            return False
+
+        # 중간 응답을 나타내는 패턴들
+        incomplete_patterns = [
+            r'더\s*(자세한|구체적인|정확한)\s*정보를?\s*(찾아보겠습니다|확인해보겠습니다|알아보겠습니다)',
+            r'추가\s*(검색|정보)를?\s*(해보겠습니다|확인해보겠습니다)',
+            r'좀\s*더\s*.+\s*(해보겠습니다|확인해보겠습니다)',
+            r'에\s*대한\s*정보를?\s*(찾아보겠습니다|확인해보겠습니다)',
+            r'관한\s*정보를?\s*(찾아보겠습니다|확인해보겠습니다)',
+            r'검색을?\s*(해보겠습니다|진행하겠습니다)',
+            r'확인하기\s*위해',
+            r'알아보기\s*위해',
+            r'찾기\s*위해',
+        ]
+
+        for pattern in incomplete_patterns:
+            if re.search(pattern, message_content):
+                print(f"불완전한 응답 패턴 감지: {pattern}")
+                return False
+
+        # 완전한 답변의 특징들
+        complete_indicators = [
+            r'방법은?\s*(다음과\s*같습니다|아래와\s*같습니다)',
+            r'단계는?\s*(다음과\s*같습니다|아래와\s*같습니다)',
+            r'절차는?\s*(다음과\s*같습니다|아래와\s*같습니다)',
+            r'\d+\.\s*.+',  # 번호가 매겨진 목록
+            r'##\s*.+',  # 제목/섹션
+            r'```',  # 코드 블록
+            r'요약하면',
+            r'정리하면',
+            r'결론적으로',
+            r'마지막으로',
+        ]
+
+        for pattern in complete_indicators:
+            if re.search(pattern, message_content):
+                print(f"완전한 응답 패턴 감지: {pattern}")
+                return True
+
+        # 응답이 충분히 길고 특별한 패턴이 없으면 완전한 것으로 간주
+        if len(message_content.strip()) > 200:
+            return True
+
+        return False
+
+    def _request_complete_answer(self) -> str:
+        """
+        완전한 답변을 요청하는 메시지 생성
+
+        Returns:
+            완전한 답변 요청 메시지
+        """
+        return ("이전 응답들을 바탕으로 사용자의 원래 질문에 대한 완전하고 구체적인 답변을 제공해주세요. "
+                "단계별 방법, 필요한 설정, 예시 코드나 명령어 등을 포함하여 실용적인 가이드를 작성해주세요.")
 
     def _check_task_completion(self, response: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -296,6 +368,10 @@ class AnthropicMCPClient:
                 "messages": self.messages
             }
 
+            anthropic_tools = self._convert_tools_format()
+            if anthropic_tools:
+                payload["tools"] = anthropic_tools
+
             # 시스템 프롬프트가 있는 경우 추가
             if self.system_prompt:
                 payload["system"] = self.system_prompt
@@ -378,9 +454,13 @@ class AnthropicMCPClient:
             # API 요청 페이로드 구성 - max_tokens 필드 추가
             payload = {
                 "model": self.model_id,
-                "max_tokens": 4096,
+                "max_tokens": 8192,
                 "messages": self.messages
             }
+
+            anthropic_tools = self._convert_tools_format()
+            if anthropic_tools:
+                payload["tools"] = anthropic_tools
 
             # 시스템 프롬프트가 있는 경우 추가
             if self.system_prompt:
@@ -516,7 +596,7 @@ class AnthropicMCPClient:
             # API 요청 페이로드 구성 - max_tokens 필드 추가
             payload = {
                 "model": self.model_id,
-                "max_tokens": 4096,
+                "max_tokens": 8192,
                 "messages": self.messages
             }
 
@@ -697,21 +777,53 @@ class AnthropicMCPClient:
                     })
                     continue  # 다음 반복으로
 
-            # 도구 호출이 없는 경우 최종 응답 설정 및 루프 종료
+            # 도구 호출이 없는 경우 - 응답 완전성 확인
             else:
-                print("도구 호출 없음, 대화 종료")
+                print("도구 호출 없음 - 응답 완전성 확인 중...")
 
-                # 디버그 로그에 대화 종료 기록
-                self.debug_log.append({
-                    "type": "conversation_complete",
-                    "iteration": iteration,
-                    "timestamp": time.time()
-                })
+                # 응답이 완전한지 확인
+                is_complete = self._is_response_complete(message_content, tool_uses)
 
-                final_response = {
-                    "content": [message_content]
-                }
-                break
+                if is_complete:
+                    print("완전한 응답 감지, 대화 종료")
+                    # 디버그 로그에 대화 종료 기록
+                    self.debug_log.append({
+                        "type": "conversation_complete",
+                        "iteration": iteration,
+                        "response_complete": True,
+                        "timestamp": time.time()
+                    })
+
+                    # 최종 응답 설정
+                    final_response = {
+                        "content": [message_content] if message_content else all_responses
+                    }
+                    break
+                else:
+                    print("불완전한 응답 감지 - 완전한 답변 요청")
+                    # 디버그 로그에 불완전한 응답 기록
+                    self.debug_log.append({
+                        "type": "incomplete_response_detected",
+                        "iteration": iteration,
+                        "content": message_content,
+                        "timestamp": time.time()
+                    })
+
+                    # 완전한 답변 요청
+                    complete_answer_request = self._request_complete_answer()
+                    self.messages.append({
+                        "role": "user",
+                        "content": complete_answer_request
+                    })
+
+                    # 디버그 로그에 완전한 답변 요청 기록
+                    self.debug_log.append({
+                        "type": "complete_answer_request",
+                        "content": complete_answer_request,
+                        "timestamp": time.time()
+                    })
+
+                    continue  # 다음 반복으로
 
         # 최종 응답이 없으면 오류 발생
         if not final_response and all_responses:
