@@ -16,20 +16,59 @@
                 </div>
 
                 <div v-else-if="chatHistoryStore.hasSessions" class="nav-sessions">
-                    <div
-                        v-for="session in chatHistoryStore.sessions"
-                        :key="session.sessionId"
-                        class="nav-session-item"
-                        @click="selectAndGoToChat(session.sessionId)"
-                    >
-                        <div class="session-title">{{ session.title }}</div>
-                        <div class="session-date">{{ formatDate(session.updatedAt) }}</div>
+                    <div class="nav-sessions-list">
+                        <div
+                            v-for="session in chatHistoryStore.sessions"
+                            :key="session.sessionId"
+                            class="nav-session-item"
+                            @click="selectAndGoToChat(session.sessionId)"
+                        >
+                            <div class="session-title">{{ session.title }}</div>
+                            <div class="session-date">{{ formatDate(session.updatedAt) }}</div>
+                        </div>
                     </div>
+
+                    <button @click="confirmDeleteAllSessions" class="delete-all-button">
+                        <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <polyline points="3,6 5,6 21,6"></polyline>
+                            <path
+                                d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"
+                            ></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                        <span>대화 전체 삭제</span>
+                    </button>
                 </div>
 
                 <div v-else class="nav-empty">
                     <p>대화 내역이 없습니다</p>
                     <button @click="loadSessions" class="nav-refresh-button">새로고침</button>
+                </div>
+
+                <div v-if="showDeleteAllConfirm" class="delete-modal">
+                    <div class="delete-modal-content">
+                        <h3>⚠️ 전체 대화 삭제 확인</h3>
+                        <p>모든 대화를 삭제하시겠습니까?</p>
+                        <p class="warning">
+                            이 작업은 되돌릴 수 없으며, 모든 대화 내역이 영구적으로 삭제됩니다.
+                        </p>
+                        <div class="delete-actions">
+                            <button @click="cancelDeleteAll" class="cancel-button">취소</button>
+                            <button @click="confirmDeleteAll" class="delete-confirm-button">
+                                전체 삭제
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </transition>
@@ -80,7 +119,7 @@
                 <textarea
                     v-model="messageText"
                     class="start-chat-input"
-                    placeholder="AWS 클라우드 운영에 관한 질문을 입력하세요... (Shift+Enter로 줄바꿈)"
+                    placeholder="AWS 클라우드 운영에 관한 질문을 물어보세요!"
                     @keydown="handleKeydown"
                     ref="inputRef"
                     rows="1"
@@ -234,6 +273,8 @@
             const isNavOpen = ref(false);
             const inputRef = ref<HTMLTextAreaElement | null>(null);
 
+            const showDeleteAllConfirm = ref(false);
+
             onMounted(async () => {
                 if (chatHistoryStore.sessions.length === 0) {
                     try {
@@ -343,11 +384,31 @@
                 });
             };
 
+            const confirmDeleteAllSessions = () => {
+                showDeleteAllConfirm.value = true;
+            };
+
+            const cancelDeleteAll = () => {
+                showDeleteAllConfirm.value = false;
+            };
+
+            const confirmDeleteAll = async () => {
+                try {
+                    await chatHistoryStore.deleteAllSessions();
+                    showDeleteAllConfirm.value = false;
+                    console.log('모든 대화가 성공적으로 삭제되었습니다.');
+                } catch (error) {
+                    console.error('전체 세션 삭제 오류:', error);
+                    alert('전체 대화 삭제 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                }
+            };
+
             return {
                 messageText,
                 chatHistoryStore,
                 isNavOpen,
                 inputRef,
+                showDeleteAllConfirm,
                 toggleNav,
                 loadSessions,
                 selectAndGoToChat,
@@ -358,6 +419,9 @@
                 getHealth,
                 handleKeydown,
                 autoResize,
+                confirmDeleteAllSessions,
+                cancelDeleteAll,
+                confirmDeleteAll,
             };
         },
     });
@@ -421,10 +485,13 @@
         border: 1px solid #e0e0e0;
         border-radius: 12px 0 0 12px;
         resize: none;
-        height: 60px;
+        height: auto;
+        min-height: 60px;
+        max-height: 150px;
         font-family: inherit;
         transition: border-color 0.3s;
         background-color: #fff;
+        line-height: 1.5;
     }
 
     .start-chat-input:focus {
@@ -606,6 +673,14 @@
         flex: 1;
         overflow-y: auto;
         padding: 15px;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+    }
+
+    .nav-sessions-list {
+        flex: 1;
+        padding-bottom: 72px;
     }
 
     .nav-session-item {
@@ -622,6 +697,17 @@
         background-color: #e9f5ff;
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .session-title {
+        font-weight: 500;
+        margin-bottom: 6px;
+        word-break: break-word;
+    }
+
+    .session-date {
+        font-size: 0.8rem;
+        color: #666;
     }
 
     .nav-loading {
@@ -685,12 +771,113 @@
         bottom: 0;
         background-color: rgba(0, 0, 0, 0.5);
         z-index: 999;
-        opacity: 0;
+        opacity: 1;
         transition: opacity 0.3s ease;
     }
 
-    .nav-overlay {
-        opacity: 1;
+    .delete-all-button {
+        position: absolute;
+        bottom: 0;
+        left: 20px;
+        bottom: 20px;
+        width: 280px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 60px;
+        margin: 0;
+        background-color: #f8f9fa;
+        border: 1px solid #dc3545;
+        border-radius: 8px;
+        color: #dc3545;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+        z-index: 10;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .delete-all-button:hover:not(:disabled) {
+        background-color: #dc3545;
+        color: white;
+        box-shadow: 0 -4px 15px rgba(220, 53, 69, 0.3);
+    }
+
+    .delete-all-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .delete-all-button svg {
+        flex-shrink: 0;
+    }
+
+    .delete-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .delete-modal-content {
+        background-color: white;
+        padding: 24px;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 400px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .delete-modal-content h3 {
+        margin-top: 0;
+        margin-bottom: 16px;
+    }
+
+    .delete-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 20px;
+    }
+
+    .cancel-button {
+        padding: 8px 16px;
+        background-color: #f0f0f0;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+
+    .delete-confirm-button {
+        padding: 8px 16px;
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+
+    .cancel-button:hover {
+        background-color: #e0e0e0;
+    }
+
+    .delete-confirm-button:hover {
+        background-color: #c82333;
+    }
+
+    .warning {
+        color: #dc3545;
+        font-size: 0.9rem;
+        margin-bottom: 20px;
     }
 
     @media (max-width: 768px) {
@@ -707,6 +894,9 @@
             border-radius: 12px;
             border: 1px solid #e0e0e0;
             margin-bottom: 0.5rem;
+            min-height: 50px;
+            max-height: 120px;
+            padding: 1rem 1.2rem;
         }
 
         .send-button {
@@ -723,34 +913,20 @@
         .start-chat-header h1 {
             font-size: 2rem;
         }
-    }
 
-    .start-chat-input {
-        flex: 1;
-        padding: 1.25rem 1.5rem;
-        font-size: 1rem;
-        border: 1px solid #e0e0e0;
-        border-radius: 12px 0 0 12px;
-        resize: none;
-        height: auto;
-        min-height: 60px;
-        max-height: 150px;
-        font-family: inherit;
-        transition: border-color 0.3s;
-        background-color: #fff;
-        line-height: 1.5;
-    }
+        .delete-all-button {
+            height: 55px;
+            font-size: 0.9rem;
+            width: 260px;
+        }
 
-    .start-chat-input:focus {
-        outline: none;
-        border-color: #007bff;
-    }
+        .nav-sessions-list {
+            padding-bottom: 68px;
+        }
 
-    @media (max-width: 768px) {
-        .start-chat-input {
-            min-height: 50px;
-            max-height: 120px;
-            padding: 1rem 1.2rem;
+        .delete-modal-content {
+            padding: 16px;
+            width: 95%;
         }
     }
 
