@@ -11,6 +11,97 @@ from slack_sdk import WebClient
 # Lambda 환경에서 효율적인 재사용을 위한 클라이언트 캐싱
 client = None
 
+# DynamoDB 설정 (안전하게 초기화)
+try:
+    CONFIG = get_config()
+    CHAT_HISTORY_TABLE = CONFIG.get('db', {}).get('chat_history_table')
+
+    if CHAT_HISTORY_TABLE:
+        dynamodb = boto3.resource('dynamodb')
+        chat_table = dynamodb.Table(CHAT_HISTORY_TABLE)
+        print(f"DynamoDB 테이블 연결 성공: {CHAT_HISTORY_TABLE}")
+    else:
+        chat_table = None
+        print("DynamoDB 테이블 설정이 없습니다. 캐싱 기능을 비활성화합니다.")
+except Exception as e:
+    print(f"DynamoDB 초기화 오류: {str(e)}")
+    chat_table = None
+
+
+def get_session_messages(session_id: str) -> list:
+    """
+    DynamoDB에서 세션의 메시지 히스토리를 가져옴
+
+    Args:
+        session_id: 채팅 세션 ID
+
+    Returns:
+        메시지 리스트 (시간 순 정렬)
+    """
+    try:
+        if not chat_table:
+            print("DynamoDB 테이블이 초기화되지 않았습니다.")
+            return []
+
+        response = chat_table.get_item(
+            Key={'sessionId': session_id}
+        )
+
+        session = response.get('Item')
+        if not session:
+            print(f"세션을 찾을 수 없습니다: {session_id}")
+            return []
+
+        messages = session.get('messages', [])
+
+        # 메시지를 시간순으로 정렬
+        messages.sort(key=lambda x: x.get('timestamp', ''))
+
+        print(f"세션 {session_id}에서 {len(messages)}개 메시지 로드됨")
+        return messages
+    except Exception as e:
+        print(f"세션 메시지 조회 실패: {str(e)}")
+        return []
+
+
+def format_history_for_context(messages: list) -> str:
+    """
+    DynamoDB 메시지를 컨텍스트 문자열로 변환
+
+    Args:
+        messages: DynamoDB에서 가져온 메시지 리스트
+
+    Returns:
+        컨텍스트 문자열
+    """
+    try:
+        if not messages:
+            return ""
+
+        context_parts = []
+        context_parts.append("## 이전 대화 기록")
+        context_parts.append("다음은 현재 세션에서 이전에 나눈 대화 기록입니다. 이 맥락을 참고하여 답변해주세요:\n")
+
+        for i, msg in enumerate(messages, 1):
+            sender = msg.get('sender', 'user')
+            text = msg.get('text', '')
+            timestamp = msg.get('timestamp', '')
+
+            if sender == 'user':
+                context_parts.append(f"[사용자 질문 {i}]: {text}")
+            elif sender == 'assistant':
+                context_parts.append(f"[AI 응답 {i}]: {text}")
+
+        context_parts.append("\n---\n현재 사용자의 새로운 질문에 위 대화 맥락을 고려하여 답변해주세요.")
+
+        context_string = "\n".join(context_parts)
+        print(f"컨텍스트 문자열 길이: {len(context_string)}")
+        return context_string
+
+    except Exception as e:
+        print(f"히스토리 컨텍스트 변환 실패: {str(e)}")
+        return ""
+
 
 def get_client():
     """
@@ -62,6 +153,7 @@ def get_client():
 def handle_llm1_with_mcp(body, origin):
     """
     MCP 클라이언트를 사용하여 llm1 요청을 처리하고 도구 사용 과정 및 결과 포함
+    세션 기반 메시지 캐싱 지원
 
     Args:
         body: 요청 본문
@@ -71,8 +163,18 @@ def handle_llm1_with_mcp(body, origin):
         응답 객체 (도구 사용 과정 및 결과 포함)
     """
     try:
-        # 사용자 입력 추출
+        # 요청 데이터 추출
         user_input = body.get('question') or body.get('text') or body.get('input', {}).get('text', '')
+        session_id = body.get('sessionId')
+        is_cached = body.get('isCached', True)
+
+        print(f"=== 요청 분석 ===")
+        print(f"user_input: {user_input}")
+        print(f"session_id: {session_id}")
+        print(f"is_cached: {is_cached}")
+        print(f"chat_table 상태: {chat_table is not None}")
+        print(f"전체 body: {json.dumps(body, ensure_ascii=False)}")
+
         if not user_input:
             return cors_response(400, {"error": "사용자 입력이 제공되지 않았습니다."}, origin)
 
@@ -209,7 +311,7 @@ When users engage in casual conversation (greetings, small talk, personal questi
 - Keep your initial response brief, then clarify how you can help with AWS services.
 - Avoid presenting extensive capabilities lists unless specifically asked.
 
-Remember to maintain a balance between being an AWS expert and a friendly, conversational assistant. Prioritize natural dialogue while still providing helpful AWS information when needed.
+Remember to maintain a balance between being an AWS expert and a friendly, conversational assistant. Prioritize natural dialogue while still being helpful AWS information when needed.
                 """
 
         # MCP 클라이언트 가져오기
@@ -218,8 +320,46 @@ Remember to maintain a balance between being an AWS expert and a friendly, conve
         # 사용자 입력 처리 시작 시간 기록
         question_time = datetime.now(timezone.utc)
 
-        # 사용자 입력 처리
-        response_text = client.process_user_input(user_input, system_prompt)
+        # 세션 기반 처리 (안전하게)
+        if is_cached and session_id and chat_table:
+            try:
+                # 세션 메시지 히스토리 로드
+                print(f"=== 세션 캐싱 모드 시작 ===")
+                print(f"세션 ID: {session_id}")
+                session_messages = get_session_messages(session_id)
+
+                if session_messages:
+                    print(f"=== 히스토리 발견 ===")
+                    print(f"로드된 메시지 수: {len(session_messages)}")
+
+                    # 메시지 샘플 출력 (디버깅용)
+                    for i, msg in enumerate(session_messages[-3:]):  # 마지막 3개만
+                        print(f"최근 메시지 {i + 1}: {msg.get('sender')} - {msg.get('text', '')[:50]}...")
+
+                    # 히스토리를 컨텍스트 문자열로 변환
+                    history_context = format_history_for_context(session_messages)
+
+                    # 시스템 프롬프트에 히스토리 컨텍스트 추가
+                    enhanced_system_prompt = f"{history_context}\n\n{system_prompt}"
+
+                    print(f"=== 컨텍스트 추가된 시스템 프롬프트 길이: {len(enhanced_system_prompt)} ===")
+
+                    # 현재 사용자 입력으로 처리 (히스토리는 시스템 프롬프트에 포함됨)
+                    response_text = client.process_user_input(user_input, enhanced_system_prompt)
+                else:
+                    print("=== 세션 메시지 없음 ===")
+                    print("일반 모드로 처리")
+                    response_text = client.process_user_input(user_input, system_prompt)
+            except Exception as e:
+                print(f"=== 세션 캐싱 오류 ===")
+                print(f"오류: {str(e)}")
+                print("일반 모드로 폴백")
+                response_text = client.process_user_input(user_input, system_prompt)
+        else:
+            # 일반 처리 (기존 방식)
+            print("=== 일반 모드 ===")
+            print(f"is_cached: {is_cached}, session_id: {session_id}, chat_table: {chat_table is not None}")
+            response_text = client.process_user_input(user_input, system_prompt)
 
         # 디버그 로그 가져오기 (추가된 get_debug_log 메서드 사용)
         debug_log = client.get_debug_log() if hasattr(client, "get_debug_log") else []
@@ -259,7 +399,9 @@ Remember to maintain a balance between being an AWS expert and a friendly, conve
 
         debug_info = {
             "tools_used": tools_used,
-            "reasoning": [step.get("content") for step in reasoning_steps]
+            "reasoning": [step.get("content") for step in reasoning_steps],
+            "session_cached": is_cached and session_id is not None and chat_table is not None,
+            "session_id": session_id if is_cached else None
         }
 
         # 응답 시간 기록 및 경과 시간 계산
@@ -276,6 +418,7 @@ Remember to maintain a balance between being an AWS expert and a friendly, conve
         }, origin)
 
     except Exception as e:
+        print(f"MCP 처리 중 오류: {str(e)}")
         return cors_response(500, {
             "error": "MCP 처리 중 오류 발생",
             "answer": str(e)
@@ -639,4 +782,3 @@ def handle_llm2_request(body, CONFIG, origin):
     answer = invoke_bedrock_nova(prompt)
 
     return cors_response(200, {"answer": answer}, origin)
-
