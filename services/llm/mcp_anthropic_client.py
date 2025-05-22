@@ -564,7 +564,8 @@ class AnthropicMCPClient:
             })
 
         # 현재 사용자 입력 추가 (중복 방지)
-        if not (self.messages and self.messages[-1].get("role") == "user" and self.messages[-1].get("content") == prompt):
+        if not (self.messages and self.messages[-1].get("role") == "user" and self.messages[-1].get(
+                "content") == prompt):
             self.messages.append({
                 "role": "user",
                 "content": prompt
@@ -607,9 +608,9 @@ class AnthropicMCPClient:
             }
             # 마지막 반복에서는 도구 호출 중지
             if iteration == self.max_iterations - 1:
-                payload["tool_choice"] = "none"
+                payload["tool_choice"] = {"type": "none"}
             else:
-                payload["tool_choice"] = "auto"
+                payload["tool_choice"] = {"type": "auto"}
 
             # 도구가 있는 경우 추가
             if anthropic_tools:
@@ -767,8 +768,17 @@ class AnthropicMCPClient:
                 # Append user tool_result message in the required format
                 tool_results_list = []
                 for res in tool_results:
-                    # determine content value
-                    content_value = res.get("error") if "error" in res else res.get("result")
+                    # determine content value and ensure it's a string
+                    if "error" in res:
+                        content_value = str(res.get("error"))
+                    else:
+                        result = res.get("result")
+                        # Convert result to string if it's not already
+                        if isinstance(result, dict) or isinstance(result, list):
+                            content_value = json.dumps(result, ensure_ascii=False)
+                        else:
+                            content_value = str(result)
+
                     tool_results_list.append({
                         "type": "tool_result",
                         "tool_use_id": res["tool_id"],
