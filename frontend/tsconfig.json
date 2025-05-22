@@ -15,6 +15,5 @@
     "target": "ESNext",
     "module": "ESNext",
     "verbatimModuleSyntax": true,
-    // ... 기타 옵션들
   }
 }

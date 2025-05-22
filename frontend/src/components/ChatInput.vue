@@ -97,64 +97,52 @@
             const inputRef = ref<HTMLTextAreaElement | null>(null);
             const showCancelIcon = ref(false);
 
-            // 메시지 전송
             const sendMessage = () => {
                 if (!messageText.value.trim() || props.disabled) return;
 
                 emit('send', messageText.value);
                 messageText.value = '';
 
-                // 텍스트 에어리어 높이 초기화
                 if (inputRef.value) {
                     inputRef.value.style.height = 'auto';
                 }
             };
 
-            // 요청 취소
             const cancelRequest = () => {
                 emit('cancel');
                 showCancelIcon.value = false;
             };
 
-            // Enter 키 처리 (Shift+Enter는 줄바꿈)
             const handleEnterKey = (e: KeyboardEvent) => {
-                if (e.shiftKey) return; // Shift+Enter는 줄바꿈
+                if (e.shiftKey) return;
 
                 if (props.disabled) {
-                    // 요청 중이면 취소
                     cancelRequest();
                 } else {
-                    // 아니면 메시지 전송
                     sendMessage();
                 }
             };
 
-            // ESC 키 처리 (요청 취소)
             const handleEscKey = () => {
                 if (props.disabled) {
                     cancelRequest();
                 }
             };
 
-            // 텍스트 에어리어 자동 크기 조절
             const autoResize = () => {
                 if (!inputRef.value) return;
 
-                // 높이 초기화
                 inputRef.value.style.height = 'auto';
 
-                // 새 높이 설정 (스크롤 높이 기준, 최대 5줄 정도로 제한)
                 const newHeight = Math.min(inputRef.value.scrollHeight, 150);
                 inputRef.value.style.height = `${newHeight}px`;
             };
 
-            // 컴포넌트 마운트 시 자동 포커스 및 크기 조절
             onMounted(() => {
                 if (props.autoFocus && inputRef.value) {
                     inputRef.value.focus();
                 }
 
-                // 초기 텍스트가 있는 경우 크기 조절
                 if (props.initialText) {
                     nextTick(() => {
                         autoResize();
@@ -250,7 +238,7 @@
     }
 
     .send-button.cancel-mode:hover {
-        background-color: #dc3545; /* 빨간색 배경으로 변경 */
+        background-color: #dc3545;
         transform: scale(1.05);
         cursor: pointer;
     }

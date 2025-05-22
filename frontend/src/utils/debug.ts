@@ -23,9 +23,6 @@ export const logEnvironmentVars = () => {
     });
 };
 
-/**
- * OAuth 요청 URL이 올바르게 구성되었는지 확인합니다.
- */
 export const validateOAuthUrl = (url: string): boolean => {
     try {
         const urlObj = new URL(url);
@@ -52,9 +49,6 @@ export const validateOAuthUrl = (url: string): boolean => {
     }
 };
 
-/**
- * 문자열의 일부를 마스킹 처리합니다.
- */
 export const maskString = (str?: string): string => {
     if (!str) return '';
 
@@ -70,9 +64,6 @@ export const maskString = (str?: string): string => {
     return `${firstVisible}${maskedMiddle}${lastVisible}`;
 };
 
-/**
- * HTTP 요청의 세부 정보를 로깅합니다.
- */
 export const logRequestDetails = (
     method: string,
     url: string,

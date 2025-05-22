@@ -20,13 +20,11 @@
             const initialLoading = ref(true);
 
             onMounted(async () => {
-                // 앱 마운트 시 인증 상태 초기화
                 try {
                     await authStore.initializeAuth();
                 } catch (error) {
                     console.error('인증 초기화 오류:', error);
                 } finally {
-                    // 초기 로딩 상태 해제
                     initialLoading.value = false;
                 }
             });

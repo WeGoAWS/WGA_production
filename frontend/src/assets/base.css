@@ -21,7 +21,6 @@
     --vt-c-text-dark-2: rgba(235, 235, 235, 0.64);
 }
 
-/* semantic color variables for this project */
 :root {
     --color-background: var(--vt-c-white);
     --color-background-soft: var(--vt-c-white-soft);
@@ -89,5 +88,5 @@ ol {
 
 ol li {
     margin-top: 0;
-    margin-bottom: 4px; /* 항목 간 거리만 조정 */
+    margin-bottom: 4px;
 }

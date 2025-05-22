@@ -1,7 +1,6 @@
 <!-- src/views/StartChatPage.vue -->
 <template>
     <AppLayout>
-        <!-- 새로 추가된 네비게이션 사이드바 -->
         <transition name="slide">
             <div v-if="isNavOpen" class="nav-sidebar">
                 <div class="nav-header">
@@ -11,7 +10,6 @@
                     </button>
                 </div>
 
-                <!-- 대화 내역 목록 -->
                 <div v-if="chatHistoryStore.loading" class="nav-loading">
                     <div class="nav-spinner"></div>
                     <span>로딩 중...</span>
@@ -36,13 +34,11 @@
             </div>
         </transition>
 
-        <!-- 배경 오버레이 (모바일에서 네비게이션 열릴 때) -->
         <div v-if="isNavOpen" class="nav-overlay" @click="toggleNav"></div>
 
         <div class="start-chat-container">
             <div class="start-chat-header">
                 <div class="header-content">
-                    <!-- 새로 추가된 메뉴 버튼 -->
                     <button @click="toggleNav" class="nav-toggle-button">
                         <svg
                             width="24"
@@ -84,8 +80,11 @@
                 <textarea
                     v-model="messageText"
                     class="start-chat-input"
-                    placeholder="AWS 클라우드 운영에 관한 질문을 입력하세요..."
-                    @keydown.enter.prevent="startNewChat"
+                    placeholder="AWS 클라우드 운영에 관한 질문을 입력하세요... (Shift+Enter로 줄바꿈)"
+                    @keydown="handleKeydown"
+                    ref="inputRef"
+                    rows="1"
+                    @input="autoResize"
                 ></textarea>
                 <button @click="startNewChat" class="send-button" :disabled="!messageText.trim()">
                     <span>질문하기</span>
@@ -216,7 +215,7 @@
 </template>
 
 <script lang="ts">
-    import { defineComponent, onMounted, ref } from 'vue';
+    import { defineComponent, nextTick, onMounted, ref } from 'vue';
     import { useRouter } from 'vue-router';
     import AppLayout from '@/layouts/AppLayout.vue';
     import { useChatHistoryStore } from '@/stores/chatHistoryStore';
@@ -233,6 +232,7 @@
             const chatHistoryStore = useChatHistoryStore();
             const messageText = ref('');
             const isNavOpen = ref(false);
+            const inputRef = ref<HTMLTextAreaElement | null>(null);
 
             onMounted(async () => {
                 if (chatHistoryStore.sessions.length === 0) {
@@ -265,6 +265,26 @@
                 }
             };
 
+            const handleKeydown = (e: KeyboardEvent) => {
+                if (e.key === 'Enter') {
+                    if (e.shiftKey) {
+                        return;
+                    } else {
+                        e.preventDefault();
+                        startNewChat();
+                    }
+                }
+            };
+
+            const autoResize = () => {
+                if (!inputRef.value) return;
+
+                inputRef.value.style.height = 'auto';
+
+                const newHeight = Math.min(inputRef.value.scrollHeight, 150);
+                inputRef.value.style.height = `${newHeight}px`;
+            };
+
             const startNewChat = async () => {
                 if (!messageText.value.trim()) return;
 
@@ -281,6 +301,11 @@
 
             const askExampleQuestion = (question: string) => {
                 messageText.value = question;
+
+                nextTick(() => {
+                    autoResize();
+                });
+
                 startNewChat();
             };
 
@@ -294,7 +319,6 @@
                 router.push('/chat');
             };
 
-            // 날짜 포맷팅 (YYYY년 MM월 DD일)
             const formatDate = (dateString: string): string => {
                 try {
                     const date = new Date(dateString);
@@ -323,6 +347,7 @@
                 messageText,
                 chatHistoryStore,
                 isNavOpen,
+                inputRef,
                 toggleNav,
                 loadSessions,
                 selectAndGoToChat,
@@ -331,13 +356,14 @@
                 goToEnhancedChat,
                 formatDate,
                 getHealth,
+                handleKeydown,
+                autoResize,
             };
         },
     });
 </script>
 
 <style scoped>
-    /* 기존 스타일 */
     .start-chat-container {
         max-width: 900px;
         margin: 0 auto;
@@ -483,7 +509,7 @@
         border: 1px solid #e6e6e6;
         border-radius: 8px;
         cursor: pointer;
-        transition: all 0.3s ease; /* 전환 시간 0.2s에서 0.3s로 늘림 */
+        transition: all 0.3s ease;
         color: #333;
         font-size: 0.95rem;
         font-weight: 400;
@@ -491,11 +517,11 @@
     }
 
     .example-question:hover:not(:disabled) {
-        background-color: #e1f0ff; /* 호버 시 좀 더 밝은 파란색 배경 */
+        background-color: #e1f0ff;
         border-color: #99caff;
         transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 그림자 효과 강화 */
-        color: #0056b3; /* 호버 시 텍스트 색상 변경 */
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        color: #0056b3;
     }
 
     .example-question:active {
@@ -511,7 +537,6 @@
         box-shadow: none;
     }
 
-    /* 새로 추가된 네비게이션 토글 버튼 스타일 */
     .nav-toggle-button {
         position: absolute;
         left: 0;
@@ -534,7 +559,6 @@
         background-color: rgba(0, 0, 0, 0.05);
     }
 
-    /* 새로 추가된 네비게이션 사이드바 스타일 */
     .nav-sidebar {
         position: fixed;
         left: 0;
@@ -653,7 +677,6 @@
         background-color: #0056b3;
     }
 
-    /* 오버레이 스타일 */
     .nav-overlay {
         position: fixed;
         top: 0;
@@ -670,27 +693,6 @@
         opacity: 1;
     }
 
-    /* 애니메이션 트랜지션 스타일 추가 */
-    .slide-enter-active,
-    .slide-leave-active {
-        transition:
-            transform 0.3s ease,
-            opacity 0.3s ease;
-    }
-
-    .slide-enter-from,
-    .slide-leave-to {
-        transform: translateX(-100%);
-        opacity: 0;
-    }
-
-    .slide-enter-to,
-    .slide-leave-from {
-        transform: translateX(0);
-        opacity: 1;
-    }
-
-    /* 반응형 스타일 */
     @media (max-width: 768px) {
         .example-questions {
             grid-template-columns: 1fr;
@@ -721,5 +723,53 @@
         .start-chat-header h1 {
             font-size: 2rem;
         }
+    }
+
+    .start-chat-input {
+        flex: 1;
+        padding: 1.25rem 1.5rem;
+        font-size: 1rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px 0 0 12px;
+        resize: none;
+        height: auto;
+        min-height: 60px;
+        max-height: 150px;
+        font-family: inherit;
+        transition: border-color 0.3s;
+        background-color: #fff;
+        line-height: 1.5;
+    }
+
+    .start-chat-input:focus {
+        outline: none;
+        border-color: #007bff;
+    }
+
+    @media (max-width: 768px) {
+        .start-chat-input {
+            min-height: 50px;
+            max-height: 120px;
+            padding: 1rem 1.2rem;
+        }
+    }
+
+    .slide-enter-active,
+    .slide-leave-active {
+        transition:
+            transform 0.3s ease,
+            opacity 0.3s ease;
+    }
+
+    .slide-enter-from,
+    .slide-leave-to {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+
+    .slide-enter-to,
+    .slide-leave-from {
+        transform: translateX(0);
+        opacity: 1;
     }
 </style>

@@ -78,7 +78,6 @@
             </button>
         </div>
 
-        <!-- 세션 이름 변경 모달 -->
         <div v-if="isRenaming" class="rename-modal">
             <div class="rename-modal-content">
                 <h3>대화 이름 변경</h3>
@@ -97,7 +96,6 @@
             </div>
         </div>
 
-        <!-- 개별 세션 삭제 확인 모달 -->
         <div v-if="showDeleteConfirm" class="delete-modal">
             <div class="delete-modal-content">
                 <h3>대화 삭제 확인</h3>
@@ -110,7 +108,6 @@
             </div>
         </div>
 
-        <!-- 전체 세션 삭제 확인 모달 -->
         <div v-if="showDeleteAllConfirm" class="delete-modal">
             <div class="delete-modal-content">
                 <h3>⚠️ 전체 대화 삭제 확인</h3>
@@ -148,40 +145,32 @@
         setup(props, { emit }) {
             const store = useChatHistoryStore();
 
-            // 세션 이름 변경 관련 상태
             const isRenaming = ref(false);
             const renamingSession = ref<any>(null);
             const newSessionTitle = ref('');
             const renamingInput = ref<HTMLInputElement | null>(null);
 
-            // 개별 세션 삭제 확인 관련 상태
             const showDeleteConfirm = ref(false);
             const sessionToDelete = ref<string | null>(null);
 
-            // 전체 세션 삭제 확인 관련 상태
             const showDeleteAllConfirm = ref(false);
 
-            // 세션 목록 가져오기
             const fetchSessions = async () => {
-                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
+                if (props.disabled) return;
                 await store.fetchSessions();
             };
 
-            // 새 채팅 세션 생성
             const createNewChat = async () => {
-                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
+                if (props.disabled) return;
                 await store.createNewSession();
             };
 
-            // 채팅 세션 선택
             const selectSession = async (sessionId: string) => {
-                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
+                if (props.disabled) return;
 
-                // 세션 클릭 이벤트 발생
                 emit('session-click', sessionId);
             };
 
-            // 날짜 포맷팅 (YYYY년 MM월 DD일)
             const formatDate = (dateString: string): string => {
                 try {
                     const date = new Date(dateString);
@@ -195,15 +184,13 @@
                 }
             };
 
-            // 세션 이름 변경 시작
             const startRenameSession = (session: any) => {
-                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
+                if (props.disabled) return;
 
                 renamingSession.value = session;
                 newSessionTitle.value = session.title;
                 isRenaming.value = true;
 
-                // 다음 틱에서 입력 필드에 포커스
                 nextTick(() => {
                     if (renamingInput.value) {
                         renamingInput.value.focus();
@@ -211,14 +198,12 @@
                 });
             };
 
-            // 세션 이름 변경 취소
             const cancelRename = () => {
                 isRenaming.value = false;
                 renamingSession.value = null;
                 newSessionTitle.value = '';
             };
 
-            // 세션 이름 변경 확인
             const confirmRename = async () => {
                 if (renamingSession.value && newSessionTitle.value.trim()) {
                     try {
@@ -234,21 +219,18 @@
                 }
             };
 
-            // 개별 세션 삭제 확인 모달 표시
             const confirmDeleteSession = (sessionId: string) => {
-                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
+                if (props.disabled) return;
 
                 sessionToDelete.value = sessionId;
                 showDeleteConfirm.value = true;
             };
 
-            // 개별 세션 삭제 취소
             const cancelDelete = () => {
                 showDeleteConfirm.value = false;
                 sessionToDelete.value = null;
             };
 
-            // 개별 세션 삭제 확인
             const confirmDelete = async () => {
                 if (sessionToDelete.value) {
                     try {
@@ -261,18 +243,15 @@
                 }
             };
 
-            // 전체 세션 삭제 확인 모달 표시
             const confirmDeleteAllSessions = () => {
-                if (props.disabled) return; // 비활성화 상태면 실행하지 않음
+                if (props.disabled) return;
                 showDeleteAllConfirm.value = true;
             };
 
-            // 전체 세션 삭제 취소
             const cancelDeleteAll = () => {
                 showDeleteAllConfirm.value = false;
             };
 
-            // 전체 세션 삭제 확인
             const confirmDeleteAll = async () => {
                 try {
                     await store.deleteAllSessions();
@@ -280,7 +259,6 @@
                     console.log('모든 대화가 성공적으로 삭제되었습니다.');
                 } catch (error) {
                     console.error('전체 세션 삭제 오류:', error);
-                    // 에러 처리 - 필요시 사용자에게 알림
                     alert('전체 대화 삭제 중 오류가 발생했습니다. 다시 시도해 주세요.');
                 }
             };
@@ -320,7 +298,6 @@
         position: relative;
     }
 
-    /* 비활성화 상태 스타일 */
     .disabled-chat-history {
         opacity: 0.7;
         position: relative;
@@ -433,7 +410,7 @@
         font-weight: 500;
         margin-bottom: 6px;
         word-break: break-word;
-        padding-right: 60px; /* 액션 버튼 공간 확보 */
+        padding-right: 60px;
     }
 
     .session-date {
@@ -481,7 +458,6 @@
         opacity: 1;
     }
 
-    /* 대화 전체 삭제 버튼 스타일 */
     .delete-all-button {
         display: flex;
         align-items: center;
@@ -548,7 +524,6 @@
         cursor: not-allowed;
     }
 
-    /* 모달 스타일 */
     .rename-modal,
     .delete-modal {
         position: fixed;
@@ -635,7 +610,6 @@
         margin-bottom: 20px;
     }
 
-    /* 반응형 스타일 */
     @media (max-width: 768px) {
         .sidebar-header {
             padding: 10px;

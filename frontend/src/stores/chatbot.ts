@@ -1,4 +1,4 @@
-// src/stores/chatbot.ts 수정
+// src/stores/chatbot.ts
 import { defineStore } from 'pinia';
 import axios from 'axios';
 import type { BotResponse, ChatMessageType } from '@/types/chat.ts';
@@ -7,10 +7,10 @@ interface ChatMessage {
     id: string;
     sender: 'user' | 'bot';
     text: string;
-    displayText?: string; // 타이핑 애니메이션을 위한 표시 텍스트
+    displayText?: string;
     timestamp: string;
-    isTyping?: boolean; // 타이핑 중인지 여부
-    animationState?: 'appear' | 'typing' | 'complete'; // 애니메이션 상태
+    isTyping?: boolean;
+    animationState?: 'appear' | 'typing' | 'complete';
 }
 
 interface ChatSession {
@@ -29,7 +29,6 @@ interface ChatbotState {
     waitingForResponse: boolean;
 }
 
-// 유니크 ID 생성 함수
 const generateId = () => {
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
 };
@@ -52,14 +51,11 @@ export const useChatbotStore = defineStore('chatbot', {
     },
 
     actions: {
-        // 채팅 세션 목록 불러오기
         async fetchSessions() {
             this.loading = true;
             this.error = '';
 
             try {
-                // API 호출을 통해 채팅 세션 목록을 가져오는 로직
-                // 여기서는 간단한 시뮬레이션
                 await new Promise((resolve) => setTimeout(resolve, 500));
 
                 const now = new Date().toISOString();
@@ -117,7 +113,6 @@ export const useChatbotStore = defineStore('chatbot', {
             }
         },
 
-        // 새 채팅 세션 생성
         createNewSession() {
             const now = new Date().toISOString();
             const newSession: ChatSession = {
@@ -134,7 +129,6 @@ export const useChatbotStore = defineStore('chatbot', {
             return newSession;
         },
 
-        // 채팅 세션 선택
         selectSession(sessionId: string) {
             const session = this.sessions.find((s) => s.id === sessionId);
             if (session) {
@@ -142,18 +136,15 @@ export const useChatbotStore = defineStore('chatbot', {
             }
         },
 
-        // 메시지 전송
         async sendMessage(text: string) {
             if (!text.trim()) return;
 
-            // 현재 세션이 없으면 새 세션 생성
             if (!this.currentSession) {
                 this.createNewSession();
             }
 
             const now = new Date().toISOString();
 
-            // 사용자 메시지 추가 (애니메이션 상태 포함)
             const userMessage: ChatMessage = {
                 id: generateId(),
                 sender: 'user',
@@ -165,17 +156,14 @@ export const useChatbotStore = defineStore('chatbot', {
             this.currentSession!.messages.push(userMessage);
             this.currentSession!.updatedAt = now;
 
-            // 첫 메시지인 경우 세션 제목 업데이트
             if (this.currentSession!.messages.length === 1) {
                 this.currentSession!.title =
                     text.length > 30 ? text.substring(0, 30) + '...' : text;
             }
 
-            // 봇 응답 처리
             this.waitingForResponse = true;
 
             try {
-                // 로딩 중 표시 (타이핑 중 표시)
                 const loadingMessage: ChatMessage = {
                     id: generateId(),
                     sender: 'bot',
@@ -186,20 +174,17 @@ export const useChatbotStore = defineStore('chatbot', {
 
                 this.currentSession!.messages.push(loadingMessage);
 
-                // API 호출하여 봇 응답 가져오기
                 const botResponseText = await this.generateBotResponse(text);
 
-                // 로딩 메시지 제거
                 this.currentSession!.messages = this.currentSession!.messages.filter(
                     (msg) => msg.id !== loadingMessage.id,
                 );
 
-                // 실제 타이핑 효과를 위한 봇 메시지 추가
                 const botMessage: ChatMessageType = {
                     id: generateId(),
                     sender: 'bot',
                     text: botResponseText,
-                    displayText: '', // 초기에는 빈 문자열로 시작
+                    displayText: '',
                     timestamp: new Date().toISOString(),
                     animationState: 'typing',
                 };
@@ -207,12 +192,10 @@ export const useChatbotStore = defineStore('chatbot', {
                 this.currentSession!.messages.push(botMessage);
                 this.currentSession!.updatedAt = botMessage.timestamp;
 
-                // 타이핑 애니메이션
                 await this.simulateTyping(botMessage.id, botResponseText);
             } catch (err: any) {
                 console.error('봇 응답 가져오기 오류:', err);
 
-                // 오류 메시지 추가
                 const errorMessage: ChatMessage = {
                     id: generateId(),
                     sender: 'bot',
@@ -228,17 +211,15 @@ export const useChatbotStore = defineStore('chatbot', {
             }
         },
 
-        // 타이핑 애니메이션 시뮬레이션
         async simulateTyping(messageId: string, fullText: string) {
             if (!this.currentSession) return;
 
             const message = this.currentSession.messages.find((m) => m.id === messageId);
             if (!message) return;
 
-            const typingSpeed = 10; // 문자당 타이핑 시간 (밀리초)
-            const maxTypingTime = 2000; // 최대 타이핑 시간 (밀리초)
+            const typingSpeed = 10;
+            const maxTypingTime = 2000;
 
-            // 최대 타이핑 시간에 맞춰 속도 조절
             const totalTypingTime = Math.min(fullText.length * typingSpeed, maxTypingTime);
             const charInterval = totalTypingTime / fullText.length;
 
@@ -247,30 +228,24 @@ export const useChatbotStore = defineStore('chatbot', {
             for (let i = 0; i < fullText.length; i++) {
                 await new Promise((resolve) => setTimeout(resolve, charInterval));
 
-                // 메시지가 여전히 존재하는지 확인 (삭제되었을 수 있음)
                 const updatedMessage = this.currentSession?.messages.find(
                     (m) => m.id === messageId,
                 );
                 if (!updatedMessage) return;
 
-                // 다음 글자 추가
                 updatedMessage.displayText = fullText.substring(0, i + 1);
             }
 
-            // 애니메이션 완료 상태로 변경
             const completedMessage = this.currentSession.messages.find((m) => m.id === messageId);
             if (completedMessage) {
                 completedMessage.animationState = 'complete';
             }
         },
 
-        // 간단한 봇 응답 생성 함수 (실제 구현에서는 API 호출로 대체)
         async generateBotResponse(userMessage: string): Promise<BotResponse | any> {
             try {
-                // API URL 설정 - 환경변수나 설정에서 가져오는 것이 좋습니다
                 const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
-                // API 호출
                 const response = await axios.post(
                     `${apiUrl}/llm1`,
                     {
@@ -281,28 +256,22 @@ export const useChatbotStore = defineStore('chatbot', {
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        withCredentials: true, // 쿠키 및 인증 정보 포함
+                        withCredentials: true,
                     },
                 );
 
-                // API 응답 처리 로직 개선
                 if (response.data) {
-                    // 응답이 배열 형태인지 확인 (첫 번째 형식: answer가 배열)
                     if (Array.isArray(response.data.answer)) {
-                        // rank_order로 정렬
                         const sortedItems = [...response.data.answer].sort(
                             (a, b) => a.rank_order - b.rank_order,
                         );
 
-                        // 배열을 문자열로 변환
                         return sortedItems
                             .map((item) => `${item.context}\n${item.title}\n${item.url}`)
                             .join('\n\n');
                     } else if (typeof response.data.answer === 'string') {
-                        // 이미 문자열 형태인 경우 (두 번째 형식)
                         return response.data.answer;
                     } else {
-                        // 응답 형식이 예상과 다른 경우
                         return JSON.stringify(response.data.answer);
                     }
                 }
@@ -311,22 +280,18 @@ export const useChatbotStore = defineStore('chatbot', {
             } catch (error) {
                 console.error('봇 응답 API 호출 오류:', error);
 
-                // API 호출 실패 시 폴백 메시지 반환
                 return '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.';
             }
         },
 
-        // 채팅 세션 삭제
         deleteSession(sessionId: string) {
             this.sessions = this.sessions.filter((s) => s.id !== sessionId);
 
-            // 현재 선택된 세션이 삭제된 경우
             if (this.currentSession && this.currentSession.id === sessionId) {
                 this.currentSession = this.sessions.length > 0 ? this.sessions[0] : null;
             }
         },
 
-        // 채팅 기록 클리어
         clearMessages() {
             if (this.currentSession) {
                 this.currentSession.messages = [];
@@ -334,7 +299,6 @@ export const useChatbotStore = defineStore('chatbot', {
             }
         },
 
-        // 상태 초기화
         resetState() {
             this.loading = false;
             this.error = '';

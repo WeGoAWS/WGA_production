@@ -79,7 +79,6 @@
                         </div>
                     </div>
 
-                    <!-- 추가된 inference 섹션 -->
                     <div v-if="message.inference" class="query-section">
                         <h4>추론 데이터</h4>
                         <pre
@@ -118,7 +117,6 @@
             const formatSqlQuery = (sql: string | any) => {
                 if (!sql) return '';
 
-                // SQL 키워드 강조 표시를 위한 간단한 처리
                 return sql
                     .replace(
                         /\b(SELECT|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|GROUP BY|ORDER BY|HAVING|LIMIT|OFFSET|AS|ON|AND|OR|NOT|IN|BETWEEN|LIKE|IS|NULL|TRUE|FALSE|DESC|ASC|COUNT|SUM|AVG|MIN|MAX|date_parse)\b/gi,
@@ -128,63 +126,46 @@
                     .replace(/('[^']*')/g, `<span class="sql-string">$1</span>`);
             };
 
-            // inference 데이터 포맷팅 함수 추가
             const formatInferenceData = (inference: any): string => {
                 try {
-                    // inference가 이미 문자열이면 그대로 사용, 아니면 JSON 변환
                     if (typeof inference === 'string') {
-                        // 문자열이 JSON인지 확인하고 예쁘게 포맷팅
                         try {
                             const obj = JSON.parse(inference);
-                            // 중첩된 객체를 더 깊게 포맷팅
-                            return (
-                                JSON.stringify(obj, null, 2)
-                                    // JSON 문자열의 키와 문자열 값을 다른 색상으로 강조
-                                    .replace(
-                                        /"([^"]+)":/g,
-                                        '"<span style="color: #0033b3; font-weight: bold;">$1</span>":',
-                                    )
-                                    // 문자열 값 강조
-                                    .replace(
-                                        /: "([^"]*)"/g,
-                                        ': "<span style="color: #067d17;">$1</span>"',
-                                    )
-                            );
+                            return JSON.stringify(obj, null, 2)
+                                .replace(
+                                    /"([^"]+)":/g,
+                                    '"<span style="color: #0033b3; font-weight: bold;">$1</span>":',
+                                )
+                                .replace(
+                                    /: "([^"]*)"/g,
+                                    ': "<span style="color: #067d17;">$1</span>"',
+                                );
                         } catch (e) {
-                            // JSON이 아니면 그대로 반환
                             return inference;
                         }
                     }
 
-                    // 객체나 배열이면 예쁘게 포맷팅하여 문자열로 변환
                     const jsonStr = JSON.stringify(inference, null, 2);
-                    return (
-                        jsonStr
-                            // JSON 문자열의 키와 문자열 값을 다른 색상으로 강조
-                            .replace(
-                                /"([^"]+)":/g,
-                                '"<span style="color: #0033b3; font-weight: bold;">$1</span>":',
-                            )
-                            // 문자열 값 강조
-                            .replace(/: "([^"]*)"/g, ': "<span style="color: #067d17;">$1</span>"')
-                    );
+                    return jsonStr
+                        .replace(
+                            /"([^"]+)":/g,
+                            '"<span style="color: #0033b3; font-weight: bold;">$1</span>":',
+                        )
+                        .replace(/: "([^"]*)"/g, ': "<span style="color: #067d17;">$1</span>"');
                 } catch (error) {
                     console.error('Inference 데이터 포맷팅 오류:', error);
                     return String(inference);
                 }
             };
 
-            // 사용자 이니셜 가져오기 (이름이 없으면 U 반환)
             const getUserInitial = (): string => {
                 const userName = localStorage.getItem('userName') || 'User';
                 return userName.charAt(0).toUpperCase();
             };
 
-            // 메시지 내용 포맷팅 (마크다운, URL, 줄바꿈 등)
             const formatMessageContent = (content: string): string => {
                 if (!content) return '';
 
-                // 1. 안전하게 HTML 엔티티 이스케이프 처리 (XSS 방지)
                 const escapeHtml = (text: string) => {
                     return text
                         .replace(/&/g, '&amp;')
@@ -194,19 +175,13 @@
                         .replace(/'/g, '&#039;');
                 };
 
-                // 내용을 이스케이프 처리
                 const escapedContent = escapeHtml(content);
 
-                // 2. 마크다운을 HTML로 변환 (기존 parseMarkdown 함수 활용)
-                // parseMarkdown 함수는 이스케이프된 HTML을 다루기 때문에 XSS 방지 이후에 적용
                 const htmlContent = parseMarkdown(escapedContent);
 
-                // 3. URL 패턴 정규식 - 마크다운 변환 후 남아있는 일반 URL 처리
                 const urlPattern = /(https?:\/\/[^\s<>"]+[^.\s<>",.;:!?）)}\]]*)/g;
 
-                // URL을 링크로 변환 (마크다운 처리 후 남은 평문 URL에 대해)
                 const processed = htmlContent.replace(urlPattern, (url) => {
-                    // 이미 <a> 태그 내부에 있는 URL은 변환하지 않음
                     if (/<a[^>]*>[^<]*url[^<]*<\/a>/i.test(url)) {
                         return url;
                     }
@@ -216,7 +191,6 @@
                 return processed;
             };
 
-            // 메시지 시간 포맷팅 (HH:MM)
             const formatMessageTime = (dateString: string): string => {
                 try {
                     const date = new Date(dateString);
@@ -234,7 +208,7 @@
                 formatMessageContent,
                 formatMessageTime,
                 formatSqlQuery,
-                formatInferenceData, // 새로 추가된 함수
+                formatInferenceData,
                 showDetails,
                 toggleDetails,
             };
@@ -400,7 +374,6 @@
         }
     }
 
-    /* 마크다운 스타일링 */
     :deep(.markdown-content h1) {
         font-size: 1.5rem;
         margin: 0.8rem 0;
@@ -466,7 +439,6 @@
         font-style: italic;
     }
 
-    /* 링크 스타일 */
     :deep(.message-content a) {
         color: #0d6efd;
         text-decoration: underline;
@@ -477,7 +449,6 @@
         color: #0a58ca;
     }
 
-    /* ChatMessage.vue의 <style> 섹션에 추가할 내용 */
     .query-metadata {
         margin-top: 10px;
         font-size: 0.85rem;
@@ -534,7 +505,6 @@
         max-width: 100%;
     }
 
-    /* 추론 데이터 스타일 */
     .inference-data {
         background-color: #f8f8f8;
         padding: 12px;

@@ -15,10 +15,11 @@ export interface ChatMessageType {
 
 export interface ChatSession {
     sessionId: string;
+    userId: string;
     title: string;
-    messages: ChatMessageType[];
     createdAt: string;
     updatedAt: string;
+    messages: ChatMessageType[];
 }
 
 export interface ChatHistoryState {
