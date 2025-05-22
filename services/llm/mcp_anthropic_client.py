@@ -364,7 +364,7 @@ class AnthropicMCPClient:
             # API 요청 페이로드 구성 - max_tokens 필드 추가
             payload = {
                 "model": self.model_id,
-                "max_tokens": 4096,
+                "max_tokens": 8192,
                 "messages": self.messages
             }
 
@@ -563,11 +563,12 @@ class AnthropicMCPClient:
                 "timestamp": time.time()
             })
 
-        # 현재 사용자 입력 추가
-        self.messages.append({
-            "role": "user",
-            "content": prompt
-        })
+        # 현재 사용자 입력 추가 (중복 방지)
+        if not (self.messages and self.messages[-1].get("role") == "user" and self.messages[-1].get("content") == prompt):
+            self.messages.append({
+                "role": "user",
+                "content": prompt
+            })
 
         # Anthropic 도구 형식으로 변환
         anthropic_tools = self._convert_tools_format()
@@ -604,6 +605,11 @@ class AnthropicMCPClient:
                 "max_tokens": 8192,
                 "messages": self.messages
             }
+            # 마지막 반복에서는 도구 호출 중지
+            if iteration == self.max_iterations - 1:
+                payload["tool_choice"] = "none"
+            else:
+                payload["tool_choice"] = "auto"
 
             # 도구가 있는 경우 추가
             if anthropic_tools:
@@ -691,6 +697,12 @@ class AnthropicMCPClient:
                     "timestamp": time.time()
                 })
 
+                # Append assistant tool_use message
+                self.messages.append({
+                    "role": "assistant",
+                    "content": tool_uses
+                })
+
                 # 각 도구에 대해 MCP 도구 호출
                 tool_results = []
                 for tool_use in tool_uses:
@@ -704,7 +716,7 @@ class AnthropicMCPClient:
 
                         # 디버그 로그에 도구 사용 요청 기록
                         self.debug_log.append({
-                            "type": "tool_request",
+                            "type": "tool_result",
                             "tool_name": tool_name,
                             "input": tool_input,
                             "timestamp": time.time()
@@ -752,112 +764,44 @@ class AnthropicMCPClient:
                             "error": str(e)
                         })
 
-                # 도구 결과를 새로운 사용자 메시지로 추가
-                if tool_results:
-                    tool_result_messages = []
-                    for result in tool_results:
-                        if "error" in result:
-                            tool_result_messages.append(
-                                f"도구: {result['name']}\n오류: {result['error']}"
-                            )
-                        else:
-                            tool_result_messages.append(
-                                f"도구: {result['name']}\n결과: {json.dumps(result['result'], ensure_ascii=False)}"
-                            )
-
-                    # 도구 결과를 사용자 메시지로 추가
-                    tool_result_message = "다음은 도구 호출 결과입니다:\n\n" + "\n\n".join(tool_result_messages)
-                    print(f"도구 결과를 사용자 메시지로 추가: {len(tool_results)}개")
-
-                    # 디버그 로그에 도구 결과 요약 기록
-                    self.debug_log.append({
-                        "type": "tool_results_summary",
-                        "content": tool_result_message,
-                        "timestamp": time.time()
+                # Append user tool_result message in the required format
+                tool_results_list = []
+                for res in tool_results:
+                    # determine content value
+                    content_value = res.get("error") if "error" in res else res.get("result")
+                    tool_results_list.append({
+                        "type": "tool_result",
+                        "tool_use_id": res["tool_id"],
+                        "content": content_value
                     })
+                # Save as a single user message with a list of tool_result objects
+                self.messages.append({
+                    "role": "user",
+                    "content": tool_results_list
+                })
+                continue  # proceed to next iteration
 
-                    self.messages.append({
-                        "role": "user",
-                        "content": tool_result_message
-                    })
-                    continue  # 다음 반복으로
-
-            # 도구 호출이 없는 경우 - 응답 완전성 확인
-            else:
-                print("도구 호출 없음 - 응답 완전성 확인 중...")
-
-                # 응답이 완전한지 확인
-                is_complete = self._is_response_complete(message_content, tool_uses)
-
-                if is_complete:
-                    print("완전한 응답 감지, 대화 종료")
-                    # 디버그 로그에 대화 종료 기록
-                    self.debug_log.append({
-                        "type": "conversation_complete",
-                        "iteration": iteration,
-                        "response_complete": True,
-                        "timestamp": time.time()
-                    })
-
-                    # 최종 응답 설정
-                    final_response = {
-                        "content": [message_content] if message_content else all_responses
+            # 도구 호출이 없으면 마지막 assistant 응답을 즉시 반환
+            return {
+                "output": {
+                    "message": {
+                        "content": [{"text": message_content}]
                     }
-                    break
-                else:
-                    print("불완전한 응답 감지 - 완전한 답변 요청")
-                    # 디버그 로그에 불완전한 응답 기록
-                    self.debug_log.append({
-                        "type": "incomplete_response_detected",
-                        "iteration": iteration,
-                        "content": message_content,
-                        "timestamp": time.time()
-                    })
-
-                    # 완전한 답변 요청
-                    complete_answer_request = self._request_complete_answer()
-                    self.messages.append({
-                        "role": "user",
-                        "content": complete_answer_request
-                    })
-
-                    # 디버그 로그에 완전한 답변 요청 기록
-                    self.debug_log.append({
-                        "type": "complete_answer_request",
-                        "content": complete_answer_request,
-                        "timestamp": time.time()
-                    })
-
-                    continue  # 다음 반복으로
-
-        # 최종 응답이 없으면 오류 발생
-        if not final_response and all_responses:
-            # 모든 응답을 결합하여 최종 응답 생성
-            combined_response = " ".join(all_responses)
-            final_response = {
-                "content": [combined_response]
+                }
             }
-            print(f"최종 응답 생성: {combined_response[:100]}...")
 
-            # 디버그 로그에 결합된 응답 기록
-            self.debug_log.append({
-                "type": "combined_response",
-                "content": combined_response,
-                "timestamp": time.time()
-            })
-        elif not final_response:
-            error_message = "최대 반복 횟수를 초과했습니다."
-
-            # 디버그 로그에 반복 횟수 초과 오류 기록
-            self.debug_log.append({
-                "type": "max_iterations_exceeded",
-                "error": error_message,
-                "timestamp": time.time()
-            })
-            raise Exception(error_message)
-
-        # 비동기 작업 완료 확인
-        return self._check_task_completion(final_response)
+        # 루프를 빠져나왔을 때 마지막 어시스턴트 응답 반환
+        if self.messages and self.messages[-1].get("role") == "assistant":
+            last = self.messages[-1]["content"]
+        else:
+            last = ""
+        return {
+            "output": {
+                "message": {
+                    "content": [{"text": last}]
+                }
+            }
+        }
 
     def _extract_text_from_response(self, response):
         """
