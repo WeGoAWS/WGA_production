@@ -5,7 +5,7 @@ import type { BotResponse, ChatMessageType } from '@/types/chat.ts';
 
 interface ChatMessage {
     id: string;
-    sender: 'user' | 'bot';
+    sender: 'user' | 'assistant';
     text: string;
     displayText?: string;
     timestamp: string;
@@ -75,7 +75,7 @@ export const useChatbotStore = defineStore('chatbot', {
                                 },
                                 {
                                     id: 'msg-2',
-                                    sender: 'bot',
+                                    sender: 'assistant',
                                     text: 'AWS S3 버킷의 접근 권한은 버킷 정책과 IAM 정책을 통해 설정할 수 있습니다. 버킷 정책은 특정 버킷에 대한 접근을 제어하는 JSON 문서입니다. IAM 정책은 사용자, 그룹 또는 역할에 연결되어 AWS 리소스에 대한 접근을 제어합니다.',
                                     timestamp: yesterday,
                                 },
@@ -95,7 +95,7 @@ export const useChatbotStore = defineStore('chatbot', {
                                 },
                                 {
                                     id: 'msg-4',
-                                    sender: 'bot',
+                                    sender: 'assistant',
                                     text: 'AWS 로그 분석을 위해 여러 도구를 사용할 수 있습니다. AWS 자체 서비스로는 CloudWatch Logs Insights, Amazon Athena, Amazon OpenSearch Service 등이 있습니다. 서드파티 도구로는 Splunk, ELK Stack(Elasticsearch, Logstash, Kibana), Datadog 등이 인기가 있습니다.',
                                     timestamp: now,
                                 },
@@ -166,7 +166,7 @@ export const useChatbotStore = defineStore('chatbot', {
             try {
                 const loadingMessage: ChatMessage = {
                     id: generateId(),
-                    sender: 'bot',
+                    sender: 'assistant',
                     text: '...',
                     timestamp: new Date().toISOString(),
                     isTyping: true,
@@ -182,7 +182,7 @@ export const useChatbotStore = defineStore('chatbot', {
 
                 const botMessage: ChatMessageType = {
                     id: generateId(),
-                    sender: 'bot',
+                    sender: 'assistant',
                     text: botResponseText,
                     displayText: '',
                     timestamp: new Date().toISOString(),
@@ -198,7 +198,7 @@ export const useChatbotStore = defineStore('chatbot', {
 
                 const errorMessage: ChatMessage = {
                     id: generateId(),
-                    sender: 'bot',
+                    sender: 'assistant',
                     text: '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.',
                     timestamp: new Date().toISOString(),
                     animationState: 'appear',

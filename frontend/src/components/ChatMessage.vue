@@ -3,7 +3,7 @@
         class="message"
         :class="{
             'user-message': message.sender === 'user',
-            'bot-message': message.sender === 'bot',
+            'bot-message': message.sender === 'assistant',
             typing: message.isTyping,
             'appear-animation': message.animationState === 'appear',
         }"
@@ -13,7 +13,7 @@
                 <span>{{ getUserInitial() }}</span>
             </div>
             <div v-else class="avatar bot-avatar">
-                <img src="@/assets/agent-logo.png" alt="Bot" />
+                <img src="@/assets/agent-logo.png" alt="Assistant" />
             </div>
         </div>
 

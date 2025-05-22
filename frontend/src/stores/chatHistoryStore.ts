@@ -198,7 +198,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
 
                 const loadingMessage: ChatMessageType = {
                     id: generateId(),
-                    sender: 'bot',
+                    sender: 'assistant',
                     text: '...',
                     timestamp: new Date().toISOString(),
                     isTyping: true,
@@ -222,7 +222,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                 const botMessageResponse = await axios.post(
                     `${apiUrl}/sessions/${sessionId}/messages`,
                     {
-                        sender: 'bot',
+                        sender: 'assistant',
                         text: botResponseData.text,
                         ...(botResponseData.query_string && {
                             query_string: botResponseData.query_string,
@@ -301,7 +301,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
 
                     const cancelMessage: ChatMessageType = {
                         id: generateId(),
-                        sender: 'bot',
+                        sender: 'assistant',
                         text: '요청이 취소되었습니다.',
                         timestamp: new Date().toISOString(),
                         animationState: 'appear',
@@ -318,7 +318,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                         await axios.post(
                             `${apiUrl}/sessions/${sessionId}/messages`,
                             {
-                                sender: 'bot',
+                                sender: 'assistant',
                                 text: cancelMessage.text,
                             },
                             {
@@ -335,7 +335,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                 } else {
                     const errorMessage: ChatMessageType = {
                         id: generateId(),
-                        sender: 'bot',
+                        sender: 'assistant',
                         text: '죄송합니다. 응답을 처리하는 중에 오류가 발생했습니다. 다시 시도해 주세요.',
                         timestamp: new Date().toISOString(),
                         animationState: 'appear',
@@ -352,7 +352,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                         await axios.post(
                             `${apiUrl}/sessions/${sessionId}/messages`,
                             {
-                                sender: 'bot',
+                                sender: 'assistant',
                                 text: errorMessage.text,
                             },
                             {

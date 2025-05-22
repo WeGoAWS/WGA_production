@@ -1,7 +1,7 @@
 // src/types/chat.ts
 export interface ChatMessageType {
     id: string;
-    sender: 'user' | 'bot';
+    sender: 'user' | 'assistant';
     text: string;
     displayText?: string;
     timestamp: string;
