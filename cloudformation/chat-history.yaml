@@ -179,6 +179,19 @@ Resources:
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
 
+  # DELETE /sessions?user_id=xxx
+  SessionsDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayId
+      ResourceId: !Ref SessionsResource
+      HttpMethod: DELETE
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChatHistoryLambdaFunction.Arn}/invocations'
+
   # OPTIONS /sessions/{sessionId}
   SessionIdOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -287,6 +300,14 @@ Resources:
       FunctionName: !Ref ChatHistoryLambdaFunction
       Principal: 'apigateway.amazonaws.com'
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/${Environment}/DELETE/sessions/*'
+
+  ChatHistoryLambdaPermissionSessionsDelete:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref ChatHistoryLambdaFunction
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/${Environment}/DELETE/sessions'
 
   ChatHistoryLambdaPermissionSessionIdOptions:
     Type: AWS::Lambda::Permission
