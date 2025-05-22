@@ -140,12 +140,12 @@ def handle_llm1_with_mcp(body, origin):
     Returns:
         응답 객체 (도구 사용 과정 및 결과 포함)
     """
+    slack_user_id = body.get("user_id")
     try:
         # 요청 데이터 추출
         user_input = body.get('question') or body.get('text') or body.get('input', {}).get('text', '')
         session_id = body.get('sessionId')
         is_cached = body.get('isCached', True)
-        slack_user_id = body.get("user_id")
 
         print(f"=== 요청 분석 ===")
         print(f"user_input: {user_input}")
@@ -157,8 +157,12 @@ def handle_llm1_with_mcp(body, origin):
         if not user_input:
             return cors_response(400, {"error": "사용자 입력이 제공되지 않았습니다."}, origin)
 
+        # Slack에 대기 메시지 전송
+        if slack_user_id:
+            send_slack_dm(slack_user_id, "⏳ 분석중입니다... 조금만 기다려주세요!")
+
         # 시스템 프롬프트 설정
-        system_prompt = """You are an AI assistant specialized in AWS services, monitoring, and documentation. Your primary goal is to help users with their AWS-related questions and tasks, but you should also engage in natural conversation when users interact with you casually.
+        system_prompt = """You are name is "AWS Cloud Agent" and you are an AI assistant specialized in AWS services, monitoring, and documentation. Your primary goal is to help users with their AWS-related questions and tasks, but you should also engage in natural conversation when users interact with you casually.
 
         CRITICAL INSTRUCTION: When processing user requests with conversation history, focus primarily on providing a comprehensive final answer based on the most recent user message, while using the conversation context only as supporting background information. Do not repeatedly search for the same information or get stuck in tool-calling loops.
 
@@ -392,6 +396,7 @@ def handle_llm1_with_mcp(body, origin):
             "reasoning": [step.get("content") for step in reasoning_steps],
             "session_cached": is_cached and session_id is not None and chat_table is not None,
             "session_id": session_id if is_cached else None
+            
         }
 
         # 응답 시간 기록 및 경과 시간 계산
@@ -399,7 +404,7 @@ def handle_llm1_with_mcp(body, origin):
         elapsed = response_time - question_time
         minutes, seconds = divmod(elapsed.total_seconds(), 60)
         elapsed_str = f"{int(minutes)}분 {int(seconds)}초" if minutes else f"{int(seconds)}초"
-        
+
         # 최종 결과를 Slack으로 전송
         if slack_user_id:
             send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{response_text}")
@@ -409,7 +414,10 @@ def handle_llm1_with_mcp(body, origin):
             "answer": response_text,
             "elapsed_time": elapsed_str,
             "inference": debug_info  # 디버그 정보 추가
+            
         }, origin)
+
+        
 
     except Exception as e:
         print(f"MCP 처리 중 오류: {str(e)}")
