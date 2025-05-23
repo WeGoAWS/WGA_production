@@ -11,6 +11,9 @@ from slack_sdk import WebClient
 # Lambda 환경에서 효율적인 재사용을 위한 클라이언트 캐싱
 client = None
 
+# 클라이언트 캐시 저장을 위한 전역 변수
+client_cache = {}
+
 # DynamoDB 설정 (안전하게 초기화)
 try:
     CONFIG = get_config()
@@ -135,10 +138,15 @@ def get_session_messages_as_array(session_id: str) -> list:
 def get_client(model_id: str = None):
     """
     MCP 클라이언트 인스턴스를 가져오거나 생성
-    Lambda 콜드 스타트 최적화를 위해 전역 변수로 재사용
+    모델 ID별로 클라이언트를 캐싱
     """
-    global client
-    if client is None:
+    global client_cache
+
+    # 기본 모델 ID 설정
+    model_id = model_id or 'claude-3-7-sonnet-20250219'
+
+    # 캐시에 해당 모델 ID의 클라이언트가 없으면 생성
+    if model_id not in client_cache:
         # 환경 변수에서 구성 가져오기
         CONFIG = get_config()
         mcp_url = os.environ.get('MCP_URL') or CONFIG.get('mcp', {}).get('function_url')
@@ -152,7 +160,7 @@ def get_client(model_id: str = None):
 
             # Anthropic 클라이언트 초기화
             from mcp_anthropic_client import AnthropicMCPClient
-            client = AnthropicMCPClient(
+            client_cache[model_id] = AnthropicMCPClient(
                 mcp_url=mcp_url,
                 api_key=anthropic_api_key,
                 model_id=model_id
@@ -164,7 +172,7 @@ def get_client(model_id: str = None):
 
             # Bedrock 클라이언트 초기화
             from mcp_bedrock_client import BedrockMCPClient
-            client = BedrockMCPClient(
+            client_cache[model_id] = BedrockMCPClient(
                 mcp_url=mcp_url,
                 region=region,
                 auth_token=mcp_token,
@@ -172,9 +180,11 @@ def get_client(model_id: str = None):
             )
 
         # 세션 초기화 및 도구 로드
-        client.initialize()
+        client_cache[model_id].initialize()
 
-    return client
+        print(f"클라이언트 초기화 완료 - 모델 ID: {model_id}")
+
+    return client_cache[model_id]
 
 
 def handle_llm1_with_mcp(body, origin):
