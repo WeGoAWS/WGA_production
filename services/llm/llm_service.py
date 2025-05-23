@@ -412,13 +412,16 @@ def handle_llm1_with_mcp(body, origin):
         # 도구 사용 및 사고 과정 정리
         tools_used = []
         reasoning_steps = []
+        token_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
         for entry in debug_log:
             entry_type = entry.get("type")
 
-            if entry_type == "reasoning":
+            if entry_type == "model_reasoning":
                 reasoning_steps.append({
                     "content": entry.get("content"),
+                    "input_tokens": entry.get("input_tokens", 0),
+                    "output_tokens": entry.get("output_tokens", 0),
                     "timestamp": entry.get("timestamp")
                 })
             elif entry_type == "tool_result":
@@ -428,6 +431,13 @@ def handle_llm1_with_mcp(body, origin):
                     "output": entry.get("output"),
                     "timestamp": entry.get("timestamp")
                 })
+            elif entry_type in ["final_response", "final_response_with_history"]:
+                # 최종 응답에서 총 토큰 사용량 추출
+                token_usage = {
+                    "input_tokens": entry.get("input_tokens", 0),
+                    "output_tokens": entry.get("output_tokens", 0),
+                }
+                print(f"최종 토큰 사용량 추출: {token_usage}")
 
         # 시간 순으로 정렬
         reasoning_steps.sort(key=lambda x: x.get("timestamp", 0))
@@ -442,12 +452,23 @@ def handle_llm1_with_mcp(body, origin):
             if "timestamp" in tool:
                 del tool["timestamp"]
 
+        # tools_used에서 output이 null인 것들 제거
+        tools_used = [tool for tool in tools_used if tool.get("output") is not None]
+
+        reasoning_content = []
+        for step in reasoning_steps:
+            reasoning_content.append({
+                "content": step.get("content"),
+                "input_tokens": step.get("input_tokens", 0),
+                "output_tokens": step.get("output_tokens", 0)
+            })
+
         debug_info = {
             "tools_used": tools_used,
-            "reasoning": [step.get("content") for step in reasoning_steps],
+            "reasoning": reasoning_content,
             "session_cached": is_cached and session_id is not None and chat_table is not None,
-            "session_id": session_id if is_cached else None
-
+            "session_id": session_id if is_cached else None,
+            "token_usage": token_usage
         }
 
         # 응답 시간 기록 및 경과 시간 계산
@@ -465,10 +486,7 @@ def handle_llm1_with_mcp(body, origin):
             "answer": response_text,
             "elapsed_time": elapsed_str,
             "inference": debug_info  # 디버그 정보 추가
-
         }, origin)
-
-
 
     except Exception as e:
         print(f"MCP 처리 중 오류: {str(e)}")

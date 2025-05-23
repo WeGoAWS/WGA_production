@@ -10,7 +10,7 @@ class AnthropicMCPClient:
     """Anthropic API와 통합된 MCP 클라이언트 (SDK 없이 직접 API 호출)"""
 
     def __init__(self, mcp_url: str, api_key: str = None, model_id: str = None,
-                 session_id: str = None, max_retries: int = 5, max_iterations: int = 10):
+                 session_id: str = None, max_retries: int = 5, max_iterations: int = 15):
         """
         Anthropic MCP 클라이언트 초기화
 
@@ -38,6 +38,9 @@ class AnthropicMCPClient:
         self.pending_tasks = {}  # 대기 중인 작업 ID 및 상태 추적
         self.system_prompt = None
         self.debug_log = []  # 디버그 로그 추가 - 사고 과정과 도구 사용 추적
+        # 토큰 사용량 누적 추적
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
 
     def initialize(self) -> str:
         """
@@ -387,17 +390,29 @@ class AnthropicMCPClient:
             if response.status_code == 200:
                 response_json = response.json()
                 content = response_json.get("content", [])
+                usage = response_json.get("usage", {})
+
                 final_message = ""
                 for item in content:
                     if item.get("type") == "text":
                         final_message += item.get("text", "")
 
-                # 디버그 로그에 최종 분석 응답 기록
+                # 토큰 사용량 누적
+                input_tokens = usage.get("input_tokens", 0)
+                output_tokens = usage.get("output_tokens", 0)
+                self.total_input_tokens += input_tokens
+                self.total_output_tokens += output_tokens
+
+                # 디버그 로그에 최종 분석 응답 기록 (토큰 사용량 포함)
                 self.debug_log.append({
                     "type": "final_analysis_response",
                     "content": final_message,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
                     "timestamp": time.time()
                 })
+
+                print(f"최종 분석 토큰 사용량: 입력={input_tokens}, 출력={output_tokens}")
 
                 # 메시지에 최종 응답 추가
                 self.messages.append({
@@ -477,17 +492,29 @@ class AnthropicMCPClient:
             if response.status_code == 200:
                 response_json = response.json()
                 content = response_json.get("content", [])
+                usage = response_json.get("usage", {})
+
                 updated_message = ""
                 for item in content:
                     if item.get("type") == "text":
                         updated_message += item.get("text", "")
 
-                # 디버그 로그에 상태 업데이트 응답 기록
+                # 토큰 사용량 누적
+                input_tokens = usage.get("input_tokens", 0)
+                output_tokens = usage.get("output_tokens", 0)
+                self.total_input_tokens += input_tokens
+                self.total_output_tokens += output_tokens
+
+                # 디버그 로그에 상태 업데이트 응답 기록 (토큰 사용량 포함)
                 self.debug_log.append({
                     "type": "status_update_response",
                     "content": updated_message,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
                     "timestamp": time.time()
                 })
+
+                print(f"상태 업데이트 토큰 사용량: 입력={input_tokens}, 출력={output_tokens}")
 
                 # 메시지에 업데이트된 응답 추가
                 self.messages.append({
@@ -546,6 +573,10 @@ class AnthropicMCPClient:
 
         # 디버그 로그 초기화
         self.debug_log = []
+
+        # 토큰 사용량 초기화
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
 
         # 디버그 로그에 사용자 입력 기록
         self.debug_log.append({
@@ -655,8 +686,19 @@ class AnthropicMCPClient:
 
             response_json = response.json()
             content = response_json.get("content", [])
+            usage = response_json.get("usage", {})
+
             message_content = ""
             tool_uses = []
+
+            # 토큰 사용량 추출 및 누적
+            input_tokens = usage.get("input_tokens", 0)
+            output_tokens = usage.get("output_tokens", 0)
+            self.total_input_tokens += input_tokens
+            self.total_output_tokens += output_tokens
+
+            print(f"이번 반복 토큰 사용량: 입력={input_tokens}, 출력={output_tokens}")
+            print(f"누적 토큰 사용량: 입력={self.total_input_tokens}, 출력={self.total_output_tokens}")
 
             # 응답 콘텐츠에서 텍스트와 도구 사용 분리
             for item in content:
@@ -669,11 +711,13 @@ class AnthropicMCPClient:
             print(f"응답 텍스트: {message_content[:100]}...")
             print(f"도구 사용 요청 수: {len(tool_uses)}")
 
-            # 디버그 로그에 모델 응답 기록
+            # 디버그 로그에 모델 응답 기록 (토큰 사용량 포함)
             if message_content:
                 self.debug_log.append({
                     "type": "model_reasoning",
                     "content": message_content,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
                     "timestamp": time.time()
                 })
 
@@ -892,11 +936,14 @@ class AnthropicMCPClient:
 
         # 최종 텍스트 로깅 추가
         print(f"최종 응답 반환: {final_text[:200]}...")
+        print(f"총 토큰 사용량: 입력={self.total_input_tokens}, 출력={self.total_output_tokens}")
 
-        # 디버그 로그에 최종 응답 기록
+        # 디버그 로그에 최종 응답 기록 (총 토큰 사용량 포함)
         self.debug_log.append({
             "type": "final_response",
             "content": final_text,
+            "input_tokens": self.total_input_tokens,
+            "output_tokens": self.total_output_tokens,
             "timestamp": time.time()
         })
 
@@ -955,11 +1002,14 @@ class AnthropicMCPClient:
 
         # 최종 텍스트 로깅 추가
         print(f"최종 응답 반환 (히스토리 포함): {final_text[:200]}...")
+        print(f"총 토큰 사용량: 입력={self.total_input_tokens}, 출력={self.total_output_tokens}")
 
-        # 디버그 로그에 최종 응답 기록
+        # 디버그 로그에 최종 응답 기록 (총 토큰 사용량 포함)
         self.debug_log.append({
             "type": "final_response_with_history",
             "content": final_text,
+            "input_tokens": self.total_input_tokens,
+            "output_tokens": self.total_output_tokens,
             "timestamp": time.time()
         })
 
