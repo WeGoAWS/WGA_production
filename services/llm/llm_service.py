@@ -161,7 +161,6 @@ def get_client(model_id: str = None):
             # Bedrock 설정
             mcp_token = os.environ.get('MCP_TOKEN', '')
             region = os.environ.get('AWS_REGION', 'us-east-1')
-            model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-sonnet-20240229-v1:0')
 
             # Bedrock 클라이언트 초기화
             from mcp_bedrock_client import BedrockMCPClient
