@@ -321,11 +321,11 @@ def handle_req_command(text, user_id):
             })
         }
     
-    model_id = 'claude-sonnet-4-20250514'
+    model_id = get_user_model_setting(user_id)
     question = text.strip()
     
     print(f"User: {user_id}, Model: {model_id}, Question: {question}")
-    model_name = 'Claude Sonnet 4'
+    model_name = get_model_display_name(model_id)
     print(f"model_name: {model_name}\n")
 
 
