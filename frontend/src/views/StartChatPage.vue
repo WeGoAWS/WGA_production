@@ -258,7 +258,7 @@
     import { useRouter } from 'vue-router';
     import AppLayout from '@/layouts/AppLayout.vue';
     import { useChatHistoryStore } from '@/stores/chatHistoryStore';
-    import axios from 'axios';
+    import { useModelsStore } from '@/stores/models.ts';
 
     export default defineComponent({
         name: 'StartChatPage',
@@ -375,13 +375,14 @@
 
             const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
-            const getHealth = () => {
-                axios.get(`${apiUrl}/health`, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    withCredentials: true,
-                });
+            const modelsStore = useModelsStore();
+            const getHealth = async () => {
+                try {
+                    await modelsStore.fetchModels();
+                    console.log('Models loaded:', modelsStore.models);
+                } catch (error) {
+                    console.error('Health check / Models load error:', error);
+                }
             };
 
             const confirmDeleteAllSessions = () => {

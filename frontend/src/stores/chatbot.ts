@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
 import type { BotResponse, ChatMessageType } from '@/types/chat.ts';
+import { useModelsStore } from '@/stores/models.ts';
 
 interface ChatMessage {
     id: string;
@@ -245,12 +246,14 @@ export const useChatbotStore = defineStore('chatbot', {
         async generateBotResponse(userMessage: string): Promise<BotResponse | any> {
             try {
                 const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
+                const modelsStore = useModelsStore();
 
                 const response = await axios.post(
                     `${apiUrl}/llm1`,
                     {
                         text: userMessage,
                         sessionId: this.currentSession?.id,
+                        modelId: modelsStore.selectedModel.id,
                     },
                     {
                         headers: {

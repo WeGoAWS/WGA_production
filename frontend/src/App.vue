@@ -12,18 +12,27 @@
 <script lang="ts">
     import { defineComponent, onMounted, ref } from 'vue';
     import { useAuthStore } from '@/stores/auth';
+    import { useModelsStore } from '@/stores/models';
 
     export default defineComponent({
         name: 'App',
         setup() {
             const authStore = useAuthStore();
+            const modelsStore = useModelsStore();
             const initialLoading = ref(true);
 
             onMounted(async () => {
                 try {
                     await authStore.initializeAuth();
+
+                    try {
+                        await modelsStore.fetchModels();
+                        modelsStore.loadSelectedModelFromStorage();
+                    } catch (modelError) {
+                        console.error('모델 목록 로드 오류:', modelError);
+                    }
                 } catch (error) {
-                    console.error('인증 초기화 오류:', error);
+                    console.error('앱 초기화 오류:', error);
                 } finally {
                     initialLoading.value = false;
                 }

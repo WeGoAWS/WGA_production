@@ -138,7 +138,7 @@
                                 )
                                 .replace(
                                     /: "([^"]*)"/g,
-                                    ': "<span style="color: #067d17;">$1</span>"',
+                                    ': "<span style="color: #014325;">$1</span>"',
                                 );
                         } catch (e) {
                             return inference;
@@ -151,7 +151,7 @@
                             /"([^"]+)":/g,
                             '"<span style="color: #0033b3; font-weight: bold;">$1</span>":',
                         )
-                        .replace(/: "([^"]*)"/g, ': "<span style="color: #067d17;">$1</span>"');
+                        .replace(/: "([^"]*)"/g, ': "<span style="color: #014325;">$1</span>"');
                 } catch (error) {
                     console.error('Inference 데이터 포맷팅 오류:', error);
                     return String(inference);
@@ -533,7 +533,7 @@
     }
 
     :deep(.sql-string) {
-        color: #067d17;
+        color: #014325;
     }
 
     .query-result-table-container {

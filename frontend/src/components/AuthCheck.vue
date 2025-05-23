@@ -19,8 +19,6 @@
 
             onMounted(async () => {
                 try {
-                    // const isAuthenticated = await authStore.verifyTokenWithBackend();
-
                     const redirectPath = sessionStorage.getItem('auth_redirect_path');
                     if (redirectPath) {
                         router.push(redirectPath);

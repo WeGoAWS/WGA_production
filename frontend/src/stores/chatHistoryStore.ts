@@ -396,16 +396,22 @@ export const useChatHistoryStore = defineStore('chatHistory', {
 
                 const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
+                const { useModelsStore } = await import('@/stores/models');
+                const modelsStore = useModelsStore();
+
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                };
+
                 const response = await axios.post(
                     `${apiUrl}/llm1`,
                     {
                         text: userMessage,
                         sessionId: this.currentSession?.sessionId,
+                        modelId: modelsStore.selectedModel.id,
                     },
                     {
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers,
                         withCredentials: true,
                         cancelToken: this.apiCancelToken ? this.apiCancelToken.token : undefined,
                     },

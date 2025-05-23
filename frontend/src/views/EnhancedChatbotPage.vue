@@ -168,6 +168,43 @@
                             </label>
                         </div>
 
+                        <div class="model-selector-container">
+                            <div
+                                class="model-selector"
+                                :class="{ disabled: store.waitingForResponse }"
+                                @click="toggleModelDropdown"
+                                ref="modelSelectorRef"
+                            >
+                                <span class="selected-model">
+                                    {{ modelsStore.selectedModel?.display_name || '모델 선택' }}
+                                </span>
+                                <span class="dropdown-arrow" :class="{ open: isModelDropdownOpen }">
+                                    ▼
+                                </span>
+
+                                <transition name="dropdown">
+                                    <div
+                                        v-if="isModelDropdownOpen"
+                                        class="model-dropdown"
+                                        @click.stop
+                                    >
+                                        <div
+                                            v-for="model in modelsStore.models"
+                                            :key="model.id"
+                                            class="model-option"
+                                            :class="{
+                                                selected:
+                                                    modelsStore.selectedModel?.id === model.id,
+                                            }"
+                                            @click="selectModel(model.id)"
+                                        >
+                                            {{ model.display_name }}
+                                        </div>
+                                    </div>
+                                </transition>
+                            </div>
+                        </div>
+
                         <button
                             @click="store.waitingForResponse ? cancelRequest() : sendMessage()"
                             class="send-button"
@@ -245,6 +282,7 @@
     import ChatMessage from '@/components/ChatMessage.vue';
     import { useChatHistoryStore } from '@/stores/chatHistoryStore';
     import type { BotResponse } from '@/types/chat';
+    import { useModelsStore } from '@/stores/models';
 
     export default defineComponent({
         name: 'EnhancedChatbotPage',
@@ -271,6 +309,11 @@
 
             const isSidebarOpen = ref(false);
 
+            const isModelDropdownOpen = ref(false);
+            const modelSelectorRef = ref<HTMLElement | null>(null);
+
+            const modelsStore = useModelsStore();
+
             const toggleSidebar = () => {
                 isSidebarOpen.value = !isSidebarOpen.value;
             };
@@ -278,6 +321,25 @@
             const handleResize = () => {
                 if (window.innerWidth < 768 && isSidebarOpen.value) {
                     isSidebarOpen.value = false;
+                }
+            };
+
+            const toggleModelDropdown = () => {
+                if (store.waitingForResponse) return;
+                isModelDropdownOpen.value = !isModelDropdownOpen.value;
+            };
+
+            const selectModel = (modelId: string) => {
+                modelsStore.selectModel(modelId);
+                isModelDropdownOpen.value = false;
+            };
+
+            const handleClickOutside = (event: Event) => {
+                if (
+                    modelSelectorRef.value &&
+                    !modelSelectorRef.value.contains(event.target as Node)
+                ) {
+                    isModelDropdownOpen.value = false;
                 }
             };
 
@@ -524,17 +586,24 @@
                 try {
                     const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
 
+                    const headers: Record<string, string> = {
+                        'Content-Type': 'application/json',
+                    };
+
+                    if (modelsStore.selectedModel?.id) {
+                        headers['modelId'] = modelsStore.selectedModel.id;
+                    }
+
                     const response = await axios.post(
                         `${apiUrl}/llm1`,
                         {
                             text: userMessage,
                             sessionId: store.currentSession?.sessionId,
                             isCached: isCached.value,
+                            modelId: modelsStore.selectedModel.id,
                         },
                         {
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
+                            headers,
                             withCredentials: true,
                             cancelToken: store.apiCancelToken
                                 ? store.apiCancelToken.token
@@ -694,6 +763,11 @@
                 handleKeydown,
                 autoResize,
                 cancelRequest,
+                toggleModelDropdown,
+                selectModel,
+                handleClickOutside,
+                modelsStore,
+                isModelDropdownOpen,
             };
         },
     });
@@ -1419,5 +1493,138 @@
     .slide-enter-to,
     .slide-leave-from {
         transform: translateX(0);
+    }
+
+    .model-selector-container {
+        display: flex;
+        align-items: center;
+        margin: 0 8px;
+        min-width: fit-content;
+    }
+
+    .model-selector {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-width: 120px;
+        padding: 4px 8px;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        color: #495057;
+        transition: all 0.2s ease;
+        user-select: none;
+    }
+
+    .model-selector:hover:not(.disabled) {
+        background-color: #e9ecef;
+        border-color: #adb5bd;
+    }
+
+    .model-selector.disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        background-color: #f8f9fa;
+    }
+
+    .selected-model {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-right: 8px;
+        font-weight: 500;
+    }
+
+    .dropdown-arrow {
+        font-size: 0.7rem;
+        transition: transform 0.3s ease;
+        color: #6c757d;
+        flex-shrink: 0;
+    }
+
+    .dropdown-arrow.open {
+        transform: rotate(180deg);
+    }
+
+    .model-dropdown {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 35px;
+        width: fit-content;
+        background-color: white;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        margin-top: 4px;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .model-option {
+        width: initial;
+        padding: 8px 12px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        font-size: 0.85rem;
+        border-bottom: 1px solid #f8f9fa;
+    }
+
+    .model-option:last-child {
+        border-bottom: none;
+    }
+
+    .model-option:hover {
+        background-color: #e9f5ff;
+        color: #0056b3;
+    }
+
+    .model-option.selected {
+        background-color: #e3f2fd;
+        color: #0d47a1;
+        font-weight: 600;
+    }
+
+    .model-option.selected:hover {
+        background-color: #bbdefb;
+    }
+
+    .dropdown-enter-active,
+    .dropdown-leave-active {
+        transition: all 0.3s ease;
+        transform-origin: top;
+    }
+
+    .dropdown-enter-from,
+    .dropdown-leave-to {
+        opacity: 0;
+        transform: scaleY(0.8) translateY(-8px);
+    }
+
+    .dropdown-enter-to,
+    .dropdown-leave-from {
+        opacity: 1;
+        transform: scaleY(1) translateY(0);
+    }
+
+    @media (max-width: 768px) {
+        .model-selector-container {
+            margin: 0 4px;
+        }
+
+        .model-selector {
+            min-width: 100px;
+            padding: 4px 6px;
+        }
+
+        .selected-model {
+            font-size: 0.8rem;
+            margin-right: 6px;
+        }
     }
 </style>
