@@ -212,15 +212,13 @@ def handle_llm1_with_mcp(body, origin):
         print(f"session_id: {session_id}")
         print(f"is_cached: {is_cached}")
         print(f"model_id: {model_id}")
+        print(f"slack_user_id: {slack_user_id}")
         print(f"chat_table 상태: {chat_table is not None}")
         print(f"전체 body: {json.dumps(body, ensure_ascii=False)}")
 
         if not user_input:
             return cors_response(400, {"error": "사용자 입력이 제공되지 않았습니다."}, origin)
 
-        # Slack에 대기 메시지 전송
-        if slack_user_id:
-            send_slack_dm(slack_user_id, "⏳ 분석중입니다... 조금만 기다려주세요!")
 
         # 시스템 프롬프트 설정
         system_prompt = """You are name is "AWS Cloud Agent" and you are an AI assistant specialized in AWS services, monitoring, and documentation. Your primary goal is to help users with their AWS-related questions and tasks, but you should also engage in natural conversation when users interact with you casually.

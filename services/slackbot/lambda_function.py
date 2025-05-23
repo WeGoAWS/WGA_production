@@ -3,7 +3,7 @@ import urllib.parse
 import json
 from common.config import get_config
 from common.slackbot_session import get_session, save_session, send_slack_dm, send_slack_channel_message
-from slackbot_service import send_login_button
+from slackbot_service import send_login_button, handle_models_command, handle_interaction, handle_req_command
 from jose import jwt
 
 def lambda_handler(event, context):
@@ -11,6 +11,15 @@ def lambda_handler(event, context):
     path = event.get("path", "")
     http_method = event.get("httpMethod", "")
     CONFIG = get_config()
+
+    # # Slack 인터랙션 처리 (Block Kit 버튼/드롭다운)
+    # if event.get('headers', {}).get('content-type') == 'application/json':
+    #     try:
+    #         payload = json.loads(body)
+    #         if payload.get('type') == 'block_actions':
+    #             return handle_interaction(payload)
+    #     except Exception as e:
+    #         print(f"Error processing interaction: {e}")
 
     if path == "/login" and http_method == "POST":
         body = urllib.parse.parse_qs(event["body"])
@@ -20,57 +29,7 @@ def lambda_handler(event, context):
             "statusCode": 200,
             "body": "🔐 로그인 링크를 Slack DM으로 전송했습니다!"
         }
-    elif path == "/events" and http_method == "POST":
-        slack_event = json.loads(body)
-
-        # URL 검증을 위한 challenge 응답
-        if slack_event.get("type") == "url_verification":
-            return {
-                "statusCode": 200,
-                "body": slack_event.get("challenge")
-            }
-
-        # 이벤트 콜백 처리
-        if slack_event.get("type") == "event_callback":
-            event_data = slack_event.get("event", {})
-            user_id = event_data.get("user")
-            text = event_data.get("text", "")
-            channel = event_data.get("channel")
-
-            # 봇 자신의 메시지는 무시
-            if "bot_id" in event_data:
-                return {"statusCode": 200}
-
-            # 봇 멘션 부분 제거
-            bot_user_id = CONFIG["bot_user_id"]
-            question = text.replace(f"<@{bot_user_id}>", "").strip()
-
-            # 세션 확인
-            session = get_session(user_id)
-            if not session:
-                send_login_button(user_id)
-                send_slack_channel_message(channel, f"<@{user_id}>님, 먼저 로그인이 필요합니다. Slack DM에서 로그인 버튼을 확인해주세요.")
-                return {"statusCode": 200}
-
-            # /llm1 Lambda 호출
-            try:
-                response = requests.post(
-                    f"{CONFIG['api']['endpoint']}/llm1",
-                    json={"text": question, "user_id": user_id},
-                    headers={"Origin": CONFIG["frontend"]["redirect_domain"]}
-                )
-                result = response.json()
-                answer = result.get("answer", "❗ 답변을 가져오지 못했습니다.")
-            except Exception as e:
-                print("LLM1 호출 실패:", e)
-                answer = "❗ 처리 중 오류가 발생했습니다."
-
-            send_slack_channel_message(channel, answer)
-
-            return {"statusCode": 200}
-
-        return {"statusCode": 400, "body": "Unsupported event"}
-
+    
     elif path == "/callback" and http_method == "GET":
         params = event.get("queryStringParameters") or {}
         code = params.get("code")
@@ -120,6 +79,44 @@ def lambda_handler(event, context):
             "body": "<h3>✅ 로그인이 완료되었습니다.</h3>",
             "headers": {"Content-Type": "text/html"}
         }
+    # Slack Slash Command 처리
+    elif path == "/models" and http_method == "POST":
+        body = urllib.parse.parse_qs(event["body"])
+        slack_user_id = body.get("user_id", [""])[0]
+
+        try:
+            print("/models 진입\n")
+            handle_models_command(slack_user_id)
+            return {
+            "statusCode": 200,
+            }
+            
+        except Exception as e:
+            print(f"Error processing slash command: {e}")
+
+    elif path == "/req" and http_method == "POST":
+        body = urllib.parse.parse_qs(event["body"])
+        slack_user_id = body.get("user_id", [""])[0]
+        try:
+            print("/req 진입\n")
+            command = body.get('command', [''])[0]
+            text = body.get('text', [''])[0]
+
+            return handle_req_command(text, slack_user_id)
+
+        except Exception as e:
+            print(f"Error processing slash command: {e}")
+
+    elif path == "/slack-interactions" and http_method == "POST":
+        parsed_data = urllib.parse.parse_qs(body)
+        payload_str = parsed_data.get('payload', [''])[0]
+        payload = json.loads(payload_str)
+
+        print(f"Interaction payload: {payload}")
+        
+        if payload.get('type') == 'block_actions':
+            handle_interaction(payload)
+            return handle_interaction(payload)
 
     else:
         return {
