@@ -50,6 +50,24 @@
 
                     <h1 @click="handleGoMain">AWS Cloud Agent</h1>
                     <p class="chat-description">운영 정보/메뉴얼 질의</p>
+
+                    <button @click="handleLogout" class="logout-button" title="로그아웃">
+                        <svg
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                            <polyline points="16,17 21,12 16,7" />
+                            <line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                    </button>
+
                     <div v-if="store.waitingForResponse" class="processing-indicator">
                         <div class="processing-spinner"></div>
                         <span>질의 처리 중...</span>
@@ -274,7 +292,7 @@
 </template>
 
 <script lang="ts">
-    import { defineComponent, nextTick, onMounted, ref, watch } from 'vue';
+    import { computed, defineComponent, nextTick, onMounted, ref, watch } from 'vue';
     import { useRouter } from 'vue-router';
     import axios from 'axios';
     import AppLayout from '@/layouts/AppLayout.vue';
@@ -283,6 +301,7 @@
     import { useChatHistoryStore } from '@/stores/chatHistoryStore';
     import type { BotResponse } from '@/types/chat';
     import { useModelsStore } from '@/stores/models';
+    import { useSettingsStore } from '@/stores/settings.ts';
 
     export default defineComponent({
         name: 'EnhancedChatbotPage',
@@ -296,13 +315,13 @@
         setup() {
             const router = useRouter();
             const store = useChatHistoryStore();
+            const settingsStore = useSettingsStore();
             const messagesContainer = ref<HTMLElement | null>(null);
             const initialSetupDone = ref(false);
             const pendingQuestionProcessed = ref(false);
             const messageText = ref('');
             const inputRef = ref<HTMLTextAreaElement | null>(null);
             const showCancelIcon = ref(false);
-            const isCached = ref(true);
 
             const showSessionChangeWarning = ref(false);
             const targetSessionId = ref<string | null>(null);
@@ -313,6 +332,11 @@
             const modelSelectorRef = ref<HTMLElement | null>(null);
 
             const modelsStore = useModelsStore();
+
+            const isCached = computed({
+                get: () => settingsStore.isCached,
+                set: (value: boolean) => settingsStore.setIsCached(value),
+            });
 
             const toggleSidebar = () => {
                 isSidebarOpen.value = !isSidebarOpen.value;
@@ -404,6 +428,7 @@
 
             onMounted(async () => {
                 try {
+                    settingsStore.loadFromStorage();
                     const pendingQuestion = sessionStorage.getItem('pendingQuestion');
                     const shouldCreateNewSession =
                         sessionStorage.getItem('createNewSession') === 'true';
@@ -525,7 +550,7 @@
                         isSidebarOpen.value = false;
                     }
 
-                    await store.sendMessage(messageToSend);
+                    await store.sendMessage(messageToSend, settingsStore.isCached);
 
                     await nextTick();
                     scrollToBottom();
@@ -737,13 +762,17 @@
                 }
             };
 
+            const handleLogout = () => {
+                localStorage.clear();
+                window.location.reload();
+            };
+
             return {
                 store,
                 messagesContainer,
                 messageText,
                 inputRef,
                 showCancelIcon,
-                isCached,
                 sendMessage,
                 askExampleQuestion,
                 clearChat,
@@ -768,6 +797,9 @@
                 handleClickOutside,
                 modelsStore,
                 isModelDropdownOpen,
+                settingsStore,
+                isCached,
+                handleLogout,
             };
         },
     });
@@ -1626,5 +1658,33 @@
             font-size: 0.8rem;
             margin-right: 6px;
         }
+    }
+
+    .logout-button {
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #6c757d;
+        cursor: pointer;
+        padding: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        transition: all 0.2s ease;
+    }
+
+    .logout-button:hover {
+        background-color: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+    }
+
+    .logout-button:active {
+        transform: translateY(-50%) scale(0.95);
     }
 </style>

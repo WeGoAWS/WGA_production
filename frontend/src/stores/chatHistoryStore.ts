@@ -4,6 +4,7 @@ import { defineStore } from 'pinia';
 import type { CancelTokenSource } from 'axios';
 import axios from 'axios';
 import type { BotResponse, ChatHistoryState, ChatMessageType, ChatSession } from '@/types/chat';
+import { useSettingsStore } from '@/stores/settings.ts';
 
 const generateId = () => {
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -154,12 +155,15 @@ export const useChatHistoryStore = defineStore('chatHistory', {
             }
         },
 
-        async sendMessage(text: string) {
+        async sendMessage(text: string, isCached: boolean = true) {
             if (!text.trim()) return;
 
             if (!this.currentSession) {
                 await this.createNewSession();
             }
+
+            const settingsStore = useSettingsStore();
+            const cachedValue = isCached !== undefined ? isCached : settingsStore.isCached;
 
             this.waitingForResponse = true;
             let userMessageResponse = null;
@@ -211,7 +215,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                 this.apiCancelToken = axios.CancelToken.source();
                 console.log('API 취소 토큰 생성 완료:', !!this.apiCancelToken);
 
-                const botResponseData = await this.generateBotResponse(text);
+                const botResponseData = await this.generateBotResponse(text, cachedValue);
 
                 if (this.currentSession && Array.isArray(this.currentSession.messages)) {
                     this.currentSession.messages = this.currentSession.messages.filter(
@@ -390,11 +394,16 @@ export const useChatHistoryStore = defineStore('chatHistory', {
             }
         },
 
-        async generateBotResponse(userMessage: string): Promise<BotResponse> {
+        async generateBotResponse(
+            userMessage: string,
+            isCached: boolean = true,
+        ): Promise<BotResponse> {
             try {
                 console.log('generateBotResponse 호출, 취소 토큰 존재:', !!this.apiCancelToken);
 
                 const apiUrl = import.meta.env.VITE_API_DEST || 'http://localhost:8000';
+                const settingsStore = useSettingsStore();
+                const cachedValue = isCached !== undefined ? isCached : settingsStore.isCached;
 
                 const { useModelsStore } = await import('@/stores/models');
                 const modelsStore = useModelsStore();
@@ -409,6 +418,7 @@ export const useChatHistoryStore = defineStore('chatHistory', {
                         text: userMessage,
                         sessionId: this.currentSession?.sessionId,
                         modelId: modelsStore.selectedModel.id,
+                        isCached: cachedValue,
                     },
                     {
                         headers,

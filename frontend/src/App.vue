@@ -13,17 +13,20 @@
     import { defineComponent, onMounted, ref } from 'vue';
     import { useAuthStore } from '@/stores/auth';
     import { useModelsStore } from '@/stores/models';
+    import { useSettingsStore } from '@/stores/settings.ts';
 
     export default defineComponent({
         name: 'App',
         setup() {
             const authStore = useAuthStore();
             const modelsStore = useModelsStore();
+            const settingsStore = useSettingsStore();
             const initialLoading = ref(true);
 
             onMounted(async () => {
                 try {
                     await authStore.initializeAuth();
+                    settingsStore.loadFromStorage();
 
                     try {
                         await modelsStore.fetchModels();
