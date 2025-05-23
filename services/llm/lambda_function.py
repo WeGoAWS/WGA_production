@@ -1,8 +1,9 @@
 # llm/lambda_function.py
 import requests
-from llm_service import parse_body, handle_llm1_request, handle_llm2_request, handle_llm1_with_mcp
+from llm_service import parse_body, handle_llm1_request, handle_llm2_request, handle_llm1_with_mcp, get_anthropic_models
 from common.config import get_config
 from common.utils import cors_response
+
 
 def lambda_handler(event, context):
     CONFIG = get_config()
@@ -17,7 +18,15 @@ def lambda_handler(event, context):
     try:
         body = parse_body(event) or {}
         if path == "/health" and http_method == "GET":
-            return cors_response(200, {"status": "ok"}, origin)
+            # Anthropic 모델 목록 조회
+            models = get_anthropic_models()
+
+            response_data = {
+                "status": "ok",
+                "models": models
+            }
+
+            return cors_response(200, response_data, origin)
 
         elif path == "/llm1" and http_method == "POST":
             return handle_llm1_with_mcp(body, origin)

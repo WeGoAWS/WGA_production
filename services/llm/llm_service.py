@@ -28,6 +28,56 @@ except Exception as e:
     chat_table = None
 
 
+def get_anthropic_models():
+    """
+    Anthropic API에서 사용 가능한 모델 목록을 조회
+
+    Returns:
+        list: 모델 정보 배열 (display_name과 id만 포함)
+    """
+    try:
+        CONFIG = get_config()
+        anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY') or CONFIG.get('anthropic', {}).get('api_key')
+
+        if not anthropic_api_key:
+            print("Anthropic API 키가 설정되지 않았습니다.")
+            return []
+
+        headers = {
+            "x-api-key": anthropic_api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+
+        response = requests.get(
+            "https://api.anthropic.com/v1/models",
+            headers=headers
+        )
+
+        if response.status_code != 200:
+            print(f"Anthropic Models API 오류: {response.status_code} - {response.text}")
+            return []
+
+        models_data = response.json()
+        models = models_data.get('data', [])
+
+        # display_name과 id만 추출하여 배열로 반환
+        model_list = []
+        for model in models:
+            model_info = {
+                "id": model.get("id", ""),
+                "display_name": model.get("display_name", model.get("id", ""))
+            }
+            model_list.append(model_info)
+
+        print(f"Anthropic 모델 {len(model_list)}개 조회 완료")
+        return model_list
+
+    except Exception as e:
+        print(f"Anthropic 모델 조회 중 오류: {str(e)}")
+        return []
+
+
 def get_session_messages_as_array(session_id: str) -> list:
     """
     DynamoDB에서 세션의 메시지 히스토리를 messages 배열 형식으로 가져옴
@@ -81,7 +131,8 @@ def get_session_messages_as_array(session_id: str) -> list:
         print(f"세션 메시지 조회 실패: {str(e)}")
         return []
 
-def get_client():
+
+def get_client(model_id: str = None):
     """
     MCP 클라이언트 인스턴스를 가져오거나 생성
     Lambda 콜드 스타트 최적화를 위해 전역 변수로 재사용
@@ -98,7 +149,6 @@ def get_client():
         if use_anthropic:
             # Anthropic API 설정
             anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY') or CONFIG.get('anthropic', {}).get('api_key')
-            model_id = os.environ.get('ANTHROPIC_MODEL_ID', 'claude-3-7-sonnet-20250219')
 
             # Anthropic 클라이언트 초기화
             from mcp_anthropic_client import AnthropicMCPClient
@@ -140,17 +190,19 @@ def handle_llm1_with_mcp(body, origin):
     Returns:
         응답 객체 (도구 사용 과정 및 결과 포함)
     """
-    slack_user_id = body.get("user_id")
     try:
         # 요청 데이터 추출
         user_input = body.get('question') or body.get('text') or body.get('input', {}).get('text', '')
         session_id = body.get('sessionId')
         is_cached = body.get('isCached', True)
+        model_id = body.get('modelId')
+        slack_user_id = body.get("user_id")
 
         print(f"=== 요청 분석 ===")
         print(f"user_input: {user_input}")
         print(f"session_id: {session_id}")
         print(f"is_cached: {is_cached}")
+        print(f"model_id: {model_id}")
         print(f"chat_table 상태: {chat_table is not None}")
         print(f"전체 body: {json.dumps(body, ensure_ascii=False)}")
 
@@ -311,7 +363,7 @@ def handle_llm1_with_mcp(body, origin):
         """
 
         # MCP 클라이언트 가져오기
-        client = get_client()
+        client = get_client(model_id)
 
         # 사용자 입력 처리 시작 시간 기록
         question_time = datetime.now(timezone.utc)
@@ -396,7 +448,7 @@ def handle_llm1_with_mcp(body, origin):
             "reasoning": [step.get("content") for step in reasoning_steps],
             "session_cached": is_cached and session_id is not None and chat_table is not None,
             "session_id": session_id if is_cached else None
-            
+
         }
 
         # 응답 시간 기록 및 경과 시간 계산
@@ -414,10 +466,10 @@ def handle_llm1_with_mcp(body, origin):
             "answer": response_text,
             "elapsed_time": elapsed_str,
             "inference": debug_info  # 디버그 정보 추가
-            
+
         }, origin)
 
-        
+
 
     except Exception as e:
         print(f"MCP 처리 중 오류: {str(e)}")
