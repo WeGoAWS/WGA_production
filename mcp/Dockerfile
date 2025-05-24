@@ -4,7 +4,7 @@ FROM public.ecr.aws/lambda/python:3.12
 # 컨테이너 내 작업 디렉토리 설정
 WORKDIR ${LAMBDA_TASK_ROOT}
 
-# 시스템 의존성을 먼저 설치 (Amazon Linux 2023에서 dnf 사용)
+# 시스템 의존성 설치
 RUN dnf update -y && \
     dnf install -y \
         graphviz \
@@ -13,6 +13,10 @@ RUN dnf update -y && \
         gcc-c++ \
         make \
         pkgconfig \
+        google-noto-sans-cjk-ttc-fonts \
+        google-noto-serif-cjk-ttc-fonts \
+        fontconfig \
+    && fc-cache -fv \
     && dnf clean all
 
 # Docker 캐시를 활용하기 위해 먼저 요구 사항을 복사합니다

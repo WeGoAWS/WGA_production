@@ -112,11 +112,73 @@ def scan_python_code(code: str) -> CodeScanResult:
 
 
 def process_diagram_code(code: str, output_path: str) -> str:
-    """Process code to set filename and show=False."""
-    if 'with Diagram(' in code:
+    """Process code to set filename, show=False, and automatically setup Korean font."""
+
+    # 한글 폰트 자동 설정 코드 - 다이어그램 코드 앞에 추가
+    font_setup_code = '''
+# 한글 폰트 자동 설정
+try:
+    import matplotlib
+    import matplotlib.pyplot as plt
+    import matplotlib.font_manager as fm
+
+    # 한글 폰트 리스트 (우선순위 순)
+    korean_fonts = [
+        'Noto Sans CJK KR',      # Google Noto 폰트
+        'Noto Serif CJK KR',     # Google Noto 폰트 (세리프)
+        'NanumGothic',           # 나눔고딕
+        'NanumMyeongjo',         # 나눔명조
+        'Malgun Gothic',         # 맑은 고딕 (Windows)
+        'AppleGothic',           # 애플고딕 (macOS)
+        'UnDotum',               # 은돋움 (Linux)
+        'Baekmuk Gulim'          # 백묵굴림 (Linux)
+    ]
+
+    # 시스템에 설치된 폰트 목록 가져오기
+    available_fonts = [f.name for f in fm.fontManager.ttflist]
+
+    # 한글 폰트 찾기 및 설정
+    font_found = False
+    for font in korean_fonts:
+        if font in available_fonts:
+            plt.rcParams['font.family'] = font
+            plt.rcParams['font.sans-serif'] = [font] + plt.rcParams['font.sans-serif']
+            font_found = True
+            print(f"Korean font set to: {font}")
+            break
+
+    if not font_found:
+        # 한글 폰트를 찾지 못한 경우 CJK 관련 폰트 검색
+        cjk_fonts = [f for f in available_fonts if any(keyword in f.lower() for keyword in ['cjk', 'noto', 'nanum', 'korean', 'hangul'])]
+        if cjk_fonts:
+            plt.rcParams['font.family'] = cjk_fonts[0]
+            plt.rcParams['font.sans-serif'] = [cjk_fonts[0]] + plt.rcParams['font.sans-serif']
+            print(f"CJK font found and set to: {cjk_fonts[0]}")
+        else:
+            print("Warning: Korean font not found. Korean text may not display correctly.")
+
+    # 마이너스 기호 깨짐 방지
+    plt.rcParams['axes.unicode_minus'] = False
+
+    # 폰트 캐시 새로고침 (필요한 경우)
+    try:
+        fm._rebuild()
+    except:
+        pass
+
+except Exception as e:
+    print(f"Font setup error (non-critical): {e}")
+
+'''
+
+    # 코드 앞부분에 폰트 설정 추가
+    processed_code = font_setup_code + "\n" + code
+
+    # 기존 Diagram 설정 처리
+    if 'with Diagram(' in processed_code:
         # Find all instances of Diagram constructor
         diagram_pattern = r'with\s+Diagram\s*\((.*?)\)'
-        matches = re.findall(diagram_pattern, code)
+        matches = re.findall(diagram_pattern, processed_code)
 
         for match in matches:
             # Get the original arguments
@@ -147,9 +209,9 @@ def process_diagram_code(code: str, output_path: str) -> str:
                 new_args += 'show=False'
 
             # Replace in the code
-            code = code.replace(f'with Diagram({original_args})', f'with Diagram({new_args})')
+            processed_code = processed_code.replace(f'with Diagram({original_args})', f'with Diagram({new_args})')
 
-    return code
+    return processed_code
 
 
 def generate_diagram(
@@ -159,14 +221,7 @@ def generate_diagram(
 ) -> DiagramGenerateResponse:
     """
     Generate a diagram from Python code and upload to S3.
-
-    Args:
-        code: Python code string using the diagrams package DSL
-        filename: Output filename (without extension)
-        timeout: Timeout in seconds for diagram generation
-
-    Returns:
-        Dictionary with the S3 URL and status
+    Now with automatic Korean font support.
     """
     try:
         # Scan the code for security issues
@@ -192,6 +247,11 @@ def generate_diagram(
                 exec('import os', namespace)
                 exec('import diagrams', namespace)
                 exec('from diagrams import Diagram, Cluster, Edge', namespace)
+
+                # matplotlib 관련 모듈도 namespace에 추가
+                exec('import matplotlib', namespace)
+                exec('import matplotlib.pyplot as plt', namespace)
+                exec('import matplotlib.font_manager as fm', namespace)
 
                 # Import all diagram components
                 diagram_imports = """
@@ -220,10 +280,10 @@ from urllib.request import urlretrieve
 """
                 exec(diagram_imports, namespace)
 
-                # Process the code to ensure show=False and set the output path
+                # Process the code to ensure show=False, set the output path, and add Korean font setup
                 processed_code = process_diagram_code(code, output_path)
 
-                # Execute the code
+                # Execute the code with font setup
                 exec(processed_code, namespace)
 
                 # Check if the file was created
@@ -250,7 +310,7 @@ from urllib.request import urlretrieve
                         status='success',
                         url=url,
                         s3_key=s3_key,
-                        message=f'Diagram generated successfully and uploaded to S3'
+                        message=f'Diagram generated successfully with Korean font support'
                     )
                 else:
                     return DiagramGenerateResponse(
