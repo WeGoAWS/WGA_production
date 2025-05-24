@@ -658,7 +658,7 @@ aws cloudformation update-stack \
                 ParameterKey=GuardDutyExportBucketExists,ParameterValue=true \
                 ParameterKey=DockerBuildBucketExists,ParameterValue=true \
                 ParameterKey=FrontendBucketExists,ParameterValue=true \
-                ParameterKey=DiagramBucketExists,ParameterValue=$DIAGRAM_BUCKET_EXISTS \
+                ParameterKey=DiagramBucketExists,ParameterValue=true \
                 ParameterKey=FrontendRedirectDomain,ParameterValue=$FRONTEND_URL \
                 ParameterKey=CallbackDomain,ParameterValue=$CALLBACK_DOMAIN \
                 ParameterKey=McpFunctionUrl,ParameterValue=$McpFunctionUrl \
