@@ -11,3 +11,5 @@ pydantic-core
 tabulate
 markdownify
 httpx
+diagrams
+pillow

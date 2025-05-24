@@ -4,10 +4,21 @@ FROM public.ecr.aws/lambda/python:3.12
 # 컨테이너 내 작업 디렉토리 설정
 WORKDIR ${LAMBDA_TASK_ROOT}
 
+# 시스템 의존성을 먼저 설치 (Amazon Linux 2023에서 dnf 사용)
+RUN dnf update -y && \
+    dnf install -y \
+        graphviz \
+        graphviz-devel \
+        gcc \
+        gcc-c++ \
+        make \
+        pkgconfig \
+    && dnf clean all
+
 # Docker 캐시를 활용하기 위해 먼저 요구 사항을 복사합니다
 COPY requirements.txt .
-# 종속성 설치 (mcpengine이 requirements.txt에 나열되어 있다고 가정)
-# 또는 직접 설치: RUN pip install --no-cache-dir mcpengine[cli,lambda]
+
+# Python 종속성 설치
 RUN pip install --no-cache-dir -r requirements.txt
 
 # lambda_mcp 모듈 폴더 복사

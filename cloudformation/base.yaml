@@ -10,14 +10,14 @@ Parameters:
       - test
       - prod
     Description: The deployment environment
-  
+
   BucketExists:
     Type: String
     Default: "false"
     AllowedValues:
       - "true"
       - "false"
-  
+
   OutputBucketExists:
     Type: String
     Default: "false"
@@ -53,6 +53,13 @@ Parameters:
       - "true"
       - "false"
 
+  DiagramBucketExists:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+
   FrontendRedirectDomain:
     Type: String
     Default: placeholder.example.com
@@ -80,6 +87,7 @@ Conditions:
   ShouldCreateGuardDutyExportBucket: !Equals [!Ref GuardDutyExportBucketExists, "false"]
   ShouldCreateDockerBuildBucket: !Equals [!Ref DockerBuildBucketExists, "false"]
   ShouldCreateFrontendBucket: !Equals [!Ref FrontendBucketExists, "false"]
+  ShouldCreateDiagramBucket: !Equals [!Ref DiagramBucketExists, "false"]
   IsProd: !Equals [!Ref Environment, "prod"]
   IsTest: !Equals [!Ref Environment, "test"]
   IsDev: !Equals [!Ref Environment, "dev"]
@@ -276,6 +284,43 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref Environment
+
+  DiagramBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldCreateDiagramBucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub 'wga-diagrambucket-${Environment}'
+      VersioningConfiguration:
+        !If
+        - ShouldCreateDiagramBucket
+        - Status: Enabled
+        - !Ref "AWS::NoValue"
+      BucketEncryption:
+        !If
+        - ShouldCreateDiagramBucket
+        - ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        - !Ref "AWS::NoValue"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: 'MCP Diagram Storage'
 
   # DynamoDB
   SlackbotSessionTable:
@@ -585,6 +630,15 @@ Resources:
       Value: !If [ ShouldCreateFrontendBucket, !Ref FrontendBucket, !Sub 'wga-frontend-${Environment}' ]
       Description: S3 bucket for frontend hosting
 
+  DiagramBucketParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '/wga/${Environment}/DiagramBucketName'
+      Type: String
+      Value: !If [ ShouldCreateDiagramBucket, !Ref DiagramBucket, !Sub 'wga-diagrambucket-${Environment}' ]
+      Description: S3 bucket for MCP diagram storage
+
   UserPoolIdParameter:
     Type: AWS::SSM::Parameter
     DeletionPolicy: Delete
@@ -717,6 +771,10 @@ Outputs:
   FrontendBucketName:
     Description: Name of the S3 bucket for frontend hosting
     Value: !If [ShouldCreateFrontendBucket, !Ref FrontendBucket, !Sub 'wga-frontend-${Environment}']
+
+  DiagramBucketName:
+    Description: Name of the S3 bucket for MCP diagram storage
+    Value: !If [ShouldCreateDiagramBucket, !Ref DiagramBucket, !Sub 'wga-diagrambucket-${Environment}']
 
   UserPoolId:
     Description: ID of the Cognito User Pool

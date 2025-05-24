@@ -16,6 +16,12 @@ from lambda_mcp.document_utils import (
     is_html_content,
     parse_recommendation_results,
 )
+from lambda_mcp.diagram_utils import (
+    generate_diagram,
+    get_diagram_examples,
+    list_diagram_icons
+)
+from lambda_mcp.mcp_types import DiagramType
 
 # API URL 상수 정의
 DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 ModelContextProtocol/1.0 (AWS Documentation Server)'
@@ -751,6 +757,122 @@ def recommend_documentation(
     except Exception as e:
         error_msg = f'Error getting recommendations: {str(e)}'
         return [{'url': '', 'title': error_msg, 'context': None}]
+
+
+@mcp_server.tool()
+def generate_architecture_diagram(
+        code: str,
+        filename: str = None,
+        timeout: int = 30
+) -> Dict[str, Any]:
+    """
+    Generate an architecture diagram from Python code using the diagrams package.
+
+    This tool accepts Python code that uses the diagrams package DSL and generates
+    a PNG diagram, then uploads it to S3 and returns a presigned URL.
+
+    Args:
+        code: Python code string using the diagrams package DSL
+        filename: Optional output filename (without extension)
+        timeout: Timeout in seconds for diagram generation
+
+    Returns:
+        Dictionary with the S3 URL and status information
+    """
+    try:
+        result = generate_diagram(code, filename, timeout)
+        # DiagramGenerateResponse 객체를 딕셔너리로 변환
+        return {
+            'status': result.status,
+            'url': result.url,
+            's3_key': result.s3_key,
+            'message': result.message
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'message': f'Error generating diagram: {str(e)}'
+        }
+
+
+@mcp_server.tool()
+def get_diagram_code_examples(
+        diagram_type: str = "all"
+) -> Dict[str, Any]:
+    """
+    Get example code for different types of architecture diagrams.
+
+    This tool provides ready-to-use example code for various diagram types.
+    Use these examples to understand the syntax and capabilities of the diagrams package.
+
+    Args:
+        diagram_type: Type of diagram example to return (aws, sequence, flow, class, k8s, onprem, custom, all)
+
+    Returns:
+        Dictionary with example code for the requested diagram type(s)
+    """
+    try:
+        # Convert string to DiagramType enum
+        if diagram_type.lower() == "aws":
+            dtype = DiagramType.AWS
+        elif diagram_type.lower() == "k8s":
+            dtype = DiagramType.K8S
+        elif diagram_type.lower() == "flow":
+            dtype = DiagramType.FLOW
+        elif diagram_type.lower() == "sequence":
+            dtype = DiagramType.SEQUENCE
+        elif diagram_type.lower() == "class":
+            dtype = DiagramType.CLASS
+        elif diagram_type.lower() == "onprem":
+            dtype = DiagramType.ONPREM
+        elif diagram_type.lower() == "custom":
+            dtype = DiagramType.CUSTOM
+        else:
+            dtype = DiagramType.ALL
+
+        result = get_diagram_examples(dtype)
+        # DiagramExampleResponse 객체를 딕셔너리로 변환
+        return {
+            'examples': result.examples
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'message': f'Error getting examples: {str(e)}'
+        }
+
+
+@mcp_server.tool()
+def list_available_diagram_icons(
+        provider_filter: str = None,
+        service_filter: str = None
+) -> Dict[str, Any]:
+    """
+    List available icons from the diagrams package with optional filtering.
+
+    This tool helps you discover what icons are available for creating diagrams.
+    Call without filters to see all providers, or use filters to narrow down results.
+
+    Args:
+        provider_filter: Filter icons by provider name (e.g., "aws", "gcp", "k8s")
+        service_filter: Filter icons by service name (e.g., "compute", "database", "network")
+
+    Returns:
+        Dictionary with available providers, services, and icons
+    """
+    try:
+        result = list_diagram_icons(provider_filter, service_filter)
+        # DiagramIconsResponse 객체를 딕셔너리로 변환
+        return {
+            'providers': result.providers,
+            'filtered': result.filtered,
+            'filter_info': result.filter_info
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'message': f'Error listing icons: {str(e)}'
+        }
 
 # Define the lambda handler
 def lambda_handler(event, context):

@@ -24,6 +24,7 @@ OUTPUT_BUCKET_NAME="wga-outputbucket-$ENV"
 ATHENA_OUTPUT_BUCKET_NAME="wga-athenaoutputbucket-$ENV"
 GUARDDUTY_EXPORT_BUCKET_NAME="wga-guarddutyexportbucket-$ENV"
 DOCKER_BUILD_BUCKET_NAME="wga-dockerbuildbucket-$ENV"
+DIAGRAM_BUCKET_NAME="wga-diagrambucket-$ENV"
 
 # 스택 이름 설정
 BASE_STACK_NAME="wga-base-$ENV"
@@ -141,6 +142,17 @@ else
     FRONTEND_BUCKET_EXISTS="false"
 fi
 
+# DiagramBucket 존재 여부 확인
+if aws s3 ls "s3://$DIAGRAM_BUCKET_NAME" > /dev/null 2>&1; then
+    echo "다이어그램 버킷($DIAGRAM_BUCKET_NAME)이 이미 존재합니다. 이 버킷을 재사용합니다."
+    DIAGRAM_BUCKET_EXISTS="true"
+    echo "$DIAGRAM_BUCKET_NAME 버킷 내용을 정리합니다..."
+    aws s3 rm "s3://$DIAGRAM_BUCKET_NAME" --recursive
+else
+    echo "다이어그램 버킷($DIAGRAM_BUCKET_NAME)이 존재하지 않습니다. 새로 생성합니다."
+    DIAGRAM_BUCKET_EXISTS="false"
+fi
+
 # 기본 스택 배포
 echo "기본 인프라 스택 배포 중: $BASE_STACK_NAME..."
 
@@ -157,6 +169,7 @@ if aws cloudformation describe-stacks --stack-name "$BASE_STACK_NAME" > /dev/nul
                     ParameterKey=GuardDutyExportBucketExists,ParameterValue=$GUARDDUTY_EXPORT_BUCKET_EXISTS \
                     ParameterKey=DockerBuildBucketExists,ParameterValue=$DOCKER_BUILD_BUCKET_EXISTS \
                     ParameterKey=FrontendBucketExists,ParameterValue=$FRONTEND_BUCKET_EXISTS \
+                    ParameterKey=DiagramBucketExists,ParameterValue=$DIAGRAM_BUCKET_EXISTS \
                     ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
                     ParameterKey=CallbackDomain,ParameterValue=placeholder.example.com \
         --capabilities CAPABILITY_NAMED_IAM
@@ -177,6 +190,7 @@ else
                     ParameterKey=GuardDutyExportBucketExists,ParameterValue=$GUARDDUTY_EXPORT_BUCKET_EXISTS \
                     ParameterKey=DockerBuildBucketExists,ParameterValue=$DOCKER_BUILD_BUCKET_EXISTS \
                     ParameterKey=FrontendBucketExists,ParameterValue=$FRONTEND_BUCKET_EXISTS \
+                    ParameterKey=DiagramBucketExists,ParameterValue=$DIAGRAM_BUCKET_EXISTS \
                     ParameterKey=FrontendRedirectDomain,ParameterValue=placeholder.example.com \
                     ParameterKey=CallbackDomain,ParameterValue=placeholder.example.com \
         --capabilities CAPABILITY_NAMED_IAM
@@ -282,6 +296,7 @@ aws cloudformation update-stack \
                 ParameterKey=GuardDutyExportBucketExists,ParameterValue=true \
                 ParameterKey=DockerBuildBucketExists,ParameterValue=true \
                 ParameterKey=FrontendBucketExists,ParameterValue=true \
+                ParameterKey=DiagramBucketExists,ParameterValue=true \
                 ParameterKey=FrontendRedirectDomain,ParameterValue=$FRONTEND_URL \
                 ParameterKey=CallbackDomain,ParameterValue=$CALLBACK_DOMAIN \
     --capabilities CAPABILITY_NAMED_IAM
@@ -643,6 +658,7 @@ aws cloudformation update-stack \
                 ParameterKey=GuardDutyExportBucketExists,ParameterValue=true \
                 ParameterKey=DockerBuildBucketExists,ParameterValue=true \
                 ParameterKey=FrontendBucketExists,ParameterValue=true \
+                ParameterKey=DiagramBucketExists,ParameterValue=$DIAGRAM_BUCKET_EXISTS \
                 ParameterKey=FrontendRedirectDomain,ParameterValue=$FRONTEND_URL \
                 ParameterKey=CallbackDomain,ParameterValue=$CALLBACK_DOMAIN \
                 ParameterKey=McpFunctionUrl,ParameterValue=$McpFunctionUrl \

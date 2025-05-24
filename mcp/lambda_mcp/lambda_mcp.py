@@ -1,4 +1,4 @@
-from lambda_mcp.types import (
+from .mcp_types import (
     JSONRPCRequest, 
     JSONRPCResponse,
     JSONRPCError,
@@ -8,7 +8,7 @@ from lambda_mcp.types import (
     TextContent,
     ErrorContent
 )
-from lambda_mcp.session import SessionManager
+from .session import SessionManager
 import json
 import logging
 from typing import Optional, Any, Dict, Callable, get_type_hints, List, TypeVar, Generic

@@ -6,7 +6,7 @@ Parameters:
     Type: String
     Description: The deployment environment
 
-  McpImageUri: # << 추가됨
+  McpImageUri:
     Type: String
     Description: ECR URI for MCP Lambda Docker image
 
@@ -27,8 +27,8 @@ Parameters:
     Description: Bedrock Knowledge Base ID
 
 Resources:
-  McpLambdaFunction: 
-    Type: AWS::Lambda::Function  # << 여기 추가됨
+  McpLambdaFunction:
+    Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub 'wga-mcp-${Environment}'
       PackageType: Image
@@ -40,7 +40,8 @@ Resources:
       Environment:
         Variables:
           ENV: !Ref Environment
-          ATHENA_TABLE_REGISTRY_TABLE: !Sub 'AthenaTableRegistry-${Environment}'
+          MCP_SESSION_TABLE: !Sub 'wga-mcp-sessions-${Environment}'
+          DIAGRAM_BUCKET: !Sub 'wga-diagrambucket-${Environment}'
 
   # Function URL 호출 권한 추가
   McpLambdaPermissionFunctionUrl:
@@ -87,7 +88,6 @@ Resources:
                   - ec2:*
                   - health:*
                   - ce:*
-                  
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -97,6 +97,12 @@ Resources:
                 Action:
                   - ssm:*
                 Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wga/${Environment}/*"
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource:
+                  - !Sub 'arn:aws:s3:::wga-diagrambucket-${Environment}'
+                  - !Sub 'arn:aws:s3:::wga-diagrambucket-${Environment}/*'
 
   LlmLambdaLayer:
     Type: AWS::Lambda::LayerVersion

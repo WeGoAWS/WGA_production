@@ -1,6 +1,7 @@
-"""Type definitions for MCP protocol"""
+"""Type definitions for MCP protocol and diagram utilities"""
 from typing import Optional, Any, Dict, List
 from dataclasses import dataclass
+from enum import Enum
 
 @dataclass
 class JSONRPCError:
@@ -167,3 +168,68 @@ class RecommendationResult:
             "title": self.title,
             "context": self.context
         }
+
+class DiagramType(str, Enum):
+    """Enum for supported diagram types."""
+    AWS = 'aws'
+    SEQUENCE = 'sequence'
+    FLOW = 'flow'
+    CLASS = 'class'
+    K8S = 'k8s'
+    ONPREM = 'onprem'
+    CUSTOM = 'custom'
+    ALL = 'all'
+
+@dataclass
+class SecurityIssue:
+    """Model for security issues found in code."""
+    severity: str
+    confidence: str
+    line: int
+    issue_text: str
+    issue_type: str
+
+@dataclass
+class CodeMetrics:
+    """Model for code metrics."""
+    total_lines: int
+    code_lines: int
+    comment_lines: int
+    blank_lines: int
+    comment_ratio: float
+
+@dataclass
+class CodeScanResult:
+    """Model for code scan result."""
+    has_errors: bool
+    syntax_valid: bool
+    security_issues: List[SecurityIssue]
+    error_message: Optional[str] = None
+    metrics: Optional[CodeMetrics] = None
+
+    def __init__(self, has_errors: bool, syntax_valid: bool, security_issues: List[SecurityIssue] = None, error_message: str = None, metrics: CodeMetrics = None):
+        self.has_errors = has_errors
+        self.syntax_valid = syntax_valid
+        self.security_issues = security_issues or []
+        self.error_message = error_message
+        self.metrics = metrics
+
+@dataclass
+class DiagramGenerateResponse:
+    """Response model for diagram generation."""
+    status: str  # 'success' or 'error'
+    url: Optional[str] = None
+    s3_key: Optional[str] = None
+    message: str = ""
+
+@dataclass
+class DiagramExampleResponse:
+    """Response model for diagram examples."""
+    examples: Dict[str, str]
+
+@dataclass
+class DiagramIconsResponse:
+    """Response model for listing available diagram icons."""
+    providers: Dict[str, Dict[str, List[str]]]
+    filtered: bool = False
+    filter_info: Optional[Dict[str, str]] = None
