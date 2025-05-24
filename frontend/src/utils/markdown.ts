@@ -5,9 +5,27 @@ export function parseMarkdown(markdown: string): string {
 
     let html = markdown;
 
-    html = html.replace(/```([^`]+)```/g, '<pre><code>$1</code></pre>');
+    const codeBlocks: string[] = [];
+    html = html.replace(/```([^`]+)```/g, (match, code) => {
+        codeBlocks.push(`<pre><code>${code}</code></pre>`);
+        return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+    });
 
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    const inlineCodes: string[] = [];
+    html = html.replace(/`([^`]+)`/g, (match, code) => {
+        inlineCodes.push(`<code>${code}</code>`);
+        return `__INLINE_CODE_${inlineCodes.length - 1}__`;
+    });
+
+    html = html.replace(/!\[(.*?)\]\((.*?)\)/g, (match, altText, url) => {
+        const cleanUrl = url.trim();
+        try {
+            new URL(cleanUrl);
+            return `<div class="markdown-image-container"><a href="${cleanUrl}" target="_blank" rel="noopener noreferrer"><img src="${cleanUrl}" alt="${altText}" class="markdown-image" /></a></div>`;
+        } catch (e) {
+            return match;
+        }
+    });
 
     html = html.replace(/### (.*?)$/gm, '<h3>$1</h3>');
     html = html.replace(/## (.*?)$/gm, '<h2>$1</h2>');
@@ -58,6 +76,14 @@ export function parseMarkdown(markdown: string): string {
     }
 
     html = html.replace(/<\/ol>\s*<ol[^>]*>/g, '');
+
+    codeBlocks.forEach((block, index) => {
+        html = html.replace(`__CODE_BLOCK_${index}__`, block);
+    });
+
+    inlineCodes.forEach((code, index) => {
+        html = html.replace(`__INLINE_CODE_${index}__`, code);
+    });
 
     html = html.replace(/\n\s*\n/g, '</p><p>');
     html = '<p>' + html + '</p>';

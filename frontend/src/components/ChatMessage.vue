@@ -179,16 +179,7 @@
 
                 const htmlContent = parseMarkdown(escapedContent);
 
-                const urlPattern = /(https?:\/\/[^\s<>"]+[^.\s<>",.;:!?）)}\]]*)/g;
-
-                const processed = htmlContent.replace(urlPattern, (url) => {
-                    if (/<a[^>]*>[^<]*url[^<]*<\/a>/i.test(url)) {
-                        return url;
-                    }
-                    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
-                });
-
-                return processed;
+                return htmlContent;
             };
 
             const formatMessageTime = (dateString: string): string => {
@@ -447,6 +438,55 @@
 
     :deep(.user-message .message-content a) {
         color: #0a58ca;
+    }
+
+    :deep(.markdown-image-container) {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 1rem 0;
+        width: 100%;
+    }
+
+    :deep(.markdown-image-container a) {
+        display: flex;
+        text-decoration: none;
+        border: none;
+        justify-content: center;
+        align-items: center;
+    }
+
+    :deep(.markdown-image) {
+        max-width: 50%;
+        height: auto;
+        width: auto;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition:
+            transform 0.2s ease,
+            box-shadow 0.2s ease;
+        cursor: pointer;
+        object-fit: contain;
+        display: block;
+    }
+
+    :deep(.markdown-image:hover) {
+        transform: scale(1.05);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    @media (max-width: 768px) {
+        :deep(.markdown-image) {
+            max-width: 70%;
+            max-height: 30vh;
+        }
+    }
+
+    @media (max-width: 1024px) and (min-width: 769px) {
+        :deep(.markdown-image) {
+            max-width: 60%;
+            max-height: 35vh;
+        }
     }
 
     .query-metadata {
