@@ -71,7 +71,7 @@ Resources:
                                 - dynamodb:DeleteItem
                                 - dynamodb:UpdateItem
                             Resource:
-                                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/SlackbotSessions"
+                                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/SlackbotSessions-{Environment}"
                                 - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/slack_user_settings"
 
     SlackbotLambdaLayer:
@@ -227,3 +227,27 @@ Resources:
             FunctionName: !Ref SlackbotLambdaFunction
             Principal: "apigateway.amazonaws.com"
             SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/GET/callback"
+
+    SlackbotModelsLambdaPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !Ref SlackbotLambdaFunction
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/models"
+
+    SlackbotReqLambdaPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !Ref SlackbotLambdaFunction
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/req"
+
+    SlackbotInteractionLambdaPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !Ref SlackbotLambdaFunction
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/slack-interaction"
