@@ -13,3 +13,4 @@ markdownify
 httpx
 diagrams
 pillow
+requests

@@ -4,6 +4,7 @@ import boto3
 import pandas as pd
 import httpx
 import re
+import requests
 from datetime import datetime, timedelta
 from collections import defaultdict
 from typing import Optional, Dict, List, Any, Union
@@ -22,6 +23,7 @@ from lambda_mcp.diagram_utils import (
     list_diagram_icons
 )
 from lambda_mcp.mcp_types import DiagramType
+from lambda_mcp.chart_utils import generate_chart_url, validate_chart_data
 
 # API URL 상수 정의
 DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 ModelContextProtocol/1.0 (AWS Documentation Server)'
@@ -874,6 +876,903 @@ def list_available_diagram_icons(
             'message': f'Error listing icons: {str(e)}'
         }
 
+
+@mcp_server.tool()
+def generate_line_chart(
+        data: str,
+        width: int = 600,
+        height: int = 400,
+        title: str = "",
+        axis_x_title: str = "",
+        axis_y_title: str = "",
+        stack: bool = False
+) -> Dict[str, Any]:
+    """
+    Generate a line chart to show trends over time.
+
+    Args:
+        data: JSON string of data for line chart, such as '[{"time": "2015", "value": 23}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+        title: Title of the chart
+        axis_x_title: X-axis title
+        axis_y_title: Y-axis title
+        stack: Whether stacking is enabled for multi-series data
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        if not validate_chart_data(chart_data, ["time", "value"]):
+            return {
+                "status": "error",
+                "message": "Invalid data format. Each item must have 'time' and 'value' fields."
+            }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height,
+            "title": title,
+            "axisXTitle": axis_x_title,
+            "axisYTitle": axis_y_title,
+            "stack": stack
+        }
+
+        result = generate_chart_url("line", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating line chart: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_bar_chart(
+        data: str,
+        width: int = 600,
+        height: int = 400,
+        title: str = "",
+        axis_x_title: str = "",
+        axis_y_title: str = "",
+        group: bool = False,
+        stack: bool = True
+) -> Dict[str, Any]:
+    """
+    Generate a bar chart for numerical comparisons among different categories.
+
+    Args:
+        data: JSON string of data for bar chart, such as '[{"category": "Category A", "value": 10}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+        title: Title of the chart
+        axis_x_title: X-axis title
+        axis_y_title: Y-axis title
+        group: Whether grouping is enabled (requires 'group' field in data)
+        stack: Whether stacking is enabled (requires 'group' field in data)
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        if not validate_chart_data(chart_data, ["category", "value"]):
+            return {
+                "status": "error",
+                "message": "Invalid data format. Each item must have 'category' and 'value' fields."
+            }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height,
+            "title": title,
+            "axisXTitle": axis_x_title,
+            "axisYTitle": axis_y_title,
+            "group": group,
+            "stack": stack
+        }
+
+        result = generate_chart_url("bar", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating bar chart: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_pie_chart(
+        data: str,
+        width: int = 600,
+        height: int = 400,
+        title: str = "",
+        inner_radius: float = 0.0
+) -> Dict[str, Any]:
+    """
+    Generate a pie chart to show the proportion of parts.
+
+    Args:
+        data: JSON string of data for pie chart, such as '[{"category": "Category A", "value": 27}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+        title: Title of the chart
+        inner_radius: Inner radius for donut chart (0-1, default: 0)
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        if not validate_chart_data(chart_data, ["category", "value"]):
+            return {
+                "status": "error",
+                "message": "Invalid data format. Each item must have 'category' and 'value' fields."
+            }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height,
+            "title": title,
+            "innerRadius": inner_radius
+        }
+
+        result = generate_chart_url("pie", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating pie chart: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_scatter_chart(
+        data: str,
+        width: int = 600,
+        height: int = 400,
+        title: str = "",
+        axis_x_title: str = "",
+        axis_y_title: str = ""
+) -> Dict[str, Any]:
+    """
+    Generate a scatter chart to show the relationship between two variables.
+
+    Args:
+        data: JSON string of data for scatter chart, such as '[{"x": 10, "y": 15}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+        title: Title of the chart
+        axis_x_title: X-axis title
+        axis_y_title: Y-axis title
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        if not validate_chart_data(chart_data, ["x", "y"]):
+            return {
+                "status": "error",
+                "message": "Invalid data format. Each item must have 'x' and 'y' fields."
+            }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height,
+            "title": title,
+            "axisXTitle": axis_x_title,
+            "axisYTitle": axis_y_title
+        }
+
+        result = generate_chart_url("scatter", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating scatter chart: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_area_chart(
+        data: str,
+        width: int = 600,
+        height: int = 400,
+        title: str = "",
+        axis_x_title: str = "",
+        axis_y_title: str = "",
+        stack: bool = False
+) -> Dict[str, Any]:
+    """
+    Generate an area chart to show data trends under continuous independent variables.
+
+    Args:
+        data: JSON string of data for area chart, such as '[{"time": "2018", "value": 99.9}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+        title: Title of the chart
+        axis_x_title: X-axis title
+        axis_y_title: Y-axis title
+        stack: Whether stacking is enabled (requires 'group' field in data)
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        if not validate_chart_data(chart_data, ["time", "value"]):
+            return {
+                "status": "error",
+                "message": "Invalid data format. Each item must have 'time' and 'value' fields."
+            }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height,
+            "title": title,
+            "axisXTitle": axis_x_title,
+            "axisYTitle": axis_y_title,
+            "stack": stack
+        }
+
+        result = generate_chart_url("area", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating area chart: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_word_cloud_chart(
+        data: str,
+        width: int = 600,
+        height: int = 400,
+        title: str = ""
+) -> Dict[str, Any]:
+    """
+    Generate a word cloud chart to show word frequency through text size variation.
+
+    Args:
+        data: JSON string of data for word cloud, such as '[{"text": "word", "value": 4.272}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+        title: Title of the chart
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        if not validate_chart_data(chart_data, ["text", "value"]):
+            return {
+                "status": "error",
+                "message": "Invalid data format. Each item must have 'text' and 'value' fields."
+            }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height,
+            "title": title
+        }
+
+        result = generate_chart_url("word-cloud", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating word cloud chart: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_radar_chart(
+        data: str,
+        width: int = 600,
+        height: int = 400,
+        title: str = ""
+) -> Dict[str, Any]:
+    """
+    Generate a radar chart to display multidimensional data (four dimensions or more).
+
+    Args:
+        data: JSON string of data for radar chart, such as '[{"name": "Design", "value": 70}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+        title: Title of the chart
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        if not validate_chart_data(chart_data, ["name", "value"]):
+            return {
+                "status": "error",
+                "message": "Invalid data format. Each item must have 'name' and 'value' fields."
+            }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height,
+            "title": title
+        }
+
+        result = generate_chart_url("radar", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating radar chart: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_column_chart(
+        data: str,
+        width: int = 600,
+        height: int = 400,
+        title: str = "",
+        axis_x_title: str = "",
+        axis_y_title: str = "",
+        group: bool = True,
+        stack: bool = False
+) -> Dict[str, Any]:
+    """
+    Generate a column chart for comparing categorical data.
+
+    Args:
+        data: JSON string of data for column chart, such as '[{"category": "Beijing", "value": 825, "group": "Gas Car"}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+        title: Title of the chart
+        axis_x_title: X-axis title
+        axis_y_title: Y-axis title
+        group: Whether grouping is enabled (requires 'group' field in data)
+        stack: Whether stacking is enabled (requires 'group' field in data)
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        if not validate_chart_data(chart_data, ["category", "value"]):
+            return {
+                "status": "error",
+                "message": "Invalid data format. Each item must have 'category' and 'value' fields."
+            }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height,
+            "title": title,
+            "axisXTitle": axis_x_title,
+            "axisYTitle": axis_y_title,
+            "group": group,
+            "stack": stack
+        }
+
+        result = generate_chart_url("column", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating column chart: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_histogram_chart(
+        data: str,
+        width: int = 600,
+        height: int = 400,
+        title: str = "",
+        axis_x_title: str = "",
+        axis_y_title: str = "",
+        bin_number: int = None
+) -> Dict[str, Any]:
+    """
+    Generate a histogram chart to show frequency distribution of data.
+
+    Args:
+        data: JSON string of numeric data, such as '[78, 88, 60, 100, 95]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+        title: Title of the chart
+        axis_x_title: X-axis title
+        axis_y_title: Y-axis title
+        bin_number: Number of bins for histogram (optional)
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        # Validate that data is a list of numbers
+        if not isinstance(chart_data, list) or not all(isinstance(x, (int, float)) for x in chart_data):
+            return {
+                "status": "error",
+                "message": "Invalid data format. Data must be a list of numbers."
+            }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height,
+            "title": title,
+            "axisXTitle": axis_x_title,
+            "axisYTitle": axis_y_title
+        }
+
+        if bin_number is not None:
+            options["binNumber"] = bin_number
+
+        result = generate_chart_url("histogram", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating histogram: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_treemap_chart(
+        data: str,
+        width: int = 600,
+        height: int = 400,
+        title: str = ""
+) -> Dict[str, Any]:
+    """
+    Generate a treemap chart to display hierarchical data.
+
+    Args:
+        data: JSON string of hierarchical data, such as '[{"name": "Design", "value": 70, "children": [{"name": "Tech", "value": 20}]}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+        title: Title of the chart
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        # Basic validation for treemap data structure
+        if not isinstance(chart_data, list):
+            return {
+                "status": "error",
+                "message": "Invalid data format. Data must be a list of tree nodes."
+            }
+
+        for item in chart_data:
+            if not isinstance(item, dict) or "name" not in item or "value" not in item:
+                return {
+                    "status": "error",
+                    "message": "Invalid data format. Each item must have 'name' and 'value' fields."
+                }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height,
+            "title": title
+        }
+
+        result = generate_chart_url("treemap", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating treemap: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_dual_axes_chart(
+        categories: str,
+        series: str,
+        width: int = 600,
+        height: int = 400,
+        title: str = "",
+        axis_x_title: str = ""
+) -> Dict[str, Any]:
+    """
+    Generate a dual axes chart combining bar and line charts.
+
+    Args:
+        categories: JSON string of categories, such as '["2015", "2016", "2017"]'
+        series: JSON string of series data, such as '[{"type": "column", "data": [91.9, 99.1, 101.6], "axisYTitle": "Sales"}, {"type": "line", "data": [0.055, 0.06, 0.062], "axisYTitle": "Ratio"}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+        title: Title of the chart
+        axis_x_title: X-axis title
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        categories_data = json.loads(categories)
+        series_data = json.loads(series)
+
+        if not isinstance(categories_data, list) or not categories_data:
+            return {
+                "status": "error",
+                "message": "Categories must be a non-empty list."
+            }
+
+        if not isinstance(series_data, list) or not series_data:
+            return {
+                "status": "error",
+                "message": "Series must be a non-empty list."
+            }
+
+        # Validate series data structure
+        for series_item in series_data:
+            if not isinstance(series_item, dict) or "type" not in series_item or "data" not in series_item:
+                return {
+                    "status": "error",
+                    "message": "Each series item must have 'type' and 'data' fields."
+                }
+
+            if series_item["type"] not in ["column", "line"]:
+                return {
+                    "status": "error",
+                    "message": "Series type must be 'column' or 'line'."
+                }
+
+        options = {
+            "categories": categories_data,
+            "series": series_data,
+            "width": width,
+            "height": height,
+            "title": title,
+            "axisXTitle": axis_x_title
+        }
+
+        result = generate_chart_url("dual-axes", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for categories or series parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating dual axes chart: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_mind_map(
+        data: str,
+        width: int = 600,
+        height: int = 400
+) -> Dict[str, Any]:
+    """
+    Generate a mind map chart to organize hierarchical information.
+
+    Args:
+        data: JSON string of mind map data, such as '{"name": "main topic", "children": [{"name": "topic 1", "children": [{"name": "subtopic 1-1"}]}]}'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        # Validate mind map data structure
+        if not isinstance(chart_data, dict) or "name" not in chart_data:
+            return {
+                "status": "error",
+                "message": "Invalid data format. Root node must have a 'name' field."
+            }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height
+        }
+
+        result = generate_chart_url("mind-map", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating mind map: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_network_graph(
+        nodes: str,
+        edges: str,
+        width: int = 600,
+        height: int = 400
+) -> Dict[str, Any]:
+    """
+    Generate a network graph to show relationships between entities.
+
+    Args:
+        nodes: JSON string of nodes, such as '[{"name": "node1"}, {"name": "node2"}]'
+        edges: JSON string of edges, such as '[{"source": "node1", "target": "node2", "name": "edge1"}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        nodes_data = json.loads(nodes)
+        edges_data = json.loads(edges)
+
+        # Validate nodes data
+        if not isinstance(nodes_data, list) or not nodes_data:
+            return {
+                "status": "error",
+                "message": "Nodes must be a non-empty list."
+            }
+
+        for node in nodes_data:
+            if not isinstance(node, dict) or "name" not in node:
+                return {
+                    "status": "error",
+                    "message": "Each node must have a 'name' field."
+                }
+
+        # Validate edges data
+        if not isinstance(edges_data, list):
+            return {
+                "status": "error",
+                "message": "Edges must be a list."
+            }
+
+        for edge in edges_data:
+            if not isinstance(edge, dict) or "source" not in edge or "target" not in edge:
+                return {
+                    "status": "error",
+                    "message": "Each edge must have 'source' and 'target' fields."
+                }
+
+        chart_data = {
+            "nodes": nodes_data,
+            "edges": edges_data
+        }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height
+        }
+
+        result = generate_chart_url("network-graph", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for nodes or edges parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating network graph: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_flow_diagram(
+        nodes: str,
+        edges: str,
+        width: int = 600,
+        height: int = 400
+) -> Dict[str, Any]:
+    """
+    Generate a flow diagram to show process steps and decision points.
+
+    Args:
+        nodes: JSON string of nodes, such as '[{"name": "Start"}, {"name": "Process"}]'
+        edges: JSON string of edges, such as '[{"source": "Start", "target": "Process", "name": "flow"}]'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        nodes_data = json.loads(nodes)
+        edges_data = json.loads(edges)
+
+        # Validate nodes data
+        if not isinstance(nodes_data, list) or not nodes_data:
+            return {
+                "status": "error",
+                "message": "Nodes must be a non-empty list."
+            }
+
+        for node in nodes_data:
+            if not isinstance(node, dict) or "name" not in node:
+                return {
+                    "status": "error",
+                    "message": "Each node must have a 'name' field."
+                }
+
+        # Validate edges data
+        if not isinstance(edges_data, list):
+            return {
+                "status": "error",
+                "message": "Edges must be a list."
+            }
+
+        for edge in edges_data:
+            if not isinstance(edge, dict) or "source" not in edge or "target" not in edge:
+                return {
+                    "status": "error",
+                    "message": "Each edge must have 'source' and 'target' fields."
+                }
+
+        chart_data = {
+            "nodes": nodes_data,
+            "edges": edges_data
+        }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height
+        }
+
+        result = generate_chart_url("flow-diagram", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for nodes or edges parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating flow diagram: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def generate_fishbone_diagram(
+        data: str,
+        width: int = 600,
+        height: int = 400
+) -> Dict[str, Any]:
+    """
+    Generate a fishbone diagram to analyze causes and effects.
+
+    Args:
+        data: JSON string of fishbone data, such as '{"name": "main problem", "children": [{"name": "cause 1", "children": [{"name": "subcause 1-1"}]}]}'
+        width: Width of the chart (default: 600)
+        height: Height of the chart (default: 400)
+
+    Returns:
+        Dictionary with chart URL or error message
+    """
+    try:
+        chart_data = json.loads(data)
+
+        # Validate fishbone data structure
+        if not isinstance(chart_data, dict) or "name" not in chart_data:
+            return {
+                "status": "error",
+                "message": "Invalid data format. Root node must have a 'name' field."
+            }
+
+        options = {
+            "data": chart_data,
+            "width": width,
+            "height": height
+        }
+
+        result = generate_chart_url("fishbone-diagram", options)
+        return result
+
+    except json.JSONDecodeError:
+        return {
+            "status": "error",
+            "message": "Invalid JSON format for data parameter"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error generating fishbone diagram: {str(e)}"
+        }
 # Define the lambda handler
 def lambda_handler(event, context):
     """AWS Lambda handler function."""
