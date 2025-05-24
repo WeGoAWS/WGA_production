@@ -189,7 +189,7 @@ Resources:
                 Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SlackbotLambdaFunction.Arn}/invocations"
             MethodResponses:
                 - StatusCode: "200"
-                
+
     # slack-interaction
     SlackbotInteractionApiResource:
         Type: AWS::ApiGateway::Resource
@@ -198,7 +198,7 @@ Resources:
             ParentId: !Ref ApiGatewayRootResourceId
             PathPart: "slack-interaction"
 
-    SlackbotModelsMethod:
+    SlackbotInteractionMethod:
         Type: AWS::ApiGateway::Method
         Properties:
             RestApiId: !Ref ApiGatewayId
