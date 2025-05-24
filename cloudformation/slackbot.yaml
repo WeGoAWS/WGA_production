@@ -2,162 +2,228 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "WGA Slackbot Service CloudFormation Template"
 
 Parameters:
-  Environment:
-    Type: String
-    Description: The deployment environment
+    Environment:
+        Type: String
+        Description: The deployment environment
 
-  ApiEndpointParameter:
-    Type: String
-    Description: API Endpoint
+    ApiEndpointParameter:
+        Type: String
+        Description: API Endpoint
 
-  ApiGatewayId:
-    Type: String
-    Description: API Gateway ID
+    ApiGatewayId:
+        Type: String
+        Description: API Gateway ID
 
-  ApiGatewayRootResourceId:
-    Type: String
-    Description: API Gateway Root Resource ID
+    ApiGatewayRootResourceId:
+        Type: String
+        Description: API Gateway Root Resource ID
 
-  SlackBotTokenSSMPath:
-    Type: String
-    Description: Path to the Slack Bot Token in SSM Parameter Store
+    SlackBotTokenSSMPath:
+        Type: String
+        Description: Path to the Slack Bot Token in SSM Parameter Store
 
-  CognitoClientIdSSMPath:
-    Type: String
-    Description: ID of the Cognito User Pool Client
+    CognitoClientIdSSMPath:
+        Type: String
+        Description: ID of the Cognito User Pool Client
 
-  CognitoDomainSSMPath:
-    Type: String
-    Description: Domain of the Cognito User Pool
+    CognitoDomainSSMPath:
+        Type: String
+        Description: Domain of the Cognito User Pool
 
 Resources:
-  SlackbotLambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "wga-slackbot-execution-role-${Environment}"
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: SlackbotLambdaAccessSSM
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                  - ssm:GetParameters
-                  - ssm:GetParametersByPath
-                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wga/${Environment}/*"
+    SlackbotLambdaExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Sub "wga-slackbot-execution-role-${Environment}"
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service: lambda.amazonaws.com
+                      Action: sts:AssumeRole
+            Policies:
+                - PolicyName: SlackbotLambdaAccessSSM
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - logs:CreateLogGroup
+                                - logs:CreateLogStream
+                                - logs:PutLogEvents
+                            Resource: "*"
+                          - Effect: Allow
+                            Action:
+                                - ssm:GetParameter
+                                - ssm:GetParameters
+                                - ssm:GetParametersByPath
+                            Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wga/${Environment}/*"
 
-        - PolicyName: SlackbotDynamoDBSessionAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:GetItem
-                  - dynamodb:DeleteItem
-                Resource:
-                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/SlackbotSessions"
+                - PolicyName: SlackbotDynamoDBSessionAccess
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - dynamodb:PutItem
+                                - dynamodb:GetItem
+                                - dynamodb:DeleteItem
+                                - dynamodb:UpdateItem
+                            Resource:
+                                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/SlackbotSessions"
+                                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/slack_user_settings"
 
-  SlackbotLambdaLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      LayerName: !Sub "slackbot-layer-${Environment}"
-      Description: Common Python dependencies
-      Content:
-        S3Bucket: !Sub "wga-deployment-${Environment}"
-        S3Key: !Sub "layers/common-layer-${Environment}.zip"
-      CompatibleRuntimes:
-        - python3.12
+    SlackbotLambdaLayer:
+        Type: AWS::Lambda::LayerVersion
+        Properties:
+            LayerName: !Sub "slackbot-layer-${Environment}"
+            Description: Common Python dependencies
+            Content:
+                S3Bucket: !Sub "wga-deployment-${Environment}"
+                S3Key: !Sub "layers/common-layer-${Environment}.zip"
+            CompatibleRuntimes:
+                - python3.12
 
-  SlackbotLambdaFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "wga-slackbot-${Environment}"
-      Runtime: python3.12
-      Handler: lambda_function.lambda_handler
-      Code:
-        S3Bucket: !Sub "wga-deployment-${Environment}"
-        S3Key: !Sub "slackbot/slackbot-lambda-${Environment}.zip"
-      Layers:
-        - !Ref SlackbotLambdaLayer
-      Timeout: 15
-      MemorySize: 256
-      Role: !GetAtt SlackbotLambdaExecutionRole.Arn
-      Environment:
-        Variables:
-          ENV: !Ref Environment
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
+    SlackbotLambdaFunction:
+        Type: AWS::Lambda::Function
+        Properties:
+            FunctionName: !Sub "wga-slackbot-${Environment}"
+            Runtime: python3.12
+            Handler: lambda_function.lambda_handler
+            Code:
+                S3Bucket: !Sub "wga-deployment-${Environment}"
+                S3Key: !Sub "slackbot/slackbot-lambda-${Environment}.zip"
+            Layers:
+                - !Ref SlackbotLambdaLayer
+            Timeout: 15
+            MemorySize: 256
+            Role: !GetAtt SlackbotLambdaExecutionRole.Arn
+            Environment:
+                Variables:
+                    ENV: !Ref Environment
+            Tags:
+                - Key: Environment
+                  Value: !Ref Environment
 
-  SlackbotLoginApiResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref ApiGatewayId
-      ParentId: !Ref ApiGatewayRootResourceId
-      PathPart: "login"
+    SlackbotLoginApiResource:
+        Type: AWS::ApiGateway::Resource
+        Properties:
+            RestApiId: !Ref ApiGatewayId
+            ParentId: !Ref ApiGatewayRootResourceId
+            PathPart: "login"
 
-  SlackbotLoginMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref ApiGatewayId
-      ResourceId: !Ref SlackbotLoginApiResource
-      HttpMethod: POST
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SlackbotLambdaFunction.Arn}/invocations"
-      MethodResponses:
-        - StatusCode: "200"
+    SlackbotLoginMethod:
+        Type: AWS::ApiGateway::Method
+        Properties:
+            RestApiId: !Ref ApiGatewayId
+            ResourceId: !Ref SlackbotLoginApiResource
+            HttpMethod: POST
+            AuthorizationType: NONE
+            Integration:
+                Type: AWS_PROXY
+                IntegrationHttpMethod: POST
+                Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SlackbotLambdaFunction.Arn}/invocations"
+            MethodResponses:
+                - StatusCode: "200"
 
-  SlackbotCallbackApiResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref ApiGatewayId
-      ParentId: !Ref ApiGatewayRootResourceId
-      PathPart: "callback"
+    SlackbotCallbackApiResource:
+        Type: AWS::ApiGateway::Resource
+        Properties:
+            RestApiId: !Ref ApiGatewayId
+            ParentId: !Ref ApiGatewayRootResourceId
+            PathPart: "callback"
 
-  SlackbotCallbackMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref ApiGatewayId
-      ResourceId: !Ref SlackbotCallbackApiResource
-      HttpMethod: GET
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SlackbotLambdaFunction.Arn}/invocations"
-      MethodResponses:
-        - StatusCode: "200"
+    SlackbotCallbackMethod:
+        Type: AWS::ApiGateway::Method
+        Properties:
+            RestApiId: !Ref ApiGatewayId
+            ResourceId: !Ref SlackbotCallbackApiResource
+            HttpMethod: GET
+            AuthorizationType: NONE
+            Integration:
+                Type: AWS_PROXY
+                IntegrationHttpMethod: POST
+                Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SlackbotLambdaFunction.Arn}/invocations"
+            MethodResponses:
+                - StatusCode: "200"
+    # models
+    SlackbotModelsApiResource:
+        Type: AWS::ApiGateway::Resource
+        Properties:
+            RestApiId: !Ref ApiGatewayId
+            ParentId: !Ref ApiGatewayRootResourceId
+            PathPart: "models"
 
-  SlackbotLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: "lambda:InvokeFunction"
-      FunctionName: !Ref SlackbotLambdaFunction
-      Principal: "apigateway.amazonaws.com"
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/login"
+    SlackbotModelsMethod:
+        Type: AWS::ApiGateway::Method
+        Properties:
+            RestApiId: !Ref ApiGatewayId
+            ResourceId: !Ref SlackbotModelsApiResource
+            HttpMethod: POST
+            AuthorizationType: NONE
+            Integration:
+                Type: AWS_PROXY
+                IntegrationHttpMethod: POST
+                Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SlackbotLambdaFunction.Arn}/invocations"
+            MethodResponses:
+                - StatusCode: "200"
+    # req
+    SlackbotReqApiResource:
+        Type: AWS::ApiGateway::Resource
+        Properties:
+            RestApiId: !Ref ApiGatewayId
+            ParentId: !Ref ApiGatewayRootResourceId
+            PathPart: "req"
 
-  SlackbotCallbackLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: "lambda:InvokeFunction"
-      FunctionName: !Ref SlackbotLambdaFunction
-      Principal: "apigateway.amazonaws.com"
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/GET/callback"
+    SlackbotReqMethod:
+        Type: AWS::ApiGateway::Method
+        Properties:
+            RestApiId: !Ref ApiGatewayId
+            ResourceId: !Ref SlackbotReqApiResource
+            HttpMethod: POST
+            AuthorizationType: NONE
+            Integration:
+                Type: AWS_PROXY
+                IntegrationHttpMethod: POST
+                Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SlackbotLambdaFunction.Arn}/invocations"
+            MethodResponses:
+                - StatusCode: "200"
+                
+    # slack-interaction
+    SlackbotInteractionApiResource:
+        Type: AWS::ApiGateway::Resource
+        Properties:
+            RestApiId: !Ref ApiGatewayId
+            ParentId: !Ref ApiGatewayRootResourceId
+            PathPart: "slack-interaction"
+
+    SlackbotModelsMethod:
+        Type: AWS::ApiGateway::Method
+        Properties:
+            RestApiId: !Ref ApiGatewayId
+            ResourceId: !Ref SlackbotInteractionApiResource
+            HttpMethod: POST
+            AuthorizationType: NONE
+            Integration:
+                Type: AWS_PROXY
+                IntegrationHttpMethod: POST
+                Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SlackbotLambdaFunction.Arn}/invocations"
+            MethodResponses:
+                - StatusCode: "200"
+
+    SlackbotLambdaPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !Ref SlackbotLambdaFunction
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/login"
+
+    SlackbotCallbackLambdaPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: "lambda:InvokeFunction"
+            FunctionName: !Ref SlackbotLambdaFunction
+            Principal: "apigateway.amazonaws.com"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/GET/callback"
