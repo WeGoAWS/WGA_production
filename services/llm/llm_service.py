@@ -354,9 +354,7 @@ def handle_llm1_with_mcp(body, origin):
             elif entry_type == "tool_result":
                 tools_used.append({
                     "tool_name": entry.get("tool_name"),
-                    "input": entry.get("input"),
-                    "output": entry.get("output"),
-                    "timestamp": entry.get("timestamp")
+                    "input": entry.get("input")
                 })
             elif entry_type in ["final_response", "final_response_with_history"]:
                 # 최종 응답에서 총 토큰 사용량 추출
@@ -378,9 +376,6 @@ def handle_llm1_with_mcp(body, origin):
         for tool in tools_used:
             if "timestamp" in tool:
                 del tool["timestamp"]
-
-        # tools_used에서 output이 null인 것들 제거
-        tools_used = [tool for tool in tools_used if tool.get("output") is not None]
 
         reasoning_content = []
         for step in reasoning_steps:
