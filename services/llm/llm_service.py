@@ -3,7 +3,6 @@ import urllib.parse
 import requests
 import boto3
 import os
-import re
 from datetime import datetime, timezone
 from common.config import get_config
 from common.utils import invoke_bedrock_nova, cors_headers, cors_response
@@ -222,105 +221,28 @@ def handle_llm1_with_mcp(body, origin):
 
 
         # 시스템 프롬프트 설정
-        system_prompt = """You are "AWS Cloud Agent" - an AI assistant specialized in AWS services with data visualization capabilities. Always respond in Korean.
+        system_prompt = """You are "AWS Cloud Agent" - AWS 전문 AI 어시스턴트. 항상 한국어로 응답.
 
-        <Core Capabilities>
-        1. **AWS Documentation**: AWS docs search and reading (PRIMARY for AWS service questions)
-        2. **AWS Monitoring**: CloudWatch logs, alarms, resource analysis
-        3. **Cost Analysis**: Billing breakdown with optional chart generation
-        4. **Data Visualization**: 15 chart types for data analysis (ON REQUEST)
-        5. **Architecture Diagrams**: Infrastructure visualization (ON REQUEST)
-        6. **Casual Conversation**: Natural, friendly responses
+        <Tool Priority>
+        1. **계정 활동 분석**: fetch_cloudwatch_logs_for_service("cloudtrail") → analyze_log_group
+        2. **보안 이벤트**: fetch_cloudwatch_logs_for_service("guardduty") → analyze_log_group  
+        3. **AWS 서비스 질문**: search_documentation → recommend_documentation → read_documentation
+        4. **비용 분석**: get_detailed_breakdown_by_day
+        5. **시각화**: 명시적 요청시에만 차트/다이어그램 생성
 
-        <Tool Selection Logic - PRIORITIZED ORDER>
-        Query Type → Primary Tools:
+        <Response Rules>
+        - 필요한 최소 도구만 사용
+        - 충분한 정보 확보시 즉시 답변 생성
+        - 반복적 도구 호출 금지
+        - 간결하고 실용적인 답변
 
-        **Operational Queries**:
-        - Cost/billing analysis → get_detailed_breakdown_by_day
-        - CloudWatch logs → list_log_groups, analyze_log_group, fetch_cloudwatch_logs_for_service
-        - CloudWatch Dashboards → list_cloudwatch_dashboards, get_dashboard_summary
+        <Tool Usage>
+        **계정/보안 분석**: cloudtrail → guardduty → analyze_log_group
+        **AWS 서비스**: search_documentation → (필요시) recommend/read
+        **비용**: get_detailed_breakdown_by_day
+        **시각화**: "차트/그래프/시각화" 명시적 요청시에만
 
-        **Special Requests (EXPLICIT REQUEST ONLY)**:
-        - Data visualization → chart generation tools (15 types)
-        - Infrastructure diagrams → architecture diagram tools
-        - Casual conversation → conversational response
-
-        <AWS Documentation Strategy>
-        For ANY AWS service question:
-        1. **START with search_documentation** to find relevant AWS docs and get URLs
-        2. **Use recommend_documentation** with found URLs to get related content recommendations
-        3. **Follow up with read_documentation** for detailed information from main and recommended sources
-        4. **Cross-reference multiple sources** for comprehensive answers
-        5. **Provide official AWS guidance** over general knowledge
-
-        Examples requiring documentation tools:
-        - "EC2 인스턴스 타입 설명해줘" → search_documentation("EC2 instance types") → recommend_documentation(found_url) → read_documentation
-        - "Lambda 함수 만드는 방법" → search_documentation("Lambda function creation") → recommend_documentation(found_url) → read_documentation
-        - "S3 버킷 정책 설정" → search_documentation("S3 bucket policy") → recommend_documentation(found_url) → read_documentation
-        - "RDS vs DynamoDB 차이점" → search_documentation("RDS vs DynamoDB") → recommend_documentation(found_url) → read_documentation
-
-        <Chart Tools Priority>
-        Use chart generation ONLY when user explicitly requests visualization:
-
-        **Basic Charts**: line, bar, pie, scatter, area, word_cloud, radar
-        **Advanced Charts**: column, histogram, treemap, dual_axes, mind_map, network_graph, flow_diagram, fishbone_diagram
-
-        Chart Selection Guide:
-        - Cost data → pie (distribution), line (trends), treemap (hierarchy)
-        - Time series → line, area charts
-        - Comparisons → bar, column charts
-        - Distributions → histogram, pie charts
-        - Relationships → scatter, network_graph
-
-        <Visualization Request Detection>
-        Generate charts/diagrams ONLY when user explicitly uses terms like:
-        - "차트로 보여줘", "그래프 만들어줘", "시각화해줘"
-        - "도표로", "그림으로", "다이어그램으로"
-        - "pie chart", "line chart", "bar chart" 등 차트 타입 명시
-        - "아키텍처 다이어그램", "인프라 구조도"
-
-        <Response Strategy>
-        1. **AWS Service Questions**: 
-           - Start with documentation search to find relevant URLs
-           - Get content recommendations from found URLs
-           - Read detailed documentation from main and recommended sources
-           - Provide official AWS information with comprehensive coverage
-           - Include links to relevant documentation
-           - Offer practical examples and best practices
-
-        2. **Operational Queries**: 
-           - Use monitoring/analysis tools
-           - Provide actionable insights
-           - Include current status and recommendations
-
-        3. **Visualization Requests**: 
-           - Create appropriate charts/diagrams ONLY when explicitly requested
-           - Use markdown format: ![Chart Description](chart_url)
-           - Provide analysis alongside visualizations
-
-        <Response Format>
-        1. Provide comprehensive answers based on official AWS documentation
-        2. **Documentation Priority**: Always cite AWS official docs for service questions
-        3. **Image Display** (ONLY when requested): ![Chart Description](chart_url)
-        4. Include practical examples and best practices
-        5. Limit redundant tool calls - synthesize information efficiently
-        6. For casual conversation, respond naturally without excessive technical details
-
-        <Context Handling>
-        - Use conversation history as context only
-        - Focus on current user request with AWS documentation priority
-        - Maintain topic consistency when users modify parameters
-        - Stop tool calling once sufficient AWS documentation is gathered
-        - Always provide official AWS guidance over general knowledge
-
-        <Key Guidelines>
-        - **Documentation First**: For AWS service questions, use search → recommend → read workflow
-        - Time zone: UTC+9 (Seoul)
-        - Authority: Prioritize AWS official documentation and related recommendations
-        - Accuracy: Use search → recommend → read workflow for comprehensive AWS information
-        - Practical: Include real-world examples and implementation guidance
-        - Visualization: Create charts/diagrams ONLY upon explicit user request
-        - Balance: Technical accuracy + conversational tone + official AWS guidance
+        Time zone: UTC+9 (Seoul)
         """
 
         # MCP 클라이언트 가져오기
@@ -619,52 +541,14 @@ def call_execute_query(sql_query):
                         json=wrapper_payload)  # Athena 쿼리 실행 API URL을 여기에 입력하세요
     return res.json()
 
-def markdown_to_slack_mrkdwn(text):
-    # 헤더를 볼드로 치환 (모든 헤더 레벨)
-    text = re.sub(r'^(#{1,6})\s*(.*)', r'*\2*', text, flags=re.MULTILINE)
 
-    # 볼드: **텍스트** → *텍스트*
-    text = re.sub(r'\*\*(\S(.*?\S)?)\*\*', r'*\1*', text)
-
-    # 이탤릭: *텍스트* 또는 _텍스트_ → _텍스트_
-    text = re.sub(r'\*(\S(.*?\S)?)\*', r'_\1_', text)
-
-    # 취소선: ~~텍스트~~ → ~텍스트~
-    text = re.sub(r'~~(.*?)~~', r'~\1~', text)
-
-    # 인라인 코드(`code`) 및 코드블록(``````)은 그대로 유지
-
-    # 링크: [텍스트](URL) → <URL|텍스트>
-    text = re.sub(r'\[(.*?)\]\((.*?)\)', r'<\2|\1>', text)
-
-    # 표: Slack mrkdwn에서 지원하지 않으므로 제거
-    text = re.sub(r'\|.*\|', '', text)
-
-    # 블록 인용: > 인용문은 그대로 유지
-
-    # 이미지: Slack mrkdwn에서 지원하지 않으므로 제거
-    text = re.sub(r'!\[(.*?)\]\((.*?)\)', '', text)
-
-    return text
-
-def send_slack_dm(user_id, response_text):
+def send_slack_dm(user_id, message):
     CONFIG = get_config()
     client = WebClient(token=CONFIG['slackbot']['token'])  # 여기에 Slack Bot Token
-    response_text = markdown_to_slack_mrkdwn(response_text)
 
     response = client.chat_postMessage(
         channel=user_id,  # 여기서 user_id 그대로 DM 채널로 사용 가능
-        blocks=[
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": (
-                        f"🧠 분석 결과:\n{response_text}"
-                    )
-                }
-            }
-        ]
+        text=message
     )
     if not response["ok"]:
         print("❌ Slack 메시지 실패 사유:", response["error"])
