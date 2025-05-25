@@ -12,15 +12,6 @@ def lambda_handler(event, context):
     http_method = event.get("httpMethod", "")
     CONFIG = get_config()
 
-    # # Slack 인터랙션 처리 (Block Kit 버튼/드롭다운)
-    # if event.get('headers', {}).get('content-type') == 'application/json':
-    #     try:
-    #         payload = json.loads(body)
-    #         if payload.get('type') == 'block_actions':
-    #             return handle_interaction(payload)
-    #     except Exception as e:
-    #         print(f"Error processing interaction: {e}")
-
     if path == "/login" and http_method == "POST":
         body = urllib.parse.parse_qs(event["body"])
         slack_user_id = body.get("user_id", [""])[0]
@@ -38,7 +29,7 @@ def lambda_handler(event, context):
         if not code or not slack_user_id:
             return {
                 "statusCode": 200,
-                "body": "<h3>❗ 유효하지 않은 접근입니다. 슬랙에서 로그인 버튼을 먼저 눌러주세요.</h3>",
+                "body": "<h3>❗ Access Deined. Please login in slack first.</h3>",
                 "headers": {"Content-Type": "text/html"}
             }
 
@@ -76,7 +67,7 @@ def lambda_handler(event, context):
 
         return {
             "statusCode": 200,
-            "body": "<h3>✅ 로그인이 완료되었습니다.</h3>",
+            "body": "<h3>Login Complete!!.</h3>",
             "headers": {"Content-Type": "text/html"}
         }
     # Slack Slash Command 처리
