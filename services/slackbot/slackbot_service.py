@@ -213,7 +213,18 @@ def handle_interaction(payload):
             print(f"Slack에 메세지 전송\n")
             client.chat_postMessage(
                 channel=user_id,
-                text=f"✅ 모델이 **{model_name}**로 설정되었습니다!\n이제 `/req 질문내용`으로 사용하세요."
+                blocks=[
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": (
+                                f"✅ 모델이 *{model_name}* 로 설정되었습니다!\n"
+                                "이제 `\/req 질문내용` 으로 사용하세요."
+                            )
+                        }
+                    }
+                ]
             )
 
             return {
@@ -331,7 +342,17 @@ def handle_req_command(text, user_id):
 
     client.chat_postMessage(
         channel=user_id,
-        text=f"⏳ {model_name}를 사용하여 답변을 생성중입니다....."
+        blocks=[
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"⏳ {model_name}를 사용하여 답변을 생성중입니다....."
+                    )
+                }
+            }
+        ]
     )
     
     requests.post(
