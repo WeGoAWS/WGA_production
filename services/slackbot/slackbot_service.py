@@ -1,4 +1,4 @@
-from common.slackbot_session import get_session
+from common.slackbot_session import get_session, save_session
 from slack_sdk import WebClient
 from common.config import get_config
 import requests
@@ -311,18 +311,29 @@ def get_model_display_name(model_id):
         pass
     return model_id
 
-def send_to_ai_model(model_id, question):
-    """
-    실제 AI 모델에 요청을 보내는 함수 (구현 필요)
-    """
-    # 여기에 실제 AI 모델 API 호출 로직 구현
-    return f"[{model_id}] 모델의 응답: {question}에 대한 답변입니다."
+def update_conversation_context(user_id: str, user_query: str, llm_response: str):
+    session = get_session(user_id)
+    if not session:
+        return
+    
+    # 최대 10개 대화 기록 유지
+    max_history = 10
+    context = session.get('conversation_context', {'llm_response': []})
+    context['llm_response'].append({"user": user_query, "assistant": llm_response})
+    
+    if len(context['llm_response']) > max_history:
+        context['llm_response'] = context['llm_response'][-max_history:]
+    
+    session['conversation_context'] = context
+    save_session(user_id, session['access_token'], 
+                session['id_token'], session['email'])
+
 
 def handle_req_command(text, user_id):
-    """
-    /req 명령어 처리 - 저장된 모델로 질문 처리
-    """
-    start_time = time.time()
+    session = get_session(user_id)
+    context = session.get('conversation_context', {}) if session else {}
+    history = context.get('llm_response', [])
+    
     if not text or not text.strip():
         return {
             'statusCode': 200,
@@ -331,6 +342,15 @@ def handle_req_command(text, user_id):
                 'response_type': 'ephemeral'
             })
         }
+        
+    context_prompt = "\n".join(
+        [f"User: {item['user']}\nAssistant: {item['assistant']}" 
+         for item in history[-3:]]  # 최근 3개 대화만 사용
+    )
+    
+    full_query = f"""Context:
+    {context_prompt}
+    New Query: {text}"""
     
     model_id = get_user_model_setting(user_id)
     question = text.strip()
@@ -355,7 +375,7 @@ def handle_req_command(text, user_id):
         ]
     )
     
-    requests.post(
+    res = requests.post(
         f"{CONFIG['api']['endpoint']}/llm1",
         data={
             "question": question,
@@ -364,10 +384,31 @@ def handle_req_command(text, user_id):
         },
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
-    end_time = time.time()
-    execution_time = end_time - start_time
-    print(f"Execution time: {execution_time} seconds")
+    update_conversation_context(user_id, text, res)
+    return {
+        'statusCode': 200,
+    }
 
+def handle_reset_command(user_id):
+    session = get_session(user_id)
+    if session:
+        session['conversation_context'] = {'llm_response': []}
+        save_session(user_id, session['access_token'],
+                    session['id_token'], session['email'])
+        client.chat_postMessage(
+            channel=user_id,
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": (
+                            "🗑️ 대화 기록이 초기화되었습니다."
+                        )
+                    }
+                }
+            ]
+        )
     return {
         'statusCode': 200,
     }

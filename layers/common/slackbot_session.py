@@ -13,7 +13,11 @@ def save_session(slack_user_id: str, access_token: str, id_token: str, email: st
         "slack_user_id": slack_user_id,
         "access_token": access_token,
         "id_token": id_token,
-        "email": email
+        "email": email,
+        "conversation_context":{
+            "last_command":"",
+            "llm_response":[]
+        }
     })
 
 def get_session(slack_user_id: str) -> dict | None:
@@ -43,14 +47,14 @@ def send_slack_dm(user_id, message):
     except Exception as e:
         print("Slack API 예외 발생:", str(e))
 
-def send_slack_channel_message(channel: str, message: str):
-    CONFIG = get_config()
-    slack_token = CONFIG['slackbot']['token']
-    headers = {"Authorization": f"Bearer {slack_token}"}
-    data = {
-        "channel": channel,  # 채널 ID (예: Cxxxxxxx)
-        "text": message
-    }
+# def send_slack_channel_message(channel: str, message: str):
+#     CONFIG = get_config()
+#     slack_token = CONFIG['slackbot']['token']
+#     headers = {"Authorization": f"Bearer {slack_token}"}
+#     data = {
+#         "channel": channel,  # 채널 ID (예: Cxxxxxxx)
+#         "text": message
+#     }
 
-    response = requests.post("https://slack.com/api/chat.postMessage", headers=headers, json=data)
-    response.raise_for_status()
+#     response = requests.post("https://slack.com/api/chat.postMessage", headers=headers, json=data)
+#     response.raise_for_status()
