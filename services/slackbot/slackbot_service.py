@@ -220,7 +220,7 @@ def handle_interaction(payload):
                             "type": "mrkdwn",
                             "text": (
                                 f"✅ 모델이 *{model_name}* 로 설정되었습니다!\n"
-                                "이제 `\/req 질문내용` 으로 사용하세요."
+                                "이제 `/req 질문내용` 으로 사용하세요."
                             )
                         }
                     }
