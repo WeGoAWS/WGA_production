@@ -35,7 +35,7 @@ Resources:
       Code:
         ImageUri: !Ref McpImageUri
       Role: !GetAtt LlmLambdaExecutionRole.Arn
-      Timeout: 150
+      Timeout: 180
       MemorySize: 2048
       Environment:
         Variables:
@@ -124,7 +124,7 @@ Resources:
       Code:
         S3Bucket: !Sub 'wga-deployment-${Environment}'
         S3Key: !Sub 'llm/llm-lambda-${Environment}.zip'
-      Timeout: 150
+      Timeout: 180
       MemorySize: 256
       Role: !GetAtt LlmLambdaExecutionRole.Arn
       Environment:
@@ -155,7 +155,7 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LlmLambdaFunction.Arn}/invocations'
-        TimeoutInMillis: 150000
+        TimeoutInMillis: 180000
 
   LlmOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -168,7 +168,7 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LlmLambdaFunction.Arn}/invocations'
-        TimeoutInMillis: 150000
+        TimeoutInMillis: 180000
 
   LlmLambdaPermissionForOptions:
     Type: AWS::Lambda::Permission
