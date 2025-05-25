@@ -71,7 +71,7 @@ Resources:
                                 - dynamodb:DeleteItem
                                 - dynamodb:UpdateItem
                             Resource:
-                                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/SlackbotSessions-{Environment}"
+                                - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/SlackbotSessions-${Environment}"
                                 - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/slack_user_settings"
 
     SlackbotLambdaLayer:
