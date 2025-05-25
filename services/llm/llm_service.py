@@ -242,6 +242,10 @@ def handle_llm1_with_mcp(body, origin):
         **비용**: get_detailed_breakdown_by_day
         **시각화**: "차트/그래프/시각화" 명시적 요청시에만
 
+        **CloudWatch filter_pattern**: JSON 형식 사용
+        - 올바른 예: `{ ($.eventName = CreateRole) || ($.eventName = PutRolePolicy) }`
+        - 잘못된 예: `[eventName="CreateRole" || eventName="PutRolePolicy"]`
+
         Time zone: UTC+9 (Seoul)
         """
 
