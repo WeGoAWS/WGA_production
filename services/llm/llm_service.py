@@ -3,6 +3,7 @@ import urllib.parse
 import requests
 import boto3
 import os
+import re
 from datetime import datetime, timezone
 from common.config import get_config
 from common.utils import invoke_bedrock_nova, cors_headers, cors_response
@@ -358,7 +359,7 @@ def handle_llm1_with_mcp(body, origin):
 
         # 최종 결과를 Slack으로 전송
         if slack_user_id:
-            send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{response_text}")
+            send_slack_dm(slack_user_id, response_text)
 
         # 성공 응답 반환 (도구 사용 과정 및 결과 포함)
         return cors_response(200, {
@@ -541,14 +542,55 @@ def call_execute_query(sql_query):
                         json=wrapper_payload)  # Athena 쿼리 실행 API URL을 여기에 입력하세요
     return res.json()
 
+import re
 
-def send_slack_dm(user_id, message):
+def markdown_to_slack_mrkdwn(text):
+    # 헤더를 볼드로 치환 (모든 헤더 레벨)
+    text = re.sub(r'^(#{1,6})\s*(.*)', r'*\2*', text, flags=re.MULTILINE)
+
+    # 볼드: **텍스트** → *텍스트*
+    text = re.sub(r'\*\*(\S(.*?\S)?)\*\*', r'*\1*', text)
+
+    # 이탤릭: *텍스트* 또는 _텍스트_ → _텍스트_
+    text = re.sub(r'\*(\S(.*?\S)?)\*', r'_\1_', text)
+
+    # 취소선: ~~텍스트~~ → ~텍스트~
+    text = re.sub(r'~~(.*?)~~', r'~\1~', text)
+
+    # 인라인 코드(`code`) 및 코드블록(``````)은 그대로 유지
+
+    # 링크: [텍스트](URL) → <URL|텍스트>
+    text = re.sub(r'\[(.*?)\]\((.*?)\)', r'<\2|\1>', text)
+
+    # 표: Slack mrkdwn에서 지원하지 않으므로 제거
+    text = re.sub(r'\|.*\|', '', text)
+
+    # 블록 인용: > 인용문은 그대로 유지
+
+    # 이미지: Slack mrkdwn에서 지원하지 않으므로 제거
+    text = re.sub(r'!\[(.*?)\]\((.*?)\)', '', text)
+
+    return text
+
+
+def send_slack_dm(user_id, response_text):
     CONFIG = get_config()
     client = WebClient(token=CONFIG['slackbot']['token'])  # 여기에 Slack Bot Token
+    response_text = markdown_to_slack_mrkdwn(response_text)
 
     response = client.chat_postMessage(
         channel=user_id,  # 여기서 user_id 그대로 DM 채널로 사용 가능
-        text=message
+        blocks=[
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"🧠 분석 결과:\n{response_text}"
+                    )
+                }
+            }
+        ]
     )
     if not response["ok"]:
         print("❌ Slack 메시지 실패 사유:", response["error"])
