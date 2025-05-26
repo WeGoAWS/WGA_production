@@ -19,7 +19,7 @@ WGA는 AWS 클라우드 운영 정보를 자연어로 질의응답할 수 있는
 ### 기술 스택
 - **Frontend**: React 18, TypeScript, Vite, Tailwind CSS
 - **Backend**: AWS Lambda (Python 3.12), API Gateway
-- **AI/ML**: Claude 3.7 Sonnet, AWS Bedrock, MCP (Model Context Protocol)
+- **AI/ML**: Claude Sonnet 4, AWS Bedrock, MCP (Model Context Protocol)
 - **Database**: DynamoDB
 - **Storage**: S3 (정적 파일, 로그 저장)
 - **Monitoring**: CloudWatch, CloudTrail, GuardDuty, Billing and Cost Management
