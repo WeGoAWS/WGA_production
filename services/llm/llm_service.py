@@ -752,8 +752,6 @@ def handle_llm1_request(body, CONFIG, origin):
 
     else:
         text_answer = "죄송합니다. 이 시스템은 AWS 운영정보 혹은 메뉴얼 관련 질문에만 답변합니다."
-    # 최종 결과를 Slack으로 전송
-    # send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{text_answer}")
 
     response_time = datetime.now(timezone.utc)
     elapsed = response_time - question_time

@@ -2,8 +2,8 @@ import requests
 import urllib.parse
 import json
 from common.config import get_config
-from common.slackbot_session import get_session, save_session, send_slack_dm, send_slack_channel_message
-from slackbot_service import send_login_button, handle_models_command, handle_interaction, handle_req_command, handle_reset_command
+from common.slackbot_session import get_session, save_session, send_slack_dm
+from slackbot_service import send_login_button, handle_models_command, handle_interaction, handle_req_command
 from jose import jwt
 
 def lambda_handler(event, context):
@@ -79,7 +79,7 @@ def lambda_handler(event, context):
             print("/models 진입\n")
             handle_models_command(slack_user_id)
             return {
-            "statusCode": 200,
+                "statusCode": 200,
             }
             
         except Exception as e:
@@ -106,13 +106,9 @@ def lambda_handler(event, context):
         print(f"Interaction payload: {payload}")
         
         if payload.get('type') == 'block_actions':
+            handle_interaction(payload)
             return handle_interaction(payload)
-        
-    elif path == "/reset" and http_method == "POST":
-        body = urllib.parse.parse_qs(event["body"])
-        slack_user_id = body.get("user_id", [""])[0]
-        return handle_reset_command(slack_user_id)
-        
+
     else:
         return {
             "statusCode": 404,
