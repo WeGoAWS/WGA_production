@@ -1,244 +1,290 @@
-# WGA (WeGoAWS) 프로젝트
+# WGA (WeGoAWS) - AWS 클라우드 운영 정보 챗봇 서비스
 
-이 프로젝트는 AWS 서비스를 활용한 완전 관리형 웹 애플리케이션 인프라를 구축합니다. CloudFormation을 사용하여 AWS 리소스를 정의하고 배포하는 Infrastructure as Code(IaC) 아키텍처를 구현했습니다.
+## 개요
 
-## 아키텍처 개요
+WGA는 AWS 클라우드 운영 정보를 자연어로 질의응답할 수 있는 서버리스 기반의 AI 챗봇 서비스입니다. 사용자는 복잡한 AWS 콘솔을 직접 조작하는 대신, 간단한 자연어 질문을 통해 클라우드 자원 상태, 비용 분석, 보안 이벤트, 로그 분석 등의 정보를 즉시 얻을 수 있습니다.
 
-이 프로젝트는 다음과 같은 AWS 서비스를 사용합니다:
+### 핵심 가치
+- **간편한 접근성**: 자연어 기반 질의로 AWS 전문 지식 없이도 클라우드 정보 조회 가능
+- **실시간 모니터링**: CloudWatch, CloudTrail, GuardDuty 로그를 통한 실시간 시스템 상태 파악
+- **비용 최적화**: AWS 비용 분석 및 최적화 제안
+- **보안 강화**: 보안 이벤트 모니터링 및 알림
 
-- **CloudFormation**: 인프라 스택 정의 및 배포
-- **Amazon Cognito**: 사용자 인증 및 권한 관리
-- **AWS Amplify**: 프론트엔드 호스팅 및 배포
-- **AWS Lambda**: 서버리스 백엔드 로직 처리
-- **Amazon API Gateway**: REST API 엔드포인트 제공
-- **Amazon S3**: 정적 파일 저장 및 배포 아티팩트 관리
-- **AWS Systems Manager Parameter Store**: 환경 변수 및 구성 관리
-- **Amazon DynamoDB**: 데이터 저장 (코드에서 참조됨)
-- **Amazon Bedrock**: LLM 추론 기능 제공
+## 아키텍처
+
+### 전체 시스템 아키텍처
+
+![WGA 시스템 아키텍처](./images/architecture.png)
+
+### 기술 스택
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS
+- **Backend**: AWS Lambda (Python 3.12), API Gateway
+- **AI/ML**: Claude 3.7 Sonnet, AWS Bedrock, MCP (Model Context Protocol)
+- **Database**: DynamoDB
+- **Storage**: S3 (정적 파일, 로그 저장)
+- **Monitoring**: CloudWatch, CloudTrail, GuardDuty, Billing and Cost Management
+- **Authentication**: AWS Cognito
+- **Infrastructure**: CloudFormation, AWS CDK
+- **CI/CD**: CodeBuild, Amplify
+
+## 주요 기능
+
+### 1. 자연어 기반 질의응답
+- **로그 분석**: "어제 S3에 접근한 사용자는 누구인가요?"
+- **비용 분석**: "지난 주 Opensearch 비용이 얼마나 나왔나요?"
+- **보안 조회**: "최근 실패한 로그인 시도가 있나요?"
+- **AWS 문서 검색**: "GuardDuty 심각도는 어떤 의미인가요?"
+
+### 2. 실시간 모니터링 및 분석
+- **CloudWatch 로그 분석**: 서비스별 로그 실시간 조회 및 분석
+- **CloudTrail 이벤트**: AWS API 호출 이력 및 사용자 활동 추적
+- **GuardDuty 보안 이벤트**: 보안 위협 감지 및 알림
+- **비용 분석**: 서비스별, 리전별, 일별 비용 브레이크다운
+
+### 3. 시각화 및 차트 생성
+- **동적 차트**: 막대 차트, 라인 차트, 파이 차트, 산점도 등
+- **아키텍처 다이어그램**: AWS 인프라 시각화
+- **플로우차트**: 프로세스 흐름도 생성
+- **마인드맵**: 구조화된 정보 표현
+
+### 4. 다중 인터페이스 지원
+- **웹 인터페이스**: React 기반 반응형 웹 앱
+- **Slack 봇**: 슬랙 채널에서 직접 질의 가능
+
+### 5. 대화 기록 관리
+- **세션 관리**: 사용자별 대화 히스토리 저장
+- **컨텍스트 유지**: 이전 대화 내용을 기반으로 한 연속 질의
+- **히스토리 검색**: 과거 질의 및 답변 검색
 
 ## 프로젝트 구조
 
 ```
-.
-├── cloudformation/         # CloudFormation 템플릿
-│   ├── base.yaml           # 기본 인프라 (S3, Cognito, API Gateway 등)
-│   ├── frontend.yaml       # 프론트엔드 인프라 (Amplify)
-│   ├── llm.yaml            # LLM 서비스 인프라 (Lambda)
-│   └── main.yaml           # 메인 템플릿 (다른 스택 참조)
-├── layers/                 # Lambda 레이어
-│   └── common/             # 공통 유틸리티 레이어
-│       ├── config.py       # 설정 관리
-│       ├── db.py           # 데이터베이스 인터페이스
-│       ├── requirements.txt # 레이어 의존성
-│       └── utils.py        # 유틸리티 함수
-├── services/               # 백엔드 서비스
-│   └── llm/                # LLM 서비스
-│       ├── lambda_function.py # Lambda 핸들러
-│       └── llm_service.py  # LLM 비즈니스 로직
-└── deploy.sh               # 배포 스크립트
+WGA_production/
+├── frontend/                    # React 웹 애플리케이션
+│   ├── src/
+│   │   ├── components/         # 재사용 가능한 컴포넌트
+│   │   ├── pages/             # 페이지 컴포넌트
+│   │   ├── hooks/             # 커스텀 훅
+│   │   ├── utils/             # 유틸리티 함수
+│   │   └── types/             # TypeScript 타입 정의
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── services/                    # Lambda 함수들
+│   ├── llm/                    # LLM 서비스 (Claude, Bedrock)
+│   │   ├── lambda_function.py
+│   │   ├── llm_service.py
+│   │   ├── mcp_client.py
+│   │   ├── mcp_anthropic_client.py
+│   │   └── mcp_bedrock_client.py
+│   ├── db/                     # 데이터베이스 서비스
+│   │   ├── lambda_function.py
+│   │   └── enable_guardduty.py
+│   ├── chat-history/           # 채팅 히스토리 관리
+│   │   ├── lambda_function.py
+│   │   └── chat_history_service.py
+│   └── slackbot/              # Slack 봇 서비스
+│       ├── lambda_function.py
+│       └── slackbot_service.py
+│
+├── mcp/                        # Model Context Protocol 서버
+│   ├── app.py                 # MCP 애플리케이션 메인
+│   ├── lambda_mcp/            # MCP 서버 라이브러리
+│   │   ├── lambda_mcp.py
+│   │   ├── session.py
+│   │   ├── mcp_types.py
+│   │   ├── document_utils.py
+│   │   ├── diagram_utils.py
+│   │   └── chart_utils.py
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── layers/                     # Lambda 레이어
+│   └── common/                # 공통 라이브러리
+│       ├── config.py
+│       ├── utils.py
+│       ├── slackbot_session.py
+│       └── requirements.txt
+│
+├── cloudformation/             # Infrastructure as Code
+│   ├── base.yaml              # 기본 인프라 (Cognito, S3, DynamoDB)
+│   ├── main.yaml              # 메인 스택
+│   ├── llm.yaml               # LLM 서비스 스택
+│   ├── frontend.yaml          # 프론트엔드 스택
+│   ├── logs.yaml              # DB 관련 스택
+│   ├── slackbot.yaml          # Slack 봇 스택
+│   ├── chat-history.yaml      # 채팅 히스토리 스택
+│   └── mcp.yaml               # MCP 서비스 스택
+│
+└── deploy.sh                  # 통합 배포 스크립트
 ```
 
-## CloudFormation 스택 구조
+## 설치 및 배포
 
-이 프로젝트는 여러 CloudFormation 스택으로 구성되어 있으며, 각 스택은 특정 기능을 담당합니다:
+### 사전 요구사항
+- AWS CLI 설정 및 적절한 권한
+- Node.js 18+ 
+- Python 3.12+
 
-### 1. base.yaml
-기본 인프라 리소스를 정의합니다:
-- S3 버킷 (배포 및 출력용)
-- Cognito User Pool 및 Identity Pool
-- API Gateway
-- SSM 파라미터 설정
-
-### 2. frontend.yaml
-프론트엔드 인프라를 정의합니다:
-- S3 버킷 (프론트엔드 코드용)
-- Amplify 애플리케이션 및 브랜치 설정
-- 사용자 정의 도메인 설정 (선택적)
-
-### 3. llm.yaml
-LLM 서비스 인프라를 정의합니다:
-- Lambda 함수 및 실행 역할
-- API Gateway 리소스 및 메서드
-- Lambda 권한 설정
-
-### 4. main.yaml
-다른 스택들을 조합하는 메인 스택으로, SSM 파라미터를 사용하여 스택 간 정보를 공유합니다.
-
-## AWS 서비스 사용 상세 설명
-
-### CloudFormation
-
-모든 인프라 리소스가 CloudFormation 템플릿을 통해 정의되고 배포됩니다. 스택 간 종속성은 SSM 파라미터를 통해 관리됩니다. `main.yaml`은 다른 스택에서 생성된, SSM 파라미터에 저장된 값을 참조하여 각 리소스 간 통합을 제공합니다.
-
-### Amazon Cognito
-
-`base.yaml`에서 다음과 같은 Cognito 리소스를 생성합니다:
-- **User Pool**: 사용자 인증 및 사용자 관리
-- **User Pool Client**: 프론트엔드 애플리케이션과 인증 통합
-- **Identity Pool**: AWS 리소스에 액세스할 수 있는 임시 자격 증명 제공
-- **User Pool Domain**: 호스팅된 UI URL 제공
-
-### AWS Amplify
-
-`frontend.yaml`에서 Amplify 리소스를 설정하여 프론트엔드 호스팅을 제공합니다:
-- **Amplify App**: 프론트엔드 애플리케이션 정의
-- **Amplify Branch**: 환경별 브랜치 설정 (dev, test, prod)
-- **빌드 설정**: 프론트엔드 빌드 프로세스 구성
-
-### AWS Lambda
-
-`llm.yaml`에서 Lambda 함수 및 관련 리소스를 설정합니다:
-- **Lambda 함수**: LLM 추론을 위한 서버리스 함수
-- **Lambda 레이어**: 공통 코드와 의존성을 관리하는 레이어
-- **실행 역할**: Lambda 함수의 권한 정의
-
-### Amazon API Gateway
-
-`base.yaml`에서 API Gateway 인스턴스를 생성하고, `llm.yaml`에서 LLM 서비스에 대한 경로를 추가합니다:
-- **REST API**: 백엔드 서비스용 API 엔드포인트
-- **리소스 및 메서드**: /llm1, /llm2, /health 엔드포인트
-- **CORS 설정**: 프론트엔드와의 통신을 위한 CORS 구성
-
-### Amazon S3
-
-여러 버킷을 사용하여 다양한 목적을 충족합니다:
-- **배포 버킷**: Lambda 함수 및 레이어 패키지 저장
-- **출력 버킷**: 애플리케이션 출력 저장
-- **프론트엔드 버킷**: Amplify 애플리케이션 소스 코드 저장
-
-### AWS Systems Manager Parameter Store
-
-SSM Parameter Store를 사용하여 스택 간 정보를 공유하고 환경별 구성 값을 저장합니다:
-- **스택 출력 저장**: 각 스택의 출력 값을 SSM 파라미터로 저장
-- **스택 간 참조**: 다른 스택에서 SSM 파라미터를 참조하여 리소스 통합
-
-### Amazon Bedrock
-
-LLM 서비스에서 Amazon Bedrock API를 사용하여 AI21 Labs의 J2 모델을 활용한 자연어 처리 기능을 제공합니다:
-- LLM 서비스는 사용자 질문을 SQL 쿼리로 변환
-- 쿼리 결과를 자연어 설명으로 변환
-
-## 배포 프로세스
-
-### 사전 요구 사항
-
-1. AWS CLI가 설치되어 있어야 합니다.
-2. AWS 계정 자격 증명이 구성되어 있어야 합니다.
-3. docker가 설치되어 있어야 합니다.
-4. 배포할 환경에 대한 적절한 권한이 있어야 합니다.
-
-### AWS CLI 설정
-
-배포 전 AWS CLI가 올바르게 구성되어 있는지 확인하세요:
-
+### 환경 변수 설정
 ```bash
-# AWS 자격 증명 구성
+# AWS CLI 설정
 aws configure
-
-# AWS Access Key ID 입력
-# AWS Secret Access Key 입력
-# 기본 리전 입력 (예: ap-northeast-2)
-# 기본 출력 형식 입력 (json 권장)
 ```
 
-현재 구성된 AWS 프로필 확인:
-
+### 1단계: 기본 설정
 ```bash
-aws sts get-caller-identity
+# 프로젝트 클론
+git clone https://github.com/WeGoAWS/WGA_production.git
+cd WGA_production
+
+# SSM 파라미터 설정 (필요한 경우)
+aws ssm put-parameter --name "/wga/${Environment}/SlackbotToken" --value "your-slack-token" --type "SecureString"
+aws ssm put-parameter --name "/wga/${Environment}/ANTHROPIC_API_KEY" --value "your-anthropic-key" --type "SecureString"
 ```
 
-### 배포 스크립트 사용법
-
-`deploy.sh` 스크립트는 전체 인프라를 자동으로 배포합니다. 다음과 같이 실행하세요:
-
+### 2단계: 통합 배포
 ```bash
-# 개발 환경에 배포 (기본값)
-./deploy.sh
-
-# 특정 환경에 배포 (dev, test, prod)
+# 개발 환경 배포
 ./deploy.sh dev
-./deploy.sh test
+
+# 프로덕션 환경 배포
 ./deploy.sh prod
 ```
 
-스크립트는 다음 단계를 자동으로 수행합니다:
+### 3단계: 배포 확인
+배포 완료 후 다음 정보가 출력됩니다:
+- **프론트엔드 URL**: `https://ENVIRONMENT.xxxxxxxxxxxxx.amplifyapp.com`
+- **API Gateway URL**: `https://xxxxxxxxxx.execute-api.AWSREGION.amazonaws.com/ENVIRONMENT`
+- **MCP Function URL**: `https://xxxxxxxxxx.lambda-url.AWSREGION.on.aws/`
 
-1. **CloudFormation 버킷 준비**: 템플릿 파일을 저장할 S3 버킷을 생성하거나 확인
-2. **기본 스택 배포**: 필수 인프라 리소스 생성 (S3, Cognito, API Gateway)
-3. **프론트엔드 인프라 배포**: Amplify 애플리케이션 및 관련 리소스 생성
-4. **레이어 및 Lambda 함수 패키징**: 코드 패키징 및 S3 업로드
-5. **메인 스택 배포**: 다른 스택을 참조하여 전체 애플리케이션 통합
-6. **환경 변수 설정**: 프론트엔드용 환경 변수 파일 생성
-7. **프론트엔드 빌드 및 배포**: 프론트엔드 코드 빌드 및 Amplify에 배포
+## 설정 가이드
 
-### 환경별 구성
+### Slack 봇 설정
+1. Slack 앱 생성 및 봇 토큰 발급
+2. SSM Parameter Store에 토큰 저장
+3. Slack 앱에 다음 기능 추가:
+   - Slash Commands: `/models`, `/req`
+   - Interactive Components
+   - Bot Token Scopes: `chat:write`, `im:write`
 
-각 환경(dev, test, prod)에 대해 다음과 같은 구성이 적용됩니다:
+### AWS 권한 설정
+Lambda 함수들이 다음 AWS 서비스에 접근할 수 있도록 IAM 권한 설정:
+- CloudWatch Logs (읽기)
+- CloudTrail (읽기)
+- GuardDuty (읽기)
+- Cost Explorer (읽기)
+- Athena (실행)
+- DynamoDB (읽기/쓰기)
+- S3 (읽기/쓰기)
+- Bedrock (호출)
 
-- **개발 환경(dev)**: 개발자 모드 활성화, 더 관대한 보안 설정
-- **테스트 환경(test)**: 프로덕션과 유사하지만 개발 중인 기능 테스트 가능
-- **프로덕션 환경(prod)**: 엄격한 보안 설정, 개발자 모드 비활성화
+## 사용 예시
 
-### 사용자 지정 도메인 설정 (선택 사항)
+### 웹 인터페이스
+1. 브라우저에서 프론트엔드 URL 접속
+2. Cognito를 통한 로그인
+3. 채팅 인터페이스에서 자연어 질문 입력
 
-사용자 지정 도메인을 사용하려면 `deploy.sh` 스크립트에서 다음 변수를 수정하세요:
+### Slack 봇
+```
+# 모델 설정
+/models
 
-```bash
-# 도메인 설정 (필요한 경우 수정)
-DOMAIN_NAME="your-domain.com"  # 사용자 정의 도메인
-CERTIFICATE_ARN="arn:aws:acm:region:account-id:certificate/certificate-id"  # ACM 인증서 ARN
+# 질의 실행
+/req 어제 EC2 인스턴스를 시작한 사용자는 누구인가요?
+/req 지난 주 S3 비용 분석해주세요
+/req GuardDuty에서 감지된 보안 이벤트가 있나요?
 ```
 
-## 배포 후 작업
+## 주요 컴포넌트 상세
 
-배포가 완료되면 다음 정보가 출력됩니다:
+### LLM Service
+- **Claude Sonnet 4**: 주요 언어 모델 (모델 변경 가능)
+- **MCP Client**: Tool 호출 및 세션 관리
+- **Multi-modal**: 텍스트, 차트, 다이어그램 생성
 
-- API Gateway URL
-- Cognito User Pool 정보
-- Amplify 애플리케이션 URL
+### MCP (Model Context Protocol) Server
+- **AWS 도구들**: CloudWatch, CloudTrail, Cost Explorer API 래핑
+- **문서 검색**: AWS 공식 문서 검색 및 추천
+- **시각화**: 차트 및 다이어그램 생성
+- **세션 관리**: DynamoDB 기반 상태 관리
 
-이 정보를 사용하여 애플리케이션에 액세스하고 테스트할 수 있습니다.
+### Database Service
+- **테이블 관리**: CloudTrail, GuardDuty 로그 테이블 자동 생성
+- **파티셔닝**: 날짜 기반 효율적인 데이터 조회
 
-## 프로젝트 확장
+### Chat History Service
+- **세션 관리**: 사용자별 대화 세션 관리
+- **메시지 저장**: 질의/응답 히스토리 저장
+- **컨텍스트 유지**: 이전 대화 기반 연속 질의 지원
 
-새로운 기능이나 서비스를 추가하려면:
+## 보안 고려사항
 
-1. `cloudformation/` 디렉토리에 새 템플릿 파일 추가
-2. `services/` 디렉토리에 새 Lambda 함수 추가
-3. `deploy.sh` 스크립트를 수정하여 새 리소스 배포 포함
-4. `main.yaml`에 새 스택 참조 추가
+### 인증 및 권한
+- **AWS Cognito**: 사용자 인증 및 세션 관리
+- **IAM 역할**: 최소 권한 원칙에 따른 Lambda 실행 역할
+- **API Gateway**: 요청 검증 및 제한
 
-## 문제 해결
+### 데이터 보호
+- **전송 중 암호화**: HTTPS/TLS
+- **저장 중 암호화**: S3, DynamoDB 암호화
+- **액세스 로깅**: CloudTrail을 통한 API 호출 추적
 
-### 배포 실패
+### 개인정보 보호
+- **데이터 최소화**: 필요한 정보만 수집 및 저장
+- **세션 만료**: 24시간 자동 세션 만료
+- **로그 마스킹**: 민감한 정보 자동 마스킹
 
-배포가 실패하면 CloudFormation 콘솔에서 스택 이벤트를 확인하여 오류 메시지를 확인하세요. 일반적인 문제는 다음과 같습니다:
+## 모니터링 및 운영
 
-- **권한 부족**: 배포 사용자에게 필요한 권한이 없음
-- **리소스 이름 충돌**: 이미 존재하는 리소스 이름 사용
-- **서비스 한도**: AWS 서비스 한도 초과
+### 메트릭 및 알람
+- **Lambda 함수**: 실행 시간, 오류율, 동시 실행 수
+- **API Gateway**: 요청 수, 응답 시간, 오류율
+- **비용**: 일일 비용 추이 및 예산 알람
 
-### Lambda 오류
+### 로깅
+- **CloudWatch Logs**: 모든 Lambda 함수 로그
+- **X-Ray**: 분산 추적 및 성능 분석
+- **구조화된 로깅**: JSON 형태의 로그 출력
 
-Lambda 함수 오류를 디버깅하려면:
+### 백업 및 복구
+- **S3**: 버전 관리 및 Cross-Region 복제
+- **CloudFormation**: Infrastructure as Code를 통한 재배포
 
-- CloudWatch Logs에서 해당 Lambda 함수의 로그 확인
-- 로컬에서 Lambda 함수 테스트 (AWS SAM 사용)
+## 기여 가이드
 
-### API Gateway 문제
+### 개발 환경 설정
+```bash
+# 개발 종속성 설치
+cd frontend && npm install
+cd ../services/llm && pip install -r requirements.txt
 
-API 호출이 실패하면:
+# 로컬 개발 서버 실행
+cd frontend && npm run dev
 
-- API Gateway 콘솔에서 API 구성 확인
-- CORS 설정 확인
-- Lambda 통합 및 권한 확인
+# Lambda 함수 로컬 테스트
+cd services/llm && python lambda_function.py
+```
 
-## 정리 (리소스 삭제)
+## FAQ
 
-프로젝트 리소스를 삭제하려면 AWS 콘솔에서 생성된 CloudFormation 스택을 삭제하세요:
+### Q: 어떤 AWS 서비스를 지원하나요?
+A: 현재 CloudWatch, CloudTrail, GuardDuty, Cost Explorer, EC2, S3, Lambda 등을 지원하며, 지속적으로 확장 중입니다.
 
-1. 메인 스택 (`wga-{env}`) 삭제
-2. 프론트엔드 스택 (`wga-frontend-{env}`) 삭제
-3. 기본 스택 (`wga-base-{env}`) 삭제
+### Q: 비용은 얼마나 발생하나요?
+A: 사용량에 따라 다르지만, 일반적으로 월 $10-50 수준입니다. 주요 비용은 Lambda 실행, Bedrock API 호출, DynamoDB 사용량입니다.
 
-일부 리소스(S3 버킷)는 DeletionPolicy가 'Retain'으로 설정되어 있어 수동으로 삭제해야 할 수 있습니다.
+### Q: 온프레미스에서도 사용할 수 있나요?
+A: 현재는 AWS 클라우드 전용이지만, 향후 하이브리드 환경 지원을 계획하고 있습니다.
+
+### Q: 다른 AI 모델을 사용할 수 있나요?
+A: 네, Bedrock을 통해 다양한 모델을 지원하며, 설정에서 변경 가능합니다.
+
+## 지원 및 문의
+
+- **GitHub Issues**: [프로젝트 이슈 페이지](https://github.com/WeGoAWS/WGA_production/issues)
+
+## 라이선스
+
+이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
