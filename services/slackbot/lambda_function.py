@@ -87,13 +87,15 @@ def lambda_handler(event, context):
 
     elif path == "/req" and http_method == "POST":
         body = urllib.parse.parse_qs(event["body"])
+        print(f"Body: {body}")
         slack_user_id = body.get("user_id", [""])[0]
+        slack_channel_id = body.get("channel_id", [""])[0]
         try:
             print("/req 진입\n")
             command = body.get('command', [''])[0]
             text = body.get('text', [''])[0]
 
-            return handle_req_command(text, slack_user_id)
+            return handle_req_command(text, slack_user_id, slack_channel_id)
 
         except Exception as e:
             print(f"Error processing slash command: {e}")

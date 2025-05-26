@@ -317,7 +317,19 @@ def send_to_ai_model(model_id, question):
     # 여기에 실제 AI 모델 API 호출 로직 구현
     return f"[{model_id}] 모델의 응답: {question}에 대한 답변입니다."
 
-def handle_req_command(text, user_id):
+def filter_analysis_results(history):
+    """':brain: 분석 결과:'로 시작하는 메시지만 필터링"""
+    filtered_messages = []
+    
+    for message in history['messages']:
+        text = message.get('text', '')
+        if text.startswith(':brain: 분석 결과:'):
+            filtered_messages.append(text)
+    
+    return filtered_messages
+
+
+def handle_req_command(text, user_id, slack_channel_id):
     """
     /req 명령어 처리 - 저장된 모델로 질문 처리
     """
@@ -338,7 +350,6 @@ def handle_req_command(text, user_id):
     model_name = get_model_display_name(model_id)
     print(f"model_name: {model_name}\n")
 
-
     client.chat_postMessage(
         channel=user_id,
         blocks=[
@@ -353,7 +364,20 @@ def handle_req_command(text, user_id):
             }
         ]
     )
-    
+
+    print("history 불러오기")
+    print(f"slack_channel_id: {slack_channel_id}\n")
+    history = client.conversations_history(
+        channel=slack_channel_id,
+        limit=20
+    )
+
+    print(f"history: {history}\n")
+    analysis_messages = filter_analysis_results(history)
+    print(f"분석 결과 메시지 개수: {len(analysis_messages)}")
+
+    question = f"Context History: {analysis_messages}, user_question: {question}"
+
     requests.post(
         f"{CONFIG['api']['endpoint']}/llm1",
         data={
@@ -363,6 +387,7 @@ def handle_req_command(text, user_id):
         },
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
+
     end_time = time.time()
     execution_time = end_time - start_time
     print(f"Execution time: {execution_time} seconds")
