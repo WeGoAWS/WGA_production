@@ -202,9 +202,10 @@ def handle_llm1_with_mcp(body, origin):
     """
     try:
         # 요청 데이터 추출
+        print(f"Body: {body}\n")
         user_input = body.get('question') or body.get('text') or body.get('input', {}).get('text', '')
         session_id = body.get('sessionId')
-        is_cached = body.get('isCached', True)
+        is_cached = body.get('isCached', False)
         model_id = body.get('modelId')
         slack_user_id = body.get("user_id")
         slack_previous_questions = body.get("previous_questions")
@@ -226,23 +227,31 @@ def handle_llm1_with_mcp(body, origin):
         # 시스템 프롬프트 설정
         system_prompt = """You are "AWS Cloud Agent" - AWS 전문 AI 어시스턴트. 항상 한국어로 응답.
 
-        <Tools>
-        1. 로그 분석 (2단계 필수):
-           Step1: fetch_cloudwatch_logs_for_service("cloudtrail"|"guardduty"|"etc") 
-           Step2: analyze_log_groups_insights(실제_로그_그룹_이름)
-        2. 모니터링: list_cloudwatch_dashboards → get_dashboard_summary
-        3. 문서검색: search_documentation → recommend_documentation → read_documentation
-        4. 비용분석: get_detailed_breakdown_by_day
-        5. 시각화: **chart/aws diagram 생성 후 반드시 최종 응답에 ![제목](URL) 출력**
-        </Tools>
+        <Tool Priority>
+        1. **계정 활동 분석**: fetch_cloudwatch_logs_for_service("cloudtrail") → analyze_log_group
+        2. **보안 이벤트**: fetch_cloudwatch_logs_for_service("guardduty") → analyze_log_group  
+        3. **AWS 서비스 질문**: search_documentation → recommend_documentation → read_documentation
+        4. **비용 분석**: get_detailed_breakdown_by_day
+        5. **시각화**: 명시적 요청시에만 차트/다이어그램 생성
 
-        <Rules>
-        - 로그 분석 질문 시 fetch 도구로 실제 로그 그룹 이름 먼저 확인
-        - "/aws/cloudtrail" 같은 추측 금지, 실제 로그 그룹 이름 사용
-        - 최소 도구 사용 원칙
-        - 시각화는 요청 시 진행, 진행 후 반드시 생성된 모든 이미지 출력
-        - Time zone: UTC+9
-        </Rules>
+        <Response Rules>
+        - 필요한 최소 도구만 사용
+        - 충분한 정보 확보시 즉시 답변 생성
+        - 반복적 도구 호출 금지
+        - 간결하고 실용적인 답변
+        - **차트 생성시 반드시 ![설명](url) 형식으로 이미지 표시**
+
+        <Tool Usage>
+        **계정/보안 분석**: cloudtrail → guardduty → analyze_log_group
+        **AWS 서비스**: search_documentation → (필요시) recommend/read
+        **비용**: get_detailed_breakdown_by_day
+        **시각화**: "차트/그래프/시각화" 명시적 요청시에만. 생성된 차트는 반드시 ![Chart Title](chart_url) 마크다운으로 표시
+
+        **CloudWatch filter_pattern**: JSON 형식 사용
+        - 올바른 예: `{ ($.eventName = CreateRole) || ($.eventName = PutRolePolicy) }`
+        - 잘못된 예: `[eventName="CreateRole" || eventName="PutRolePolicy"]`
+
+        Time zone: UTC+9 (Seoul)
         """
 
         # MCP 클라이언트 가져오기
@@ -281,6 +290,7 @@ def handle_llm1_with_mcp(body, origin):
                         system_prompt,
                         previous_messages
                     )
+                
                 else:
                     print("=== 세션 메시지 없음 ===")
                     print("일반 모드로 처리")
@@ -366,6 +376,13 @@ def handle_llm1_with_mcp(body, origin):
         # 최종 결과를 Slack으로 전송
         if slack_user_id:
             send_slack_dm(slack_user_id, response_text)
+            # 성공 응답 반환 (도구 사용 과정 및 결과 포함)
+            return cors_response(200, {
+                "answer": response_text,
+                "elapsed_time": elapsed_str,
+                "inference": debug_info,  # 디버그 정보 추가
+                "llm_processing_status": "success"
+            }, origin)
 
         # 성공 응답 반환 (도구 사용 과정 및 결과 포함)
         return cors_response(200, {
@@ -754,6 +771,8 @@ def handle_llm1_request(body, CONFIG, origin):
 
     else:
         text_answer = "죄송합니다. 이 시스템은 AWS 운영정보 혹은 메뉴얼 관련 질문에만 답변합니다."
+    # 최종 결과를 Slack으로 전송
+    # send_slack_dm(slack_user_id, f"🧠 분석 결과:\n{text_answer}")
 
     response_time = datetime.now(timezone.utc)
     elapsed = response_time - question_time

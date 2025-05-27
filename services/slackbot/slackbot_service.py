@@ -13,6 +13,76 @@ client = WebClient(token=CONFIG["slackbot"]["token"])
 dynamodb = boto3.resource('dynamodb')
 user_settings_table = dynamodb.Table('slack_user_settings')
 
+def set_user_processing_status(user_id, status):
+    """사용자 처리 상태 설정"""
+    try:
+        current_time = int(time.time())
+        
+        # 기존 설정이 있는지 확인
+        response = user_settings_table.get_item(Key={'user_id': user_id})
+        existing_item = response.get('Item', {})
+        
+        # 기존 설정 유지하면서 processing 상태만 업데이트
+        item = {
+            'user_id': user_id,
+            'selected_model': existing_item.get('selected_model', 'claude-3-7-sonnet-20250219'),
+            'processing_status': status,
+            'processing_timestamp': current_time if status == 'processing' else 0,
+            'updated_at': current_time
+        }
+        
+        user_settings_table.put_item(Item=item)
+        print(f"User {user_id} processing status set to: {status}")
+        
+    except Exception as e:
+        print(f"Error setting user processing status: {e}")
+
+def get_user_processing_status(user_id):
+    """사용자 처리 상태 확인"""
+    try:
+        response = user_settings_table.get_item(Key={'user_id': user_id})
+        item = response.get('Item', {})
+        
+        status = item.get('processing_status', 'idle')
+        processing_timestamp = item.get('processing_timestamp', 0)
+        current_time = int(time.time())
+        
+        # 10분 이상 처리 중인 상태면 자동으로 초기화 (안전장치)
+        if status == 'processing' and processing_timestamp > 0:
+            if current_time - processing_timestamp > 600:  # 10분
+                print(f"User {user_id} processing timeout detected, clearing status")
+                clear_user_processing_status(user_id)
+                return 'idle'
+        
+        print(f"User {user_id} processing status: {status}")
+        return status
+        
+    except Exception as e:
+        print(f"Error getting user processing status: {e}")
+        return 'idle'
+
+def clear_user_processing_status(user_id):
+    """사용자 처리 상태 초기화"""
+    try:
+        # 기존 설정 유지하면서 processing 상태만 클리어
+        response = user_settings_table.get_item(Key={'user_id': user_id})
+        existing_item = response.get('Item', {})
+        
+        if existing_item:
+            item = {
+                'user_id': user_id,
+                'selected_model': existing_item.get('selected_model', 'claude-3-7-sonnet-20250219'),
+                'processing_status': 'idle',
+                'processing_timestamp': 0,
+                'updated_at': int(time.time())
+            }
+            
+            user_settings_table.put_item(Item=item)
+            print(f"User {user_id} processing status cleared")
+        
+    except Exception as e:
+        print(f"Error clearing user processing status: {e}")
+
 def send_login_button(slack_user_id):
     login_url = (
         f"{CONFIG['cognito']['domain']}/oauth2/authorize"
@@ -273,13 +343,19 @@ def save_user_model_setting(user_id, model_id):
     """
     print(f"save_user_model_setting 함수 진입\n")
     try:
-        user_settings_table.put_item(
-            Item={
-                'user_id': user_id,
-                'selected_model': model_id,
-                'updated_at': int(time.time())
-            }
-        )
+        # 기존 processing 상태 확인
+        response = user_settings_table.get_item(Key={'user_id': user_id})
+        existing_item = response.get('Item', {})
+        
+        item = {
+            'user_id': user_id,
+            'selected_model': model_id,
+            'processing_status': existing_item.get('processing_status', 'idle'),
+            'processing_timestamp': existing_item.get('processing_timestamp', 0),
+            'updated_at': int(time.time())
+        }
+        
+        user_settings_table.put_item(Item=item)
     except Exception as e:
         print(f"Error saving user setting: {e}")
 
@@ -348,6 +424,32 @@ def handle_req_command(payload):
     print(f"user_id: {user_id}\n")
     channel_id = event.get("channel", "")
     print(f"channel_id: {channel_id}\n")
+
+    # 현재 처리 상태 확인
+    current_status = get_user_processing_status(user_id)
+    if current_status == "processing":
+        # 이미 처리 중인 경우 차단
+        client.chat_postMessage(
+            channel=user_id,
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "⚠️ 이미 처리 중인 요청이 있습니다.\n이전 요청이 완료될 때까지 기다려주세요."
+                    }
+                }
+            ]
+        )
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                'text': "이미 처리 중인 요청이 있습니다.",
+                'response_type': 'ephemeral'
+            })
+        }
+
+
     if not text or not text.strip():
         return {
             'statusCode': 200,
@@ -357,6 +459,8 @@ def handle_req_command(payload):
             })
         }
     
+    set_user_processing_status(user_id, "processing")
+
     model_id = get_user_model_setting(user_id)
     question = text.strip()
     
@@ -391,7 +495,7 @@ def handle_req_command(payload):
     print(f"analysis_messages: {analysis_messages}\n")
     print(f"분석 결과 메시지 개수: {len(analysis_messages)}")
 
-    requests.post(
+    res = requests.post(
         f"{CONFIG['api']['endpoint']}/llm1",
         json={
             "question": question,
@@ -400,7 +504,18 @@ def handle_req_command(payload):
             "previous_questions": analysis_messages,
         },
     )
-
+    if res.status_code == 200:
+        response_data = res.json()
+        llm_status = response_data.get("llm_processing_status", "unknown")
+        if llm_status == "success":
+            # 처리 완료 - 상태 초기화
+            clear_user_processing_status(user_id)
+            print(f"LLM 처리 완료 - User: {user_id}, Status: {llm_status}")
+        else:
+                # 처리 실패 시에도 상태 초기화
+                clear_user_processing_status(user_id)
+                print(f"LLM 처리 실패 - User: {user_id}, Status: {llm_status}")
+    
     return {
         'statusCode': 200,
     }
@@ -456,6 +571,26 @@ def handle_slack_events(event, context):
             
             # 사용자 메시지만 처리
             if event_data.get("type") == "message" and "user" in event_data:
+                user_id = event_data.get("user", "")
+                
+                # DynamoDB에서 처리 상태 확인
+                current_status = get_user_processing_status(user_id)
+                if current_status == "processing":
+                    # 처리 중인 경우 차단 메시지 전송
+                    client.chat_postMessage(
+                        channel=user_id,
+                        blocks=[
+                            {
+                                "type": "section",
+                                "text": {
+                                    "type": "mrkdwn",
+                                    "text": "⚠️ 현재 이전 요청을 처리 중입니다.\n잠시만 기다려주세요."
+                                }
+                            }
+                        ]
+                    )
+                    return {"statusCode": 200}
+                
                 return handle_req_command(payload)
         
         return quick_response
