@@ -10,6 +10,12 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
 REGION=$(aws configure get region)
 MCP_IMAGE_URI="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/wga-mcp-$ENV:latest"
 
+# ENV 값 검증
+if [[ "$ENV" != "dev" && "$ENV" != "test" && "$ENV" != "prod" ]]; then
+  echo "❌ 오류: ENV 값은 'dev', 'test', 'prod' 중 하나여야 합니다. 현재 값: '$ENV'"
+  exit 1
+fi
+
 echo "========================================"
 echo "통합 배포 시작 - 환경: $ENV"
 echo "AWS 계정 ID: $ACCOUNT_ID"
