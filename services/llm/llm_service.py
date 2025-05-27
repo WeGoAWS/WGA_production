@@ -207,6 +207,7 @@ def handle_llm1_with_mcp(body, origin):
         is_cached = body.get('isCached', True)
         model_id = body.get('modelId')
         slack_user_id = body.get("user_id")
+        slack_previous_questions = body.get("previous_questions")
 
         print(f"=== 요청 분석 ===")
         print(f"user_input: {user_input}")
@@ -214,6 +215,7 @@ def handle_llm1_with_mcp(body, origin):
         print(f"is_cached: {is_cached}")
         print(f"model_id: {model_id}")
         print(f"slack_user_id: {slack_user_id}")
+        print(f"slack 과거 기록: {len(slack_previous_questions) if slack_previous_questions else '없음'}")
         print(f"chat_table 상태: {chat_table is not None}")
         print(f"전체 body: {json.dumps(body, ensure_ascii=False)}")
 
@@ -244,7 +246,14 @@ def handle_llm1_with_mcp(body, origin):
         question_time = datetime.now(timezone.utc)
 
         # 세션 기반 처리 (개선된 방식 - messages 배열 사용)
-        if is_cached and session_id and chat_table:
+        if slack_user_id and slack_previous_questions:
+            print("=== slack 유저 확인 ===")
+            response_text = client.process_user_input_with_history(
+                user_input,
+                system_prompt,
+                slack_previous_questions
+            )
+        elif is_cached and session_id and chat_table:
             try:
                 print(f"=== 세션 캐싱 모드 시작 (개선된 방식) ===")
                 print(f"세션 ID: {session_id}")

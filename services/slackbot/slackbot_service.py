@@ -310,30 +310,44 @@ def get_model_display_name(model_id):
         pass
     return model_id
 
-def send_to_ai_model(model_id, question):
-    """
-    실제 AI 모델에 요청을 보내는 함수 (구현 필요)
-    """
-    # 여기에 실제 AI 모델 API 호출 로직 구현
-    return f"[{model_id}] 모델의 응답: {question}에 대한 답변입니다."
-
 def filter_analysis_results(history):
     """':brain: 분석 결과:'로 시작하는 메시지만 필터링"""
     filtered_messages = []
     
     for message in history['messages']:
         text = message.get('text', '')
-        if text.startswith(':brain: 분석 결과:'):
-            filtered_messages.append(text)
-    
+        if text.startswith(':hourglass_flowing_sand:') or text.startswith(':robot_face:') or text.startswith(':x:') or text.startswith(':white_check_mark:') or text.startswith(':closed_lock_with_key:'):
+            # 해당 메시지는 유저도 분석결과 아님으로 필터링
+            continue
+        # 메시지의 role은 'user' 또는 'assistant'로 설정
+        elif "error" in text:
+            continue
+        elif text.startswith(':brain: 분석 결과:'):
+            role = 'assistant'
+            text = text.split(':brain: 분석 결과:')[1].strip()
+            filtered_messages.append({'role': role, 'content': text})
+        else:
+            role = 'user'
+            text = text.strip()
+            filtered_messages.append({'role': role, 'content': text})
+
+        print(f"filtered_messages: {filtered_messages}\n")
+
     return filtered_messages
 
-
-def handle_req_command(text, user_id, slack_channel_id):
+def handle_req_command(payload):
     """
     /req 명령어 처리 - 저장된 모델로 질문 처리
     """
-    start_time = time.time()
+    print("handle_req_command 함수 실행")
+    event = payload.get("event", {})
+    
+    text = event.get("text", "")
+    print(f"text: {text}\n")
+    user_id = event.get("user", "")
+    print(f"user_id: {user_id}\n")
+    channel_id = event.get("channel", "")
+    print(f"channel_id: {channel_id}\n")
     if not text or not text.strip():
         return {
             'statusCode': 200,
@@ -366,32 +380,92 @@ def handle_req_command(text, user_id, slack_channel_id):
     )
 
     print("history 불러오기")
-    print(f"slack_channel_id: {slack_channel_id}\n")
+    print(f"slack_channel_id: {channel_id}\n")
     history = client.conversations_history(
-        channel=slack_channel_id,
-        limit=20
+        channel=channel_id,
+        limit=10
     )
 
     print(f"history: {history}\n")
     analysis_messages = filter_analysis_results(history)
+    print(f"analysis_messages: {analysis_messages}\n")
     print(f"분석 결과 메시지 개수: {len(analysis_messages)}")
-
-    question = f"Context History: {analysis_messages}, user_question: {question}"
 
     requests.post(
         f"{CONFIG['api']['endpoint']}/llm1",
-        data={
+        json={
             "question": question,
             "modelId": model_id,
             "user_id": user_id,
+            "previous_questions": analysis_messages,
         },
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
-
-    end_time = time.time()
-    execution_time = end_time - start_time
-    print(f"Execution time: {execution_time} seconds")
 
     return {
         'statusCode': 200,
     }
+
+def handle_slack_events(event, context):
+    event_body = event.get("body") or ""
+    headers = event.get('headers', {})
+    retry_num = headers.get('X-Slack-Retry-Num')
+    retry_reason = headers.get('X-Slack-Retry-Reason')
+
+    # 재시도 요청인 경우 즉시 200 응답
+    if retry_num:
+        print(f"재시도 요청 감지: {retry_reason} (retry #{retry_num})")
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                'response_type': 'ephemeral',
+                'text': f'Already processing (retry #{retry_num})'
+            })
+        }
+    
+    try:
+        quick_response = {
+            'statusCode': 200,
+            'body': json.dumps({
+                'response_type': 'ephemeral', 
+                'text': 'Processing your request...'
+            })
+        }
+
+        payload = json.loads(event_body)
+        
+        # URL 검증
+        if payload.get("type") == "url_verification":
+            print("URL 검증 진입")
+            return {
+                "statusCode": 200,
+                "headers": {"Content-Type": "text/plain"},
+                "body": payload["challenge"]
+            }
+        
+        # 이벤트 콜백 처리
+        if payload.get("type") == "event_callback":
+            print("이벤트 콜백 진입")
+            event_data = payload.get("event", {})
+            print(f"event_data: {event_data}\n")
+
+            # 봇 메시지 필터링 (중요!)
+            if event_data.get("bot_id"):
+                print(f"봇 메시지 감지: {event_data.get('bot_id')}")
+                print("봇 메시지이므로 무시")
+                return {"statusCode": 200}
+            
+            # 사용자 메시지만 처리
+            if event_data.get("type") == "message" and "user" in event_data:
+                return handle_req_command(payload)
+        
+        return quick_response
+        
+    except Exception as e:
+        print(f"이벤트 처리 오류: {e}")
+        return {
+            'statusCode': 200,  # 에러여도 200 반환
+            'body': json.dumps({
+                'response_type': 'ephemeral',
+                'text': 'Error occurred, please try again'
+            })
+        }

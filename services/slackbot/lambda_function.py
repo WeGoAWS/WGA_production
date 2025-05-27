@@ -3,7 +3,7 @@ import urllib.parse
 import json
 from common.config import get_config
 from common.slackbot_session import get_session, save_session, send_slack_dm
-from slackbot_service import send_login_button, handle_models_command, handle_interaction, handle_req_command
+from slackbot_service import send_login_button, handle_models_command, handle_interaction, handle_req_command, handle_slack_events, handle_slack_events
 from jose import jwt
 
 def lambda_handler(event, context):
@@ -85,21 +85,6 @@ def lambda_handler(event, context):
         except Exception as e:
             print(f"Error processing slash command: {e}")
 
-    elif path == "/req" and http_method == "POST":
-        body = urllib.parse.parse_qs(event["body"])
-        print(f"Body: {body}")
-        slack_user_id = body.get("user_id", [""])[0]
-        slack_channel_id = body.get("channel_id", [""])[0]
-        try:
-            print("/req 진입\n")
-            command = body.get('command', [''])[0]
-            text = body.get('text', [''])[0]
-
-            return handle_req_command(text, slack_user_id, slack_channel_id)
-
-        except Exception as e:
-            print(f"Error processing slash command: {e}")
-
     elif path == "/slack-interactions" and http_method == "POST":
         parsed_data = urllib.parse.parse_qs(body)
         payload_str = parsed_data.get('payload', [''])[0]
@@ -110,6 +95,10 @@ def lambda_handler(event, context):
         if payload.get('type') == 'block_actions':
             handle_interaction(payload)
             return handle_interaction(payload)
+
+    elif path =="/events" and http_method == "POST":
+        print("events 진입")
+        return handle_slack_events(event, context)
 
     else:
         return {

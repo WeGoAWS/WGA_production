@@ -169,19 +169,19 @@ Resources:
                 Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SlackbotLambdaFunction.Arn}/invocations"
             MethodResponses:
                 - StatusCode: "200"
-    # req
-    SlackbotReqApiResource:
+    # Events
+    SlackbotEventsApiResource:
         Type: AWS::ApiGateway::Resource
         Properties:
             RestApiId: !Ref ApiGatewayId
             ParentId: !Ref ApiGatewayRootResourceId
-            PathPart: "req"
+            PathPart: "events"
 
-    SlackbotReqMethod:
+    SlackbotEventsMethod:
         Type: AWS::ApiGateway::Method
         Properties:
             RestApiId: !Ref ApiGatewayId
-            ResourceId: !Ref SlackbotReqApiResource
+            ResourceId: !Ref SlackbotEventsApiResource
             HttpMethod: POST
             AuthorizationType: NONE
             Integration:
@@ -237,13 +237,13 @@ Resources:
             Principal: "apigateway.amazonaws.com"
             SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/models"
 
-    SlackbotReqLambdaPermission:
+    SlackbotEventsLambdaPermission:
         Type: AWS::Lambda::Permission
         Properties:
             Action: "lambda:InvokeFunction"
             FunctionName: !Ref SlackbotLambdaFunction
             Principal: "apigateway.amazonaws.com"
-            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/req"
+            SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/*/POST/events"
 
     SlackbotInteractionLambdaPermission:
         Type: AWS::Lambda::Permission
