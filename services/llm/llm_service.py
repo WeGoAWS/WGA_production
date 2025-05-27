@@ -229,19 +229,23 @@ def handle_llm1_with_mcp(body, origin):
 
                 <Tools>
                 1. 로그 분석 (2단계 필수):
-                   Step1: fetch_cloudwatch_logs_for_service("cloudtrail"|"guardduty"|"etc") 
-                   Step2: analyze_log_groups_insights(실제_로그_그룹_이름)
+                Step1: fetch_cloudwatch_logs_for_service("cloudtrail"|"guardduty"|"etc") 
+                Step2: analyze_log_groups_insights(실제_로그_그룹_이름)
                 2. 모니터링: list_cloudwatch_dashboards → get_dashboard_summary
                 3. 문서검색: search_documentation → recommend_documentation → read_documentation
                 4. 비용분석: get_detailed_breakdown_by_day
-                5. 시각화: **chart/aws diagram 생성 후 반드시 최종 응답에 ![제목](URL) 출력**
+                5. 시각화: 별도의 시각화 요청 시 chart/aws diagram 생성
                 </Tools>
-
+        
                 <Rules>
                 - 로그 분석 질문 시 fetch 도구로 실제 로그 그룹 이름 먼저 확인
                 - "/aws/cloudtrail" 같은 추측 금지, 실제 로그 그룹 이름 사용
                 - 최소 도구 사용 원칙
-                - 시각화는 요청 시 진행, 진행 후 반드시 생성된 모든 이미지 출력
+                - 시각화 생성 시 항상 다음 순서로 진행:
+                1. 먼저 텍스트로 상세한 분석 결과 제공
+                2. 그 다음 시각화 생성 및 출력
+                3. 최종 응답에서 텍스트 분석과 시각화를 모두 포함
+                - 시각화는 분석 결과를 보완하는 역할, 대체하는 것이 아님
                 - Time zone: UTC+9
                 </Rules>
                 """
