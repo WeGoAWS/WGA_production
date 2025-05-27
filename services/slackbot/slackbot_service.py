@@ -228,6 +228,8 @@ def handle_models_command(slack_user_id):
         blocks=blocks
     )
     
+    clear_user_processing_status(slack_user_id)
+    
     return {
         "statusCode": 200,
         "body": json.dumps({
