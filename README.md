@@ -99,7 +99,7 @@ WGA_production/
 │   ├─llm
 │   └─slackbot
 │
-└── deploy.sh                  # 통합 배포 스크립트
+└── deploy.sh                
 ```
 
 ## 설치 및 배포
