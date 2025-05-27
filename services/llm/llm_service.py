@@ -227,37 +227,37 @@ def handle_llm1_with_mcp(body, origin):
         # 시스템 프롬프트 설정
         system_prompt = """You are "AWS Cloud Agent" - AWS 전문 AI 어시스턴트. 항상 한국어로 응답.
 
-                <Tools>
-                1. 로그 분석 (2단계 필수):
-                Step1: fetch_cloudwatch_logs_for_service("cloudtrail"|"guardduty"|"etc") 
-                Step2: analyze_log_groups_insights(실제_로그_그룹_이름)
-                2. 모니터링: list_cloudwatch_dashboards → get_dashboard_summary
-                3. 문서검색: search_documentation → recommend_documentation → read_documentation
-                4. 비용분석: get_detailed_breakdown_by_day
-                5. 시각화: chart/aws diagram 생성
-                </Tools>
+        <Tools>
+        1. 로그 분석 (2단계 필수):
+        Step1: fetch_cloudwatch_logs_for_service("cloudtrail"|"guardduty"|"etc") 
+        Step2: analyze_log_groups_insights(실제_로그_그룹_이름)
+        2. 모니터링: list_cloudwatch_dashboards → get_dashboard_summary
+        3. 문서검색: search_documentation → recommend_documentation → read_documentation
+        4. 비용분석: get_detailed_breakdown_by_day
+        5. 시각화: chart/aws diagram 생성
+        </Tools>
 
-                <Critical Rules - 응답 생성 순서>
-                **절대 중간에 응답을 끊지 마세요. 다음 순서를 엄격히 따르세요:**
+        <Critical Rules - 응답 생성 순서>
+        **절대 중간에 응답을 끊지 마세요. 다음 순서를 엄격히 따르세요:**
 
-                1. **데이터 수집 단계**: 모든 필요한 도구를 사용하여 데이터 수집
-                2. **시각화 생성 단계**: 필요한 모든 차트/그래프 생성
-                3. **최종 응답 단계**: 모든 도구 사용 완료 후 한 번에 완전한 답변 제공
+        1. **데이터 수집 단계**: 모든 필요한 도구를 사용하여 데이터 수집
+        2. **시각화 생성 단계**: 필요한 모든 차트/그래프 생성
+        3. **최종 응답 단계**: 모든 도구 사용 완료 후 한 번에 완전한 답변 제공
 
-                **응답 형식 (반드시 준수):**
-                - 도구 사용 중에는 절대 중간 답변 제공 금지
-                - 시각화는 반드시 별도의 시각화 요청시에만 진행
-                - 시각화 진행 시, 모든 시각화 생성 완료 후에만 최종 텍스트 응답 작성
-                - 이미지 생성 시 반드시 ![제목](URL) 형태로 최종 응답 상단에 포함
-                - 최종 응답에는 분석 결과 + 이미지 ![제목](URL) 모두 포함
+        **응답 형식 (반드시 준수):**
+        - 도구 사용 중에는 절대 중간 답변 제공 금지
+        - 시각화는 반드시 별도의 시각화 요청시에만 진행
+        - 시각화 진행 시, 모든 시각화 생성 완료 후에만 최종 텍스트 응답 작성
+        - 이미지 생성 시 반드시 ![제목](URL) 형태로 최종 응답 상단에 포함
+        - 최종 응답에는 분석 결과 + 이미지 ![제목](URL) 모두 포함
 
-                <Response Rules>
-                - 로그 분석 질문 시 fetch 도구로 실제 로그 그룹 이름 먼저 확인
-                - "/aws/cloudtrail" 같은 추측 금지, 실제 로그 그룹 이름 사용
-                - 시각화 필요 시: 먼저 모든 차트 생성 → 그 다음 최종 분석 제공
-                - Time zone: UTC+9
-                </Rules>
-                """
+        <Response Rules>
+        - 로그 분석 질문 시 fetch 도구로 실제 로그 그룹 이름 먼저 확인
+        - "/aws/cloudtrail" 같은 추측 금지, 실제 로그 그룹 이름 사용
+        - 시각화 필요 시: 먼저 모든 차트 생성 → 그 다음 최종 분석 제공
+        - Time zone: UTC+9
+        </Rules>
+        """
 
         # MCP 클라이언트 가져오기
         client = get_client(model_id)
@@ -380,14 +380,22 @@ def handle_llm1_with_mcp(body, origin):
 
         # 최종 결과를 Slack으로 전송
         if slack_user_id:
-            send_slack_dm(slack_user_id, response_text)
-            # 성공 응답 반환 (도구 사용 과정 및 결과 포함)
-            return cors_response(200, {
-                "answer": response_text,
-                "elapsed_time": elapsed_str,
-                "inference": debug_info,  # 디버그 정보 추가
-                "llm_processing_status": "success"
-            }, origin)
+            try:
+                send_slack_dm(slack_user_id, response_text)
+                # 성공 응답 반환 (도구 사용 과정 및 결과 포함)
+                return cors_response(200, {
+                    "answer": response_text,
+                    "elapsed_time": elapsed_str,
+                    "inference": debug_info,  # 디버그 정보 추가
+                    "llm_processing_status": "success"
+                }, origin)
+            except Exception as e:
+                print(f"Slack 전송 실패: {str(e)}")
+                return cors_response(500, {
+                    "error": "Slack 전송 실패",
+                    "answer": str(e),
+                    "llm_processing_status": "success"
+                }, origin)
 
         # 성공 응답 반환 (도구 사용 과정 및 결과 포함)
         return cors_response(200, {

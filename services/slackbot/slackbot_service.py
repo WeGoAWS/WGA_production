@@ -494,28 +494,42 @@ def handle_req_command(payload):
     analysis_messages = filter_analysis_results(history)
     print(f"analysis_messages: {analysis_messages}\n")
     print(f"분석 결과 메시지 개수: {len(analysis_messages)}")
+    try:
+        res = requests.post(
+            f"{CONFIG['api']['endpoint']}/llm1",
+            json={
+                "question": question,
+                "modelId": model_id,
+                "user_id": user_id,
+                "previous_questions": analysis_messages,
+            },
+        )
 
-    res = requests.post(
-        f"{CONFIG['api']['endpoint']}/llm1",
-        json={
-            "question": question,
-            "modelId": model_id,
-            "user_id": user_id,
-            "previous_questions": analysis_messages,
-        },
-    )
-    if res.status_code == 200:
-        response_data = res.json()
-        llm_status = response_data.get("llm_processing_status", "unknown")
-        if llm_status == "success":
-            # 처리 완료 - 상태 초기화
-            clear_user_processing_status(user_id)
-            print(f"LLM 처리 완료 - User: {user_id}, Status: {llm_status}")
-        else:
+        if res.status_code == 200:
+            response_data = res.json()
+            llm_status = response_data.get("llm_processing_status", "unknown")
+            if llm_status == "success":
+                # 처리 완료 - 상태 초기화
+                clear_user_processing_status(user_id)
+                print(f"LLM 처리 완료 - User: {user_id}, Status: {llm_status}")
+            else:
                 # 처리 실패 시에도 상태 초기화
                 clear_user_processing_status(user_id)
                 print(f"LLM 처리 실패 - User: {user_id}, Status: {llm_status}")
-    
+
+    except Exception as e:
+        print(f"res 처리 오류: {e}")
+        clear_user_processing_status(user_id)
+        return {
+            'statusCode': 200,  # 에러여도 200 반환
+            'body': json.dumps({
+                'response_type': 'ephemeral',
+                'text': 'Error occurred, please try again'
+            })
+        }
+
+    clear_user_processing_status(user_id)
+    print(f"get_user_processing_status(user_id): {get_user_processing_status(user_id)}")
     return {
         'statusCode': 200,
     }
