@@ -53,6 +53,7 @@ Resources:
                   - ssm:GetParameter
                   - ssm:GetParameters
                   - ssm:GetParametersByPath
+                  - kms:Decrypt
                 Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wga/${Environment}/*"
 
   AthenaUtilityLambdaLayer:

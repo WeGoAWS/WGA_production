@@ -96,6 +96,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - ssm:*
+                  - kms:Decrypt
                 Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wga/${Environment}/*"
               - Effect: Allow
                 Action:
