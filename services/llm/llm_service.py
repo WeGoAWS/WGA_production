@@ -234,18 +234,27 @@ def handle_llm1_with_mcp(body, origin):
                 2. 모니터링: list_cloudwatch_dashboards → get_dashboard_summary
                 3. 문서검색: search_documentation → recommend_documentation → read_documentation
                 4. 비용분석: get_detailed_breakdown_by_day
-                5. 시각화: 별도의 시각화 요청 시 chart/aws diagram 생성
+                5. 시각화: chart/aws diagram 생성
                 </Tools>
-        
-                <Rules>
+
+                <Critical Rules - 응답 생성 순서>
+                **절대 중간에 응답을 끊지 마세요. 다음 순서를 엄격히 따르세요:**
+
+                1. **데이터 수집 단계**: 모든 필요한 도구를 사용하여 데이터 수집
+                2. **시각화 생성 단계**: 필요한 모든 차트/그래프 생성
+                3. **최종 응답 단계**: 모든 도구 사용 완료 후 한 번에 완전한 답변 제공
+
+                **응답 형식 (반드시 준수):**
+                - 도구 사용 중에는 절대 중간 답변 제공 금지
+                - 시각화는 반드시 별도의 시각화 요청시에만 진행
+                - 시각화 진행 시, 모든 시각화 생성 완료 후에만 최종 텍스트 응답 작성
+                - 이미지 생성 시 반드시 ![제목](URL) 형태로 최종 응답 상단에 포함
+                - 최종 응답에는 분석 결과 + 이미지 ![제목](URL) 모두 포함
+
+                <Response Rules>
                 - 로그 분석 질문 시 fetch 도구로 실제 로그 그룹 이름 먼저 확인
                 - "/aws/cloudtrail" 같은 추측 금지, 실제 로그 그룹 이름 사용
-                - 최소 도구 사용 원칙
-                - 시각화 생성 시 항상 다음 순서로 진행:
-                1. 먼저 텍스트로 상세한 분석 결과 제공
-                2. 그 다음 시각화 생성 및 출력
-                3. 최종 응답에서 텍스트 분석과 시각화를 모두 포함
-                - 시각화는 분석 결과를 보완하는 역할, 대체하는 것이 아님
+                - 시각화 필요 시: 먼저 모든 차트 생성 → 그 다음 최종 분석 제공
                 - Time zone: UTC+9
                 </Rules>
                 """
