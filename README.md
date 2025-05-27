@@ -75,62 +75,29 @@ WGA는 AWS 클라우드 운영 정보를 자연어로 질의응답할 수 있는
 
 ```
 WGA_production/
-├── frontend/                    # React 웹 애플리케이션
-│   ├── src/
-│   │   ├── components/         # 재사용 가능한 컴포넌트
-│   │   ├── pages/             # 페이지 컴포넌트
-│   │   ├── hooks/             # 커스텀 훅
-│   │   ├── utils/             # 유틸리티 함수
-│   │   └── types/             # TypeScript 타입 정의
-│   ├── package.json
-│   └── vite.config.ts
-│
-├── services/                    # Lambda 함수들
-│   ├── llm/                    # LLM 서비스 (Claude, Bedrock)
-│   │   ├── lambda_function.py
-│   │   ├── llm_service.py
-│   │   ├── mcp_client.py
-│   │   ├── mcp_anthropic_client.py
-│   │   └── mcp_bedrock_client.py
-│   ├── db/                     # 데이터베이스 서비스
-│   │   ├── lambda_function.py
-│   │   └── enable_guardduty.py
-│   ├── chat-history/           # 채팅 히스토리 관리
-│   │   ├── lambda_function.py
-│   │   └── chat_history_service.py
-│   └── slackbot/              # Slack 봇 서비스
-│       ├── lambda_function.py
-│       └── slackbot_service.py
-│
-├── mcp/                        # Model Context Protocol 서버
-│   ├── app.py                 # MCP 애플리케이션 메인
-│   ├── lambda_mcp/            # MCP 서버 라이브러리
-│   │   ├── lambda_mcp.py
-│   │   ├── session.py
-│   │   ├── mcp_types.py
-│   │   ├── document_utils.py
-│   │   ├── diagram_utils.py
-│   │   ├── chart_utils.py
-│   │   └── logs_utils.py
-│   ├── Dockerfile
-│   └── requirements.txt
-│
-├── layers/                     # Lambda 레이어
-│   └── common/                # 공통 라이브러리
-│       ├── config.py
-│       ├── utils.py
-│       ├── slackbot_session.py
-│       └── requirements.txt
-│
-├── cloudformation/             # Infrastructure as Code
-│   ├── base.yaml              # 기본 인프라 (Cognito, S3, DynamoDB)
-│   ├── main.yaml              # 메인 스택
-│   ├── llm.yaml               # LLM 서비스 스택
-│   ├── frontend.yaml          # 프론트엔드 스택
-│   ├── logs.yaml              # DB 관련 스택
-│   ├── slackbot.yaml          # Slack 봇 스택
-│   ├── chat-history.yaml      # 채팅 히스토리 스택
-│   └── mcp.yaml               # MCP 서비스 스택
+├─cloudformation
+├─frontend
+│ ├─public
+│ └─src
+│   ├─assets
+│   ├─components
+│   ├─directives
+│   ├─layouts
+│   ├─router
+│   ├─stores
+│   ├─types
+│   ├─utils
+│     └─views
+├─images
+├─layers
+│  └─common
+├─mcp
+│  └─lambda_mcp
+└─services
+│   ├─chat-history
+│   ├─db
+│   ├─llm
+│   └─slackbot
 │
 └── deploy.sh                  # 통합 배포 스크립트
 ```
