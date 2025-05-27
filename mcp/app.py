@@ -5,6 +5,7 @@ import pandas as pd
 import httpx
 import re
 import requests
+import time
 from datetime import datetime, timedelta
 from collections import defaultdict
 from typing import Optional, Dict, List, Any, Union
@@ -24,6 +25,7 @@ from lambda_mcp.diagram_utils import (
 )
 from lambda_mcp.mcp_types import DiagramType
 from lambda_mcp.chart_utils import generate_chart_url, validate_chart_data
+from lambda_mcp.logs_utils import generate_insights_query, analyze_insights_results, get_query_templates
 
 # API URL 상수 정의
 DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 ModelContextProtocol/1.0 (AWS Documentation Server)'
@@ -493,6 +495,317 @@ def analyze_log_group(
         print(f"Error analyzing log group {log_group_name}: {e}")
         return {"status": "error", "message": str(e)}
 
+
+@mcp_server.tool()
+def analyze_log_groups_insights(
+        log_groups: str,
+        query: str = "",
+        days: int = 1,
+        max_results: int = 1000,
+        analysis_type: str = "custom"
+) -> Dict[str, Any]:
+    """
+    CloudWatch Logs Insights를 사용하여 로그 그룹을 분석합니다.
+
+    이 함수는 AWS CloudWatch Logs Insights의 강력한 쿼리 엔진을 활용하여
+    대용량 로그 데이터를 효율적으로 분석하고 인사이트를 자동으로 생성합니다.
+
+    ## 언제 사용해야 하나요?
+    - 사용자가 "로그 분석", "에러 패턴", "성능 모니터링", "보안 이벤트" 등을 요청할 때
+    - 특정 시간대의 로그를 심층 분석해야 할 때
+    - 여러 서비스의 로그를 통합 분석해야 할 때
+    - 복잡한 로그 쿼리가 필요한 고급 분석 요청시
+
+    ## 주요 분석 유형별 활용법:
+
+    ### 1. 에러 분석 (analysis_type="errors")
+    - 사용 케이스: "최근 에러 패턴을 분석해줘", "어떤 에러가 가장 많이 발생했나?"
+    - 자동 분석: 에러 패턴 분류, 빈도 분석, 시간대별 분포
+    - 로그 그룹: Lambda, API Gateway, 애플리케이션 로그
+
+    ### 2. 성능 분석 (analysis_type="performance")
+    - 사용 케이스: "Lambda 함수 성능을 분석해줘", "응답 시간이 느린 요청 찾아줘"
+    - 자동 분석: 평균/최대/최소 응답시간, 성능 추세
+    - 로그 그룹: Lambda, API Gateway 로그
+
+    ### 3. 보안 분석 (analysis_type="security")
+    - 사용 케이스: "보안 이벤트 분석해줘", "의심스러운 IP 찾아줘"
+    - 자동 분석: 실패한 접근 시도, 의심스러운 IP, 보안 패턴
+    - 로그 그룹: CloudTrail, WAF, 보안 관련 로그
+
+    ### 4. 로그인 분석 (analysis_type="login")
+    - 사용 케이스: "콘솔 로그인 분석해줘", "실패한 로그인 시도 확인해줘"
+    - 자동 분석: 로그인 성공/실패, 의심스러운 IP, 사용자별 통계
+    - 로그 그룹: CloudTrail 로그 (ConsoleLogin 이벤트 포함)
+
+    ### 5. 트래픽 분석 (analysis_type="traffic")
+    - 사용 케이스: "트래픽 패턴 분석해줘", "시간대별 요청량 확인해줘"
+    - 자동 분석: 시간대별 요청량, 트래픽 추세
+    - 로그 그룹: API Gateway, CloudFront, ALB 로그
+
+    ## 사용자 질문 예시와 대응 방법:
+
+    ### 질문: "지난 주 Lambda 에러를 분석해줘"
+    ```python
+    analyze_log_groups_insights(
+        log_groups="/aws/lambda/my-function",
+        analysis_type="errors",
+        days=7
+    )
+    ```
+
+    ### 질문: "API Gateway와 Lambda를 함께 성능 분석해줘"
+    ```python
+    analyze_log_groups_insights(
+        log_groups="/aws/apigateway/my-api,/aws/lambda/my-function",
+        analysis_type="performance",
+        days=1
+    )
+    ```
+
+    ### 질문: "CloudTrail에서 콘솔 로그인 실패 분석해줘"
+    ```python
+    analyze_log_groups_insights(
+        log_groups="/aws/cloudtrail/logs",
+        analysis_type="login",
+        days=7
+    )
+    ```
+
+    ### 질문: "특정 에러 메시지만 찾아줘" (커스텀 쿼리)
+    ```python
+    analyze_log_groups_insights(
+        log_groups="/aws/lambda/my-function",
+        query='''
+            fields @timestamp, @message, @requestId
+            | filter @message like /ConnectionError/
+            | sort @timestamp desc
+            | limit 100
+        ''',
+        days=1
+    )
+    ```
+
+    ## 로그 그룹 이름 가이드:
+    - Lambda: "/aws/lambda/함수이름"
+    - API Gateway: "/aws/apigateway/api이름" 또는 "API-Gateway-Execution-Logs_API아이디/stage"
+    - CloudTrail: "/aws/cloudtrail/로그그룹이름"
+    - ECS: "/aws/ecs/cluster/클러스터이름"
+    - VPC Flow Logs: "/aws/vpc/flowlogs"
+
+    ## 응답 해석 가이드:
+    - `analysis_summary.insights`: 자동 생성된 핵심 인사이트
+    - `results`: 실제 쿼리 결과 (최대 50개 샘플)
+    - `statistics`: 스캔된 레코드 수, 매칭된 레코드 수 등
+    - `field_names`: 결과에 포함된 필드 목록
+
+    ## 팁:
+    - 여러 로그 그룹을 쉼표로 구분하여 통합 분석 가능
+    - days를 길게 설정하면 더 많은 데이터 분석 (단, 시간 증가)
+    - 복잡한 분석이 필요하면 custom 쿼리 직접 작성
+    - 결과가 너무 많으면 max_results로 제한
+
+    Args:
+        log_groups: 분석할 로그 그룹 이름들 (쉼표로 구분, 예: "/aws/lambda/func1,/aws/apigateway/api1")
+        query: Logs Insights 쿼리 (비어있으면 analysis_type에 따라 자동 생성)
+        days: 분석할 일수 (기본값: 1)
+        max_results: 최대 결과 수 (기본값: 1000)
+        analysis_type: 자동 쿼리 유형 ("errors", "performance", "security", "traffic", "login", "custom")
+
+    Returns:
+        Dictionary with analysis results and insights
+    """
+    try:
+        # 로그 그룹 리스트 파싱
+        log_group_list = [lg.strip() for lg in log_groups.split(',') if lg.strip()]
+
+        if not log_group_list:
+            return {"status": "error", "message": "로그 그룹을 지정해야 합니다."}
+
+        # 시간 범위 계산
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(days=days)
+        start_timestamp = int(start_time.timestamp())
+        end_timestamp = int(end_time.timestamp())
+
+        # 쿼리 자동 생성 또는 사용자 쿼리 사용
+        if not query:
+            query = generate_insights_query(analysis_type)
+
+        print(f"Logs Insights 쿼리 실행: {query}")
+        print(f"로그 그룹: {log_group_list}")
+        print(f"시간 범위: {start_time.isoformat()} to {end_time.isoformat()}")
+
+        # Logs Insights 쿼리 실행
+        response = logs_client.start_query(
+            logGroupNames=log_group_list,
+            startTime=start_timestamp,
+            endTime=end_timestamp,
+            queryString=query,
+            limit=max_results
+        )
+
+        query_id = response['queryId']
+        print(f"쿼리 ID: {query_id}")
+
+        # 쿼리 완료 대기
+        max_wait_time = 300  # 5분 최대 대기
+        wait_time = 0
+
+        while wait_time < max_wait_time:
+            result_response = logs_client.get_query_results(queryId=query_id)
+            status = result_response['status']
+
+            print(f"쿼리 상태: {status}")
+
+            if status == 'Complete':
+                break
+            elif status in ['Failed', 'Cancelled', 'Timeout']:
+                return {
+                    "status": "error",
+                    "message": f"쿼리 실행 실패: {status}",
+                    "query_id": query_id
+                }
+
+            time.sleep(2)
+            wait_time += 2
+
+        if wait_time >= max_wait_time:
+            return {
+                "status": "error",
+                "message": "쿼리 실행 시간 초과",
+                "query_id": query_id
+            }
+
+        # 결과 처리
+        results = result_response.get('results', [])
+        statistics = result_response.get('statistics', {})
+
+        # 결과를 구조화된 형태로 변환
+        structured_results = []
+        field_names = set()
+
+        for result_row in results:
+            row_data = {}
+            for field in result_row:
+                field_name = field.get('field', '')
+                field_value = field.get('value', '')
+                if field_name:
+                    row_data[field_name] = field_value
+                    field_names.add(field_name)
+            if row_data:
+                structured_results.append(row_data)
+
+        # 분석 결과 생성
+        analysis_summary = analyze_insights_results(
+            structured_results, analysis_type, field_names
+        )
+
+        return {
+            "status": "success",
+            "query_id": query_id,
+            "analysis_type": analysis_type,
+            "log_groups": log_group_list,
+            "time_range": {
+                "start": start_time.isoformat(),
+                "end": end_time.isoformat(),
+                "days": days
+            },
+            "query": query,
+            "statistics": {
+                "records_matched": statistics.get('recordsMatched', 0),
+                "records_scanned": statistics.get('recordsScanned', 0),
+                "bytes_scanned": statistics.get('bytesScanned', 0)
+            },
+            "results_count": len(structured_results),
+            "field_names": list(field_names),
+            "results": structured_results[:50],  # 최대 50개 결과만 반환
+            "analysis_summary": analysis_summary
+        }
+
+    except Exception as e:
+        print(f"Logs Insights 분석 오류: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"분석 실행 중 오류 발생: {str(e)}"
+        }
+
+
+@mcp_server.tool()
+def get_insights_query_templates() -> Dict[str, Any]:
+    """
+    CloudWatch Logs Insights에서 사용할 수 있는 쿼리 템플릿을 반환합니다.
+
+    ## 언제 사용하나요?
+    - 사용자가 "어떤 쿼리 템플릿이 있나요?" 또는 "쿼리 예시 보여줘"라고 물을 때
+    - 사용자가 직접 쿼리를 작성하고 싶어할 때 참고 자료로 제공
+    - analyze_log_groups_insights()에서 지원하지 않는 특수한 분석이 필요할 때
+
+    ## 주요 템플릿 활용법:
+
+    ### error_analysis
+    - 목적: 에러 및 예외 이벤트 시간대별 분석
+    - 활용: "에러가 언제 가장 많이 발생했는지 시간대별로 보여줘"
+
+    ### performance_monitoring
+    - 목적: Lambda 함수 성능 메트릭 분석
+    - 활용: "Lambda 함수 실행 시간과 메모리 사용량 추이 분석"
+
+    ### api_gateway_analysis
+    - 목적: API Gateway 4xx/5xx 에러 분석
+    - 활용: "API 에러 상태코드별 통계와 HTTP 메소드별 분석"
+
+    ### cloudtrail_security
+    - 목적: CloudTrail 보안 이벤트 분석
+    - 활용: "위험한 작업(삭제, 종료)과 에러가 있는 이벤트 분석"
+
+    ### console_login_analysis
+    - 목적: AWS 콘솔 로그인 이벤트 상세 분석
+    - 활용: "콘솔 로그인 성공/실패 이벤트 시간순 조회"
+
+    ### failed_console_logins
+    - 목적: 실패한 콘솔 로그인만 집중 분석
+    - 활용: "로그인 실패 시도를 IP와 사용자별로 집계"
+
+    ### suspicious_login_patterns
+    - 목적: 의심스러운 로그인 패턴 탐지
+    - 활용: "시간대별로 로그인 시도가 많은 IP 주소 찾기"
+
+    ## 사용자 질문 예시:
+
+    ### 질문: "API Gateway 에러 분석 쿼리 보여줘"
+    ```python
+    templates = get_insights_query_templates()
+    api_query = templates["api_gateway_analysis"]
+    # 이 쿼리를 analyze_log_groups_insights()의 query 파라미터에 사용
+    ```
+
+    ### 질문: "Lambda 성능 모니터링 쿼리를 수정해서 1시간 단위로 보고싶어"
+    ```python
+    templates = get_insights_query_templates()
+    custom_query = templates["performance_monitoring"].replace("bin(5m)", "bin(1h)")
+    ```
+
+    ### 질문: "보안 이벤트 쿼리를 기반으로 특정 사용자만 필터링하고 싶어"
+    ```python
+    templates = get_insights_query_templates()
+    base_query = templates["cloudtrail_security"]
+    # 쿼리에 "| filter userIdentity.userName = 'specific-user'" 추가하여 커스텀
+    ```
+
+    ## 템플릿 커스터마이징 팁:
+    - bin() 함수로 시간 간격 조절 (5m, 1h, 1d 등)
+    - filter 조건 추가로 특정 조건 필터링
+    - stats 함수로 다양한 집계 (count, avg, max, min 등)
+    - sort 조건 변경으로 정렬 기준 조정
+    - limit 값 변경으로 결과 수 제한
+
+    Returns:
+        Dictionary with query templates:
+        - Key: 템플릿 이름 (예: "error_analysis")
+        - Value: Logs Insights 쿼리 문자열 또는 메타데이터
+    """
+    return get_query_templates()
 
 @mcp_server.tool()
 def get_detailed_breakdown_by_day(days: int = 7) -> Dict[str, Any]:

@@ -224,31 +224,17 @@ def handle_llm1_with_mcp(body, origin):
         # 시스템 프롬프트 설정
         system_prompt = """You are "AWS Cloud Agent" - AWS 전문 AI 어시스턴트. 항상 한국어로 응답.
 
-        <Tool Priority>
-        1. **계정 활동 분석**: fetch_cloudwatch_logs_for_service("cloudtrail") → analyze_log_group
-        2. **보안 이벤트**: fetch_cloudwatch_logs_for_service("guardduty") → analyze_log_group  
-        3. **AWS 서비스 질문**: search_documentation → recommend_documentation → read_documentation
-        4. **비용 분석**: get_detailed_breakdown_by_day
-        5. **시각화**: 명시적 요청시에만 차트/다이어그램 생성
+        <Tools>
+        계정분석: fetch_cloudwatch_logs_for_service("cloudtrail") → analyze_log_groups_insights
+        보안분석: fetch_cloudwatch_logs_for_service("guardduty") → analyze_log_groups_insights
+        AWS문서: search_documentation → recommend_documentation → read_documentation
+        비용분석: get_detailed_breakdown_by_day
+        시각화: 요청시 차트 생성 후 ![제목](url) 표시
 
-        <Response Rules>
-        - 필요한 최소 도구만 사용
-        - 충분한 정보 확보시 즉시 답변 생성
-        - 반복적 도구 호출 금지
-        - 간결하고 실용적인 답변
-        - **차트 생성시 반드시 ![설명](url) 형식으로 이미지 표시**
-
-        <Tool Usage>
-        **계정/보안 분석**: cloudtrail → guardduty → analyze_log_group
-        **AWS 서비스**: search_documentation → (필요시) recommend/read
-        **비용**: get_detailed_breakdown_by_day
-        **시각화**: "차트/그래프/시각화" 명시적 요청시에만. 생성된 차트는 반드시 ![Chart Title](chart_url) 마크다운으로 표시
-
-        **CloudWatch filter_pattern**: JSON 형식 사용
-        - 올바른 예: `{ ($.eventName = CreateRole) || ($.eventName = PutRolePolicy) }`
-        - 잘못된 예: `[eventName="CreateRole" || eventName="PutRolePolicy"]`
-
-        Time zone: UTC+9 (Seoul)
+        <Rules>
+        - 최소 도구만 사용, 충분한 정보 확보시 즉시 답변
+        - Time zone: UTC+9
+        - 차트는 명시적 요청시에만 생성
         """
 
         # MCP 클라이언트 가져오기
