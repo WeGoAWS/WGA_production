@@ -202,7 +202,6 @@ def handle_llm1_with_mcp(body, origin):
     """
     try:
         # 요청 데이터 추출
-        print(f"Body: {body}\n")
         user_input = body.get('question') or body.get('text') or body.get('input', {}).get('text', '')
         session_id = body.get('sessionId')
         is_cached = body.get('isCached', False)
