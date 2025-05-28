@@ -208,7 +208,8 @@ def handle_llm1_with_mcp(body, origin):
         model_id = body.get('modelId')
         slack_user_id = body.get("user_id")
         slack_previous_questions = body.get("previous_questions")
-
+        # 현재시간(한국)
+        now = datetime.now(timezone.utc)
         print(f"=== 요청 분석 ===")
         print(f"user_input: {user_input}")
         print(f"session_id: {session_id}")
@@ -224,8 +225,9 @@ def handle_llm1_with_mcp(body, origin):
 
 
         # 시스템 프롬프트 설정
-        system_prompt = """You are "AWS Cloud Agent" - AWS 전문 AI 어시스턴트. 항상 한국어로 응답.
-
+        system_prompt = f"""You are "AWS Cloud Agent" - AWS 전문 AI 어시스턴트. 항상 한국어로 응답.
+        현재 시간은 UTC 기준 {now.strftime('%Y-%m-%d %H:%M:%S')}입니다.
+        한국 시간은 UTC+9입니다.
         <Tools>
         1. 로그 분석 (2단계 필수):
         Step1: fetch_cloudwatch_logs_for_service("cloudtrail"|"guardduty"|"etc") 
