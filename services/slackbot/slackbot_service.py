@@ -227,7 +227,6 @@ def handle_models_command(slack_user_id):
         channel=slack_user_id,
         blocks=blocks
     )
-    
     clear_user_processing_status(slack_user_id)
     
     return {
@@ -478,7 +477,7 @@ def handle_req_command(payload):
                 "text": {
                     "type": "mrkdwn",
                     "text": (
-                        f"⏳ {model_name}를 사용하여 답변을 생성중입니다....."
+                        f"⏳ {model_name}를 사용하여 답변을 생성중입니다.....\n 답변이 올때까지 다른 요청을 보내지마세요‼"
                     )
                 }
             }
@@ -590,6 +589,7 @@ def handle_slack_events(event, context):
                 user_id = event_data.get("user", "")
                 
                 # DynamoDB에서 처리 상태 확인
+                clear_user_processing_status(user_id)
                 current_status = get_user_processing_status(user_id)
                 if current_status == "processing":
                     # 처리 중인 경우 차단 메시지 전송
