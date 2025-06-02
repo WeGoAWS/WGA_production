@@ -31,9 +31,6 @@ def lambda_handler(event, context):
         elif path == "/llm1" and http_method == "POST":
             return handle_llm1_with_mcp(body, origin)
 
-        elif path == "/llm2" and http_method == "POST":
-            return handle_llm2_request(body, CONFIG, origin)
-
         else:
             return cors_response(404, {"error": f"Route {http_method} {path} not found."}, origin)
 
