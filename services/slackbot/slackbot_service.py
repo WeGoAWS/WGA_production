@@ -25,7 +25,7 @@ def set_user_processing_status(user_id, status):
         # 기존 설정 유지하면서 processing 상태만 업데이트
         item = {
             'user_id': user_id,
-            'selected_model': existing_item.get('selected_model', 'claude-3-7-sonnet-20250219'),
+            'selected_model': existing_item.get('selected_model', 'claude-3-5-sonnet-20241022'),
             'processing_status': status,
             'processing_timestamp': current_time if status == 'processing' else 0,
             'updated_at': current_time
@@ -71,7 +71,7 @@ def clear_user_processing_status(user_id):
         if existing_item:
             item = {
                 'user_id': user_id,
-                'selected_model': existing_item.get('selected_model', 'claude-3-7-sonnet-20250219'),
+                'selected_model': existing_item.get('selected_model', 'claude-3-5-sonnet-20241022'),
                 'processing_status': 'idle',
                 'processing_timestamp': 0,
                 'updated_at': int(time.time())
@@ -139,7 +139,7 @@ def get_default_models():
     API 호출 실패 시 사용할 기본 모델 목록
     """
     return [
-        {"id": "claude-3-7-sonnet-20250219", "display_name": "Claude Sonnet 3.7"}
+        {"id": "claude-3-5-sonnet-20241022", "display_name": "Claude Sonnet 3.5 (New)"}
     ]
 
 def convert_to_slack_options(models):
@@ -368,10 +368,10 @@ def get_user_model_setting(user_id):
         response = user_settings_table.get_item(
             Key={'user_id': user_id}
         )
-        return response.get('Item', {}).get('selected_model', 'claude-3-7-sonnet-20250219')
+        return response.get('Item', {}).get('selected_model', 'claude-3-5-sonnet-20241022')
     except Exception as e:
         print(f"Error getting user setting: {e}")
-        return 'claude-3-7-sonnet-20250219'
+        return 'claude-3-5-sonnet-20241022'
 
 def get_model_display_name(model_id):
     """
