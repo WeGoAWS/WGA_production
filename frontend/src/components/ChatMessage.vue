@@ -293,6 +293,7 @@
     }
 
     .message-content-wrapper {
+        font-size: 17px;
         flex: 1;
         max-width: calc(100% - 50px);
         overflow-wrap: break-word;
