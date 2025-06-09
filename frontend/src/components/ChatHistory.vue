@@ -45,30 +45,32 @@
                     </div>
                 </div>
             </div>
-            <button
-                @click="confirmDeleteAllSessions"
-                class="delete-all-button"
-                :disabled="disabled"
-            >
-                <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+            <div class="delete-all-button-container">
+                <button
+                    @click="confirmDeleteAllSessions"
+                    class="delete-all-button"
+                    :disabled="disabled"
                 >
-                    <polyline points="3,6 5,6 21,6"></polyline>
-                    <path
-                        d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"
-                    ></path>
-                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                </svg>
-                <span>대화 전체 삭제</span>
-            </button>
+                    <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <polyline points="3,6 5,6 21,6"></polyline>
+                        <path
+                            d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"
+                        ></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                    <span>대화 전체 삭제</span>
+                </button>
+            </div>
         </div>
 
         <div v-else class="empty-sessions">
@@ -309,6 +311,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-shrink: 0;
     }
 
     .sidebar-header h2 {
@@ -353,6 +356,7 @@
         padding: 32px 16px;
         gap: 12px;
         color: #666;
+        flex: 1;
     }
 
     .spinner {
@@ -375,11 +379,17 @@
 
     .chat-sessions {
         flex: 1;
-        overflow-y: auto;
-        padding: 12px;
-        padding-bottom: 72px;
         display: flex;
         flex-direction: column;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .chat-sessions > div:first-child {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+        padding-bottom: 12px;
     }
 
     .chat-session-item {
@@ -458,17 +468,26 @@
         opacity: 1;
     }
 
+    .delete-all-button-container {
+        flex-shrink: 0;
+        height: 80px;
+        background-color: white;
+        border-top: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 15px;
+        position: relative;
+    }
+
     .delete-all-button {
-        position: absolute;
-        bottom: 5px;
-        left: 20px;
-        width: 260px;
+        width: 100%;
+        max-width: 260px;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
-        height: 60px;
-        margin: 0;
+        height: 50px;
         background-color: #f8f9fa;
         border: 1px solid #dc3545;
         border-radius: 8px;
@@ -477,20 +496,17 @@
         font-weight: 500;
         font-size: 0.95rem;
         transition: all 0.2s ease;
-        z-index: 10;
-        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
     }
 
     .delete-all-button:hover:not(:disabled) {
         background-color: #dc3545;
         color: white;
-        box-shadow: 0 -4px 15px rgba(220, 53, 69, 0.3);
+        box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
     }
 
     .delete-all-button:disabled {
         opacity: 0.5;
         cursor: not-allowed;
-        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
     }
 
     .delete-all-button svg {
@@ -498,13 +514,12 @@
     }
 
     .empty-sessions {
+        flex: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        height: 100%;
         padding: 20px;
-        padding-bottom: 80px;
         color: #666;
         text-align: center;
     }
@@ -635,16 +650,13 @@
         }
 
         .delete-all-button {
-            height: 55px;
+            height: 45px;
             font-size: 0.9rem;
         }
 
-        .chat-sessions {
-            padding-bottom: 68px;
-        }
-
-        .empty-sessions {
-            padding-bottom: 75px;
+        .delete-all-button-container {
+            height: 75px;
+            padding: 12px;
         }
     }
 </style>

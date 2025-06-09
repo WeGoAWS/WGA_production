@@ -282,7 +282,7 @@
     }
 
     .bot-avatar {
-        background-color: #6c757d;
+        background-color: #dddddd;
         overflow: hidden;
     }
 

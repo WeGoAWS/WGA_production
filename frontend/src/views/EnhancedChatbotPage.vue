@@ -48,7 +48,7 @@
                         </svg>
                     </button>
 
-                    <h1 @click="handleGoMain">AWS Cloud Agent</h1>
+                    <h1 @click="handleGoMain">Cloud Native MCP AIOps</h1>
                     <p class="chat-description">운영 정보/메뉴얼 질의</p>
 
                     <button @click="handleLogout" class="logout-button" title="로그아웃">
@@ -956,8 +956,7 @@
     }
 
     .chat-header h1 {
-        width: 250px;
-        margin-bottom: 5px;
+        width: 350px;
         cursor: pointer;
         color: #232f3e;
         font-size: 1.8rem;

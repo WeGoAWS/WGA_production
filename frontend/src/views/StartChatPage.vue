@@ -28,26 +28,28 @@
                         </div>
                     </div>
 
-                    <button @click="confirmDeleteAllSessions" class="delete-all-button">
-                        <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
-                            <polyline points="3,6 5,6 21,6"></polyline>
-                            <path
-                                d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"
-                            ></path>
-                            <line x1="10" y1="11" x2="10" y2="17"></line>
-                            <line x1="14" y1="11" x2="14" y2="17"></line>
-                        </svg>
-                        <span>대화 전체 삭제</span>
-                    </button>
+                    <div class="delete-all-button-container">
+                        <button @click="confirmDeleteAllSessions" class="delete-all-button">
+                            <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path
+                                    d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"
+                                ></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                            <span>대화 전체 삭제</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div v-else class="nav-empty">
@@ -110,7 +112,7 @@
                         </svg>
                     </button>
 
-                    <h1 @click="getHealth">AWS Cloud Agent</h1>
+                    <h1 @click="getHealth">Cloud Native MCP AIOps</h1>
 
                     <button @click="handleLogout" class="logout-button" title="로그아웃">
                         <svg
@@ -129,7 +131,7 @@
                         </svg>
                     </button>
                 </div>
-                <p class="start-chat-description">클라우드 운영 정보 질의응답 서비스</p>
+                <p class="start-chat-description">클라우드 운영정보/메뉴얼 질의응답</p>
             </div>
 
             <div class="start-chat-input-container">
@@ -188,12 +190,12 @@
                         <button
                             @click="
                                 askExampleQuestion(
-                                    '이번 달 메모리 사용량이 가장 많은 Lambda 함수 Top 5를 알려주세요.',
+                                    '이번 달 메모리 사용량이 가장 많은 Lambda 함수 Top 3를 알려주세요.',
                                 )
                             "
                             class="example-question"
                         >
-                            이번 달 메모리 사용량이 가장 많은 Lambda 함수 Top 5를 알려주세요.
+                            이번 달 메모리 사용량이 가장 많은 Lambda 함수 Top 3를 알려주세요.
                         </button>
                     </div>
 
@@ -248,20 +250,22 @@
                         <button
                             @click="
                                 askExampleQuestion(
-                                    '지난 30일간 IAM 권한이 변경된 사용자 목록을 보여주세요.',
+                                    '지난 일주일 간 IAM 권한이 변경된 사용자 목록을 보여주세요.',
                                 )
                             "
                             class="example-question"
                         >
-                            지난 30일간 IAM 권한이 변경된 사용자 목록을 보여주세요.
+                            지난 일주일 간 IAM 권한이 변경된 사용자 목록을 보여주세요.
                         </button>
                         <button
                             @click="
-                                askExampleQuestion('최소 권한 원칙에 위배되는 IAM 정책이 있나요?')
+                                askExampleQuestion(
+                                    '현재 인프라에서 최소 권한 원칙에 위배되는 IAM 정책이 있나요?',
+                                )
                             "
                             class="example-question"
                         >
-                            최소 권한 원칙에 위배되는 IAM 정책이 있나요?
+                            현재 인프라에서 최소 권한 원칙에 위배되는 IAM 정책이 있나요?
                         </button>
                     </div>
                 </div>
@@ -461,6 +465,7 @@
         max-width: 900px;
         margin: 0 auto;
         padding: 2rem;
+        padding-top: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -804,8 +809,17 @@
         transition: opacity 0.3s ease;
     }
 
+    .delete-all-button-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 320px;
+        height: 100px;
+        background-color: white;
+    }
+
     .delete-all-button {
-        position: absolute;
+        position: fixed;
         bottom: 0;
         left: 20px;
         bottom: 20px;
